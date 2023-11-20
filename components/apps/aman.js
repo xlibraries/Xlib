@@ -86,7 +86,7 @@ export class AboutAman extends Component {
                     <span className=" ml-1 md:ml-2 text-gray-50 ">Resume</span>
                 </div>
                 <div className='my-0.5 w-28 md:w-full h-8 px-2 md:px-2.5 flex' >
-                    {/*<iframe src="https://github.com/sponsors/vivek9patel/button" title="Sponsor vivek9patel" width={"100%"} height={"100%"} ></iframe>*/}
+                    {/*<iframe src="https://github.com/sponsors/xlibraries/button" title="Sponsor xlibraries" width={"100%"} height={"100%"} ></iframe>*/}
                 </div>
             </>
         );
@@ -296,7 +296,7 @@ function Projects() {
                 </div>
             </div>
             {
-                //<iframe src="https://github.com/sponsors/vivek9patel/card" title="Sponsor vivek9patel" className='my-4 w-5/6 md:w-3/4' ></iframe>
+                //<iframe src="https://github.com/sponsors/xlibraries/card" title="Sponsor xlibraries" className='my-4 w-5/6 md:w-3/4' ></iframe>
             }
 
             {
