@@ -239,93 +239,31 @@ function Skills() {
 function Projects() {
     const project_list = [
         {
-            name: "UbuntuOS Portfolio",
-            date: "Apr 2021",
-            link: "https://xlibraries.github.io/Xlib/",
+            name: "Pact and Promise: The Arcane Door",
+            date: "Nov 2023",
+            link: "https://github.com/xlibraries/FairyTail-VN-Jam",
             description: [
-                "Personal portfolio website of theme Ubuntu 20.04, made using NEXT.js & tailwind CSS",
+                "A Visual Novel game made for FairyTail Visual novel game jam hostel on itch.io",
             ],
-            domains: ["javascript", "next.js", "tailwindcss"]
+            domains: ["C#", "Unity"]
         },
         {
-            name: "Chrome Extension React Bolierplate",
-            date: "Dec 2021",
-            link: "https://github.com/xlibraries/chrome-extension-react-boilerplate",
+            name: "SAPA", //Software as product augmentations
+            date: "Apr 2023",
+            link: "https://github.com/xlibraries/Technothon-AR_marker",
             description: [
-                "A boilerplate code to build a chrome extension with react and webpack",
+                "An augmented reality application developed for simulating environment for sales pitch, where 3D models stored in cloud storage.",
             ],
-            domains: ["javascript", "chrome-extension"]
+            domains: ["AR", "Azure", ".NET"]
         },
         {
-            name: "CodeConnect",
-            date: "Nov 2021",
-            link: "https://github.com/xlibraries/CodeConnect-frontend",
+            name: "The Lone Ember",
+            date: "Jul 2021",
+            link: "https://xlibraires.itch.io/the-lone-ember",
             description: [
-                "A multi-language pair-programming platform with the features of video meeting and whiteboard. Built with React.js, Tailwind CSS, Chakra UI, Express & Socket.io.",
+                "The Lone Ember is a game of lone chances: each key you press can only be used once. Can you guide your little ember back home?",
             ],
-            domains: ["javascript", "tailwindcss"]
-        },
-        {
-            name: "Ad Free Spotify",
-            date: "Jun 2021",
-            link: "https://github.com/xlibraries/ad-free-spotify",
-            description: [
-                "Chrome extension to automatically mute/unmute Spotify tab when Advertisement starts and ends!",
-            ],
-            domains: ["javascript", "chrome-extension"]
-        },
-        {
-            name: "economist.com Unlocked",
-            date: "Mar 2021",
-            link: "https://github.com/xlibraries/economist.com-unlocked",
-            description: [
-                "A chrome extension to read Paid Articles for Free & with no Ads, no subscription, no memberships!",
-            ],
-            domains: ["javascript", "chrome-extension"]
-        },
-        {
-            name: "Flutter banking app",
-            date: "Jan 2021",
-            link: "https://github.com/xlibraries/flutter-banking-app",
-            description: [
-                "A Flutter & Firebase project for creating transactions between different Users and displaying the history of transactions done by all.",
-            ],
-            domains: ["flutter", "firestore", "dart", "firebase auth"]
-        },
-        {
-            name: "CPU scheduling application",
-            date: "Dec 2020",
-            link: "https://github.com/xlibraries/CPU-Scheduling-APP-React-Native",
-            description: [
-                "React Native Application to visualize the CPU Scheduling algorithms with different Processes and Animations with gannt chart.",
-            ],
-            domains: ["react-native", "javascript"]
-        },
-        {
-            name: "Meditech Healthcare WebApp",
-            date: "Nov 2020",
-            link: "https://github.com/xlibraries/Meditech-Healthcare",
-            description: [
-                "Developed Web Application to predict and diagnose diseases from x-ray images.",
-            ],
-            domains: ["javascript", "html5", "sass", "firebase", "tensorflow"]
-        },
-        {
-            name: "Problem Recommendation System",
-            date: "Sep 2020",
-            link: "https://github.com/xlibraries/Improve-Codeforces",
-            description: [
-                "Django web application to suggest practice problems from the areas in which the user struggles to get pass in code-forces.",
-            ],
-            domains: ["django", "python", "codeforces-api", "javascript"]
-        },
-        {
-            name: "Cleanliness Automation",
-            date: "Dec 2019",
-            link: "https://github.com/xlibraries/CPU-Scheduling-APP-React-Native",
-            description: [
-                "Developed Web Applications to automate Garbage collection and extraction systems for SSIP hackathon",
-            ],
+            domains: ["Unity", "C#"]
         }
     ];
 

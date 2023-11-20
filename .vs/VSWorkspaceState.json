@@ -1,7 +1,11 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\components",
+    "\\pages",
+    "\\public",
+    "\\public\\files"
   ],
-  "SelectedNode": "\\yarn.lock",
+  "SelectedNode": "\\public\\files\\Aman-Agrawal-Resume.pdf",
   "PreviewInSolutionExplorer": false
 }
