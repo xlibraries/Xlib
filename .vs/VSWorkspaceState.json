@@ -1,11 +1,12 @@
 {
   "ExpandedNodes": [
     "",
+    "\\.github",
+    "\\.github\\workflows",
     "\\components",
     "\\pages",
     "\\public",
     "\\public\\files"
   ],
-  "SelectedNode": "\\public\\files\\Aman-Agrawal-Resume.pdf",
   "PreviewInSolutionExplorer": false
 }
