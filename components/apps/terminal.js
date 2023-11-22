@@ -56,7 +56,7 @@ export class Terminal extends Component {
             <React.Fragment key={id}>
                 <div className="flex w-full h-5">
                     <div className="flex">
-                        <div className=" text-ubt-green">aman@Dell</div>
+                        <div className=" text-ubt-green">aman</div>
                         <div className="text-white mx-px font-medium">:</div>
                         <div className=" text-ubt-blue">{this.current_directory}</div>
                         <div className="text-white mx-px font-medium mr-1">$</div>
