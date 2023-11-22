@@ -2,7 +2,7 @@
   "name": "amanagrawal-portfolio",
   "version": "2.0.0",
   "private": true,
-  "homepage": "https://xlib.github.io/",
+  "homepage": "https://xlibraries.github.io/Xlib/",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
