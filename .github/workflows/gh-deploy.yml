@@ -24,12 +24,12 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "yarn"
+          cache: "npm"
       - name: Installing Packages 🥁
-        run: yarn install
+        run: npm install
 
       - name: Building 🧱
-        run: yarn build
+        run: npm run build
         # env:
         #   NEXT_PUBLIC_TRACKING_ID: G-8FBXBFXC10
         #   NEXT_PUBLIC_SERVICE_ID: service_qt4ryip
@@ -37,7 +37,7 @@ jobs:
         #   NEXT_PUBLIC_USER_ID: user_Do31sKneP4eYfn5n1nLTD
 
       - name: Exporting Bundle Files 🎪
-        run: yarn export
+        run: npm run export
       - run: touch ./out/.nojekyll
 
       - name: Deploy to Github-Pages 🚀
