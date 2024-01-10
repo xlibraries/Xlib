@@ -12,8 +12,8 @@
 /.next/
 
 # production
-/build
-/out/     # Include the /out/ folder for GitHub Pages deployment
+# /build
+# /out/     # Include the /out/ folder for GitHub Pages deployment
 
 # misc
 .DS_Store

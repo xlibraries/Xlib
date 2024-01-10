@@ -53,10 +53,10 @@ name: Node.js CI
 on:
   push:
     branches:
-      - master
+      - gh-pages
   pull_request:
     branches:
-      - master
+      - gh-pages
 
 jobs:
   build:
@@ -74,10 +74,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "yarn"
       - name: Installing Packages 🥁
-        run: yarn install
+        run: npm install
 
       - name: Building 🧱
-        run: yarn build
+        run: npm run build
         # env:
         #   NEXT_PUBLIC_TRACKING_ID: G-8FBXBFXC10
         #   NEXT_PUBLIC_SERVICE_ID: service_qt4ryip
