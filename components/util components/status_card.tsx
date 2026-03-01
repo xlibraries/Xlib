@@ -1,7 +1,6 @@
 // @ts-nocheck
 import React, { Component } from 'react';
 import SmallArrow from './small_arrow';
-import onClickOutside from 'react-onclickoutside';
 
 class Slider extends Component {
 	render() {
@@ -29,10 +28,10 @@ export class StatusCard extends Component {
 			brightness_level: 100 // setting default value to 100 so that by default its always full.
 		};
 	}
-	handleClickOutside = () => {
-		this.props.toggleVisible();
-	};
+
 	componentDidMount() {
+		document.addEventListener('mousedown', this.handleOutsideClick);
+		document.addEventListener('touchstart', this.handleOutsideClick);
 		this.setState({
 			sound_level: localStorage.getItem('sound-level') || 75,
 			brightness_level: localStorage.getItem('brightness-level') || 100
@@ -41,6 +40,18 @@ export class StatusCard extends Component {
 				0.25})`;
 		})
 	}
+
+	componentWillUnmount() {
+		document.removeEventListener('mousedown', this.handleOutsideClick);
+		document.removeEventListener('touchstart', this.handleOutsideClick);
+	}
+
+	handleOutsideClick = (event) => {
+		if (!this.props.visible) return;
+		if (!this.wrapperRef.current) return;
+		if (this.wrapperRef.current.contains(event.target)) return;
+		this.props.toggleVisible();
+	};
 
 	handleBrightness = (e) => {
 		this.setState({ brightness_level: e.target.value });
@@ -160,4 +171,4 @@ export class StatusCard extends Component {
 	}
 }
 
-export default onClickOutside(StatusCard);
+export default StatusCard;
