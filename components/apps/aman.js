@@ -166,13 +166,15 @@ export class AboutAman extends Component {
           />
           <span className=" ml-1 md:ml-2 text-gray-50 ">Resume</span>
         </div>
-        <div className="my-0.5 w-28 md:w-full h-8 px-2 md:px-2.5 flex">
-          <iframe
-            src="https://github.com/sponsors/xlibraries/button"
-            title="Sponsor xlibraries"
-            width={"100%"}
-            height={"100%"}
-          ></iframe>
+        <div className="my-1 w-28 md:w-full px-2 md:px-2.5">
+          <a
+            href="https://github.com/sponsors/xlibraries"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="block text-center text-xs rounded border border-white border-opacity-20 py-1 hover:bg-white hover:bg-opacity-10"
+          >
+            Sponsor
+          </a>
         </div>
       </>
     );
@@ -247,13 +249,13 @@ function About() {
           I'm a<span className=" font-medium">FullStack Developer </span>
           at &nbsp;
           <u className=" cursor-pointer ">
-            <a href="https://www.persistent.com/" target={"_blank"}>
+            <a href="https://www.persistent.com/" target="_blank" rel="noreferrer noopener">
               Persistent Systems
             </a>
           </u>
-          , and open for oppurtunities Software Development Roles! ( Hit me up{" "}
+          , and open for opportunities in software development roles. (Hit me up{" "}
           <a className="text-underline" href="mailto:aman989308964@gmail.com">
-            <u>aman9893089064@gmail.com</u>
+            <u>aman989308964@gmail.com</u>
           </a>{" "}
           :) )
         </li>
@@ -263,13 +265,12 @@ function About() {
         </li>
         <li className=" mt-3 list-time">
           {" "}
-          When I am not coding my next project, I like go out for treks & play
+          When I am not coding my next project, I like to go out for treks and play
           City Skylines.
         </li>
         <li className=" mt-3 list-star">
           {" "}
-          And I also have interest in building Games, Extended Reality
-          Applications & Robotics!.
+          I also have an interest in building games, extended reality applications, and robotics.
         </li>
       </ul>
     </>
@@ -292,7 +293,7 @@ function Experience() {
           </div>
           <div className="text-sm md:text-base">FullStack Developer</div>
           <div className="text-sm text-gray-400 mt-0.5">
-            2021 - current, Pune, India
+            2021 - Present, Pune, India
           </div>
           <div className="text-sm md:text-base font-bold mt-1">CCH-CPELink</div>
           <ul className="list-disc pl-5">
@@ -536,13 +537,13 @@ function Skills() {
 function Projects() {
   const project_list = [
     {
-      name: "Smart OnBoaders",
+      name: "Smart Onboarders",
       date: "Feb 2024 - Feb 2024",
       link: "https://github.com/xlibraries/SmartOnboaders",
       description: [
         "End-to-End Onboarding Platform made for SemiColons(Annual Hackathon of Persistent Systems) for new hires, with Gen-AI powered document processing and HRMS integration.",
       ],
-      domains: ["React", "MySQl", "OCR", "BedRock"],
+      domains: ["React", "MySQL", "OCR", "Bedrock"],
     },
     {
       name: "Turbo Trails",
@@ -575,7 +576,7 @@ function Projects() {
     {
       name: "The Lone Ember",
       date: "Jul 2021 - Jul 2021",
-      link: "https://xlibraires.itch.io/the-lone-ember",
+      link: "https://xlibraries.itch.io/the-lone-ember",
       description: [
         "The Lone Ember is a game of lone chances: each key you press can only be used once. Can you guide your little ember back home?",
       ],
@@ -583,23 +584,18 @@ function Projects() {
     },
   ];
 
-  const tag_colors = {
-    javascript: "yellow-300",
-    firebase: "red-600",
-    firestore: "red-500",
-    "firebase auth": "red-400",
-    "chrome-extension": "yellow-400",
-    flutter: "blue-400",
-    dart: "blue-500",
-    "react-native": "purple-500",
-    html5: "pink-600",
-    sass: "pink-400",
-    tensorflow: "yellow-600",
-    django: "green-600",
-    python: "green-200",
-    "codeforces-api": "gray-300",
-    tailwindcss: "blue-300",
-    "next.js": "purple-600",
+  const tag_styles = {
+    "react": "border-sky-400 text-sky-300",
+    "mysql": "border-blue-500 text-blue-300",
+    "ocr": "border-purple-400 text-purple-300",
+    "bedrock": "border-orange-400 text-orange-300",
+    "c#": "border-violet-400 text-violet-300",
+    "unity": "border-gray-300 text-gray-100",
+    "playfab": "border-cyan-400 text-cyan-300",
+    "google play services": "border-lime-400 text-lime-300",
+    "ar": "border-pink-400 text-pink-300",
+    "azure": "border-blue-400 text-blue-200",
+    ".net": "border-indigo-400 text-indigo-300",
   };
 
   return (
@@ -611,9 +607,14 @@ function Projects() {
           <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
         </div>
       </div>
-      {
-        <iframe src="https://github.com/sponsors/xlibraries/card" title="Sponsor xlibraries" className='my-4 w-5/6 md:w-3/4' ></iframe>
-      }
+      <a
+        href="https://github.com/sponsors/xlibraries"
+        target="_blank"
+        rel="noreferrer noopener"
+        className="my-4 w-5/6 md:w-3/4 border border-white border-opacity-20 rounded py-2 text-center text-sm hover:bg-white hover:bg-opacity-10"
+      >
+        Support my work on GitHub Sponsors
+      </a>
 
       {project_list.map((project, index) => {
         const projectNameFromLink = project.link.split("/");
@@ -623,7 +624,7 @@ function Projects() {
             key={index}
             href={project.link}
             target="_blank"
-            rel="noreferrer"
+            rel="noreferrer noopener"
             className="flex w-full flex-col px-4"
           >
             <div className="w-full py-1 px-2 my-2 border border-gray-50 border-opacity-10 rounded hover:bg-gray-50 hover:bg-opacity-5 cursor-pointer">
@@ -638,6 +639,7 @@ function Projects() {
                     scrolling="0"
                     width="150"
                     height="20"
+                    loading="lazy"
                     title={project.name.toLowerCase() + "-star"}
                   ></iframe>
                 </div>
@@ -657,13 +659,12 @@ function Projects() {
               <div className="flex flex-wrap items-start justify-start text-xs py-2">
                 {project.domains
                   ? project.domains.map((domain, index) => {
-                      const borderColorClass = `border-${tag_colors[domain]}`;
-                      const textColorClass = `text-${tag_colors[domain]}`;
+                      const styleClass = tag_styles[domain.toLowerCase()] || "border-gray-400 text-gray-200";
 
                       return (
                         <span
                           key={index}
-                          className={`px-1.5 py-0.5 w-max border ${borderColorClass} ${textColorClass} m-1 rounded-full`}
+                          className={`px-1.5 py-0.5 w-max border ${styleClass} m-1 rounded-full`}
                         >
                           {domain}
                         </span>
@@ -685,6 +686,7 @@ function Resume() {
       src="./files/Aman-Agrawal-Resume.pdf"
       title="Aman Agrawal resume"
       frameBorder="0"
+      loading="lazy"
     ></iframe>
   );
 }
