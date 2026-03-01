@@ -280,79 +280,78 @@ function About() {
 function Experience() {
   return (
     <>
-      <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
+      <div className=" font-medium relative text-2xl mt-4 mb-4">
         Experience
-        <div className="absolute pt-px bg-white mt-px top-full w-full">
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
-        </div>
       </div>
-      <ul className="w-10/12 mt-4 ml-4 px-0 md:px-1">
-        <li className="list-disc">
-          <div className="text-lg md:text-xl text-left font-bold leading-tight">
-            Persistent Systems
+
+      <ul className="w-10/12 mt-4 ml-4">
+
+        {/* FLAM — CURRENT ROLE */}
+
+        <li className="list-disc mb-6">
+          <div className="text-lg md:text-xl font-bold">
+            Flam
           </div>
-          <div className="text-sm md:text-base">FullStack Developer</div>
-          <div className="text-sm text-gray-400 mt-0.5">
-            2021 - Present, Pune, India
+          <div className="text-sm md:text-base">
+            R&D Engineer — AR Infrastructure
           </div>
-          <div className="text-sm md:text-base font-bold mt-1">CCH-CPELink</div>
-          <ul className="list-disc pl-5">
+          <div className="text-sm text-gray-400">
+            2023 - Present
+          </div>
+
+          <ul className="list-disc pl-5 mt-2">
             <li>
-              Migrating the platform from legacy code (PHP5, Angular Js) to
-              updated code (PHP8, Symfony, Angular13). This involves leveraging
-              the new features and optimizations in PHP8 such as named
-              arguments, union types, attributes, constructor property
-              promotion, match expression, nullsafe operator, and JIT. The
-              frontend is refactored with Angular13, taking advantage of its
-              advancements in Typescript, NodeJs, and Angular CLI versions.
-              Symfony is integrated for better web application development,
-              utilizing its set of reusable PHP components.
+              Architecting WebAR systems handling real-time image tracking,
+              marker detection, and pose estimation optimized for mobile browsers.
             </li>
             <li>
-              Assisting the team in migration from AWS infrastructure to Azure.
-              This includes planning the migration strategy, setting up the
-              Azure environment, and transferring data securely and efficiently.
-              A significant contribution was the migration from MySQL Single
-              server to flexible server, which allowed for the configuration of
-              I/Os and other parameters, resulting in reducing the cost per
-              server by 20%.
+              Built performance-critical computer vision pipelines in JS & C++,
+              focusing on memory efficiency, SIMD strategies, and frame-level optimization.
             </li>
             <li>
-              Improved angular routing and error log handling throughout the
-              application which reduced 150k bugs reported every week. This
-              involved optimizing the routing logic and implementing a robust
-              error handling mechanism to reduce the load on db servers. Also,
-              fixed code structure and introduced practice to improve the code
-              quality resulting in Sonarlint and Checkmarks rating from E to B
-              in a single quarter.
+              Designed SDK-level abstractions enabling brands to deploy AR
+              campaigns with minimal integration complexity.
             </li>
             <li>
-              Improved the efficiency of the reports in the application. This
-              involved analyzing the existing reports, identifying areas for
-              improvement, and implementing optimizations to enhance report
-              generation speed and accuracy. Techniques such as establishing a
-              consistent reporting schedule, working on data visualization,
-              automating data collection, starting with some goal metrics, and
-              centralizing data were used to improve the reporting process.
+              Worked on production-scale AR experiences requiring device
+              compatibility, stability, and scalable architecture decisions.
             </li>
             <li>
-              Wrote a custom bash script for cleaning up old unused Bitbucket
-              branches. This script automates the process of identifying and
-              deleting branches that are no longer in use, keeping the
-              repository clean and manageable. As an active code reviewer, I
-              examine the code changes made by peers, provide constructive
-              feedback, and ensure the code adheres to the project's coding
-              standards and guidelines.
-            </li>
-            <li>
-              Solved all the Checkmarks High and improved the security. This
-              involved addressing all high-priority issues identified by
-              Checkmarx, implementing necessary fixes, and enhancing the overall
-              security of the application.
+              Contributed to core technical direction — balancing browser limits,
+              compute constraints, and visual fidelity.
             </li>
           </ul>
         </li>
+
+        {/* PERSISTENT — PREVIOUS ROLE */}
+
+        <li className="list-disc">
+          <div className="text-lg md:text-xl font-bold">
+            Persistent Systems
+          </div>
+          <div className="text-sm md:text-base">
+            FullStack Developer
+          </div>
+          <div className="text-sm text-gray-400">
+            2021 - 2023, Pune
+          </div>
+
+          <ul className="list-disc pl-5 mt-2">
+            <li>
+              Led migration from legacy PHP5 & AngularJS stack to PHP8, Symfony & Angular13.
+            </li>
+            <li>
+              Contributed to AWS → Azure infra migration reducing server cost by ~20%.
+            </li>
+            <li>
+              Improved routing and error handling reducing weekly bug reports significantly.
+            </li>
+            <li>
+              Resolved high-priority security issues (Checkmarx) and improved code quality ratings.
+            </li>
+          </ul>
+        </li>
+
       </ul>
     </>
   );
@@ -400,135 +399,68 @@ function Skills() {
           <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
         </div>
       </div>
+
       <ul className=" tracking-tight text-sm md:text-base w-10/12 emoji-list">
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
-          I've worked with a wide variety of programming languages & frameworks.
+        <li className="list-arrow mt-4">
+          I build <strong className="text-ubt-gedit-orange">performance-critical systems</strong> 
+          across Web, AR, and real-time environments.
         </li>
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
-          <div>
-            {" "}
-            My areas of expertise are{" "}
-            <strong className="text-ubt-gedit-orange">
-              Backend development, .NET & Unity!
-            </strong>
-          </div>
+        <li className="list-arrow mt-4">
+          My expertise lies in{" "}
+          <strong className="text-ubt-gedit-orange">
+            Computer Vision, WebAR Infrastructure, and Full-Stack Architecture
+          </strong>
         </li>
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
-          <div>Here are my most frequently used</div>
+        <li className="list-arrow mt-4">
+          Strong focus on scalability, memory efficiency, and production reliability.
         </li>
       </ul>
-      <div className="w-full md:w-10/12 flex mt-4">
+
+      <div className="w-full md:w-10/12 flex mt-6">
         <div className=" text-sm text-center md:text-base w-1/2 font-bold">
-          Languages & Tools
+          Languages & Core Tools
         </div>
         <div className=" text-sm text-center md:text-base w-1/2 font-bold">
-          Frameworks & Libraries
+          Frameworks, Infra & Systems
         </div>
       </div>
+
       <div className="w-full md:w-10/12 flex justify-center items-start font-bold text-center">
         <div className="px-2 w-1/2">
           <div className="flex flex-wrap justify-center items-start w-full mt-2">
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/c%23-%23239120.svg?style=for-the-badge&logo=c-sharp&logoColor=white"
-              alt="aman c-sharp"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/unity-%23000000.svg?style=for-the-badge&logo=unity&logoColor=white"
-              alt="aman unity"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/php-%23777BB4.svg?style=for-the-badge&logo=php&logoColor=white"
-              alt="aman PHP"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E"
-              alt="aman javascript"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white"
-              alt="aman c++"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/css3-%231572B6.svg?style=for-the-badge&logo=css3&logoColor=white"
-              alt="aman css"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/azure-%230072C6.svg?style=for-the-badge&logo=microsoftazure&logoColor=white"
-              alt="aman azure"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/mysql-%2300f.svg?style=for-the-badge&logo=mysql&logoColor=white"
-              alt="aman mysql"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white"
-              alt="aman typescript"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white"
-              alt="aman HTML"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white"
-              alt="aman git"
-            />
+
+            {/* Core Languages */}
+            <img className="m-1" src="https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white" alt="c++" />
+            <img className="m-1" src="https://img.shields.io/badge/JavaScript-323330?style=for-the-badge&logo=javascript&logoColor=F7DF1E" alt="javascript" />
+            <img className="m-1" src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript" />
+            <img className="m-1" src="https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="php" />
+            <img className="m-1" src="https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=c-sharp&logoColor=white" alt="c#" />
+            <img className="m-1" src="https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white" alt="mysql" />
+            <img className="m-1" src="https://img.shields.io/badge/Git-F05033?style=for-the-badge&logo=git&logoColor=white" alt="git" />
+
           </div>
         </div>
+
         <div className="px-2 flex flex-wrap items-start w-1/2">
           <div className="flex flex-wrap justify-center items-start w-full mt-2">
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/.NET-5C2D91?style=for-the-badge&logo=.net&logoColor=white"
-              alt="aman .NET"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/bootstrap-%238511FA.svg?style=for-the-badge&logo=bootstrap&logoColor=white"
-              alt="aman bootstrap"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/angular-%23DD0031.svg?style=for-the-badge&logo=angular&logoColor=white"
-              alt="aman angular"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/symfony-%23000000.svg?style=for-the-badge&logo=symfony&logoColor=white"
-              alt="aman symfony"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/NPM-%23CB3837.svg?style=for-the-badge&logo=npm&logoColor=white"
-              alt="aman npm"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white"
-              alt="aman node"
-            />
+
+            {/* Infra & Systems */}
+            <img className="m-1" src="https://img.shields.io/badge/WebAR-000000?style=for-the-badge" alt="webar" />
+            <img className="m-1" src="https://img.shields.io/badge/Computer%20Vision-8A2BE2?style=for-the-badge" alt="computer vision" />
+            <img className="m-1" src="https://img.shields.io/badge/Unity-000000?style=for-the-badge&logo=unity&logoColor=white" alt="unity" />
+            <img className="m-1" src="https://img.shields.io/badge/.NET-5C2D91?style=for-the-badge&logo=.net&logoColor=white" alt=".net" />
+            <img className="m-1" src="https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="angular" />
+            <img className="m-1" src="https://img.shields.io/badge/Symfony-000000?style=for-the-badge&logo=symfony&logoColor=white" alt="symfony" />
+            <img className="m-1" src="https://img.shields.io/badge/Azure-0072C6?style=for-the-badge&logo=microsoftazure&logoColor=white" alt="azure" />
+            <img className="m-1" src="https://img.shields.io/badge/Performance%20Engineering-FF6F00?style=for-the-badge" alt="performance engineering" />
+
           </div>
         </div>
       </div>
+
       <ul className=" tracking-tight text-sm md:text-base w-10/12 emoji-list mt-4">
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
-          <span> And of course,</span>{" "}
-          <img
-            className=" inline ml-1"
-            src="http://img.shields.io/badge/-Linux-0078D6?style=plastic&logo=linux&logoColor=ffffff"
-            alt="aman linux"
-          />{" "}
-          <span>!</span>
+        <li className="list-arrow mt-4">
+          Comfortable operating at the intersection of product thinking, deep tech, and system design.
         </li>
       </ul>
     </>
