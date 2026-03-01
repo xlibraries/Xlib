@@ -65,9 +65,9 @@ export class AboutAman extends Component {
           onFocus={this.changeScreen}
           className={
             (this.state.active_screen === "about"
-              ? " bg-ub-orange bg-opacity-100 hover:bg-opacity-95"
-              : " hover:bg-gray-50 hover:bg-opacity-5 ") +
-            " w-28 md:w-full md:rounded-none rounded-sm cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center pl-2 md:pl-2.5"
+              ? " text-ubt-blue bg-ub-orange bg-opacity-100 border-b-2 border-orange-500 "
+              : " hover:bg-ub-warm-grey hover:bg-opacity-5 ") +
+            " w-28 md:w-full md:pl-3 cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center"
           }
         >
           <img
@@ -83,9 +83,9 @@ export class AboutAman extends Component {
           onFocus={this.changeScreen}
           className={
             (this.state.active_screen === "experience"
-              ? " bg-ub-orange bg-opacity-100 hover:bg-opacity-95"
-              : " hover:bg-gray-50 hover:bg-opacity-5 ") +
-            " w-28 md:w-full md:rounded-none rounded-sm cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center pl-2 md:pl-2.5"
+              ? " text-ubt-blue bg-ub-orange bg-opacity-100 border-b-2 border-orange-500 "
+              : " hover:bg-ub-warm-grey hover:bg-opacity-5 ") +
+            " w-28 md:w-full md:pl-3 cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center"
           }
         >
           <img
@@ -101,9 +101,9 @@ export class AboutAman extends Component {
           onFocus={this.changeScreen}
           className={
             (this.state.active_screen === "education"
-              ? " bg-ub-orange bg-opacity-100 hover:bg-opacity-95"
-              : " hover:bg-gray-50 hover:bg-opacity-5 ") +
-            " w-28 md:w-full md:rounded-none rounded-sm cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center pl-2 md:pl-2.5"
+              ? " text-ubt-blue bg-ub-orange bg-opacity-100 border-b-2 border-orange-500 "
+              : " hover:bg-ub-warm-grey hover:bg-opacity-5 ") +
+            " w-28 md:w-full md:pl-3 cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center"
           }
         >
           <img
@@ -119,9 +119,9 @@ export class AboutAman extends Component {
           onFocus={this.changeScreen}
           className={
             (this.state.active_screen === "skills"
-              ? " bg-ub-orange bg-opacity-100 hover:bg-opacity-95"
-              : " hover:bg-gray-50 hover:bg-opacity-5 ") +
-            " w-28 md:w-full md:rounded-none rounded-sm cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center pl-2 md:pl-2.5"
+              ? " text-ubt-blue bg-ub-orange bg-opacity-100 border-b-2 border-orange-500 "
+              : " hover:bg-ub-warm-grey hover:bg-opacity-5 ") +
+            " w-28 md:w-full md:pl-3 cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center"
           }
         >
           <img
@@ -137,9 +137,9 @@ export class AboutAman extends Component {
           onFocus={this.changeScreen}
           className={
             (this.state.active_screen === "projects"
-              ? " bg-ub-orange bg-opacity-100 hover:bg-opacity-95"
-              : " hover:bg-gray-50 hover:bg-opacity-5 ") +
-            " w-28 md:w-full md:rounded-none rounded-sm cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center pl-2 md:pl-2.5"
+              ? " text-ubt-blue bg-ub-orange bg-opacity-100 border-b-2 border-orange-500 "
+              : " hover:bg-ub-warm-grey hover:bg-opacity-5 ") +
+            " w-28 md:w-full md:pl-3 cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center"
           }
         >
           <img
@@ -155,9 +155,9 @@ export class AboutAman extends Component {
           onFocus={this.changeScreen}
           className={
             (this.state.active_screen === "resume"
-              ? " bg-ub-orange bg-opacity-100 hover:bg-opacity-95"
-              : " hover:bg-gray-50 hover:bg-opacity-5 ") +
-            " w-28 md:w-full md:rounded-none rounded-sm cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center pl-2 md:pl-2.5"
+              ? " text-ubt-blue bg-ub-orange bg-opacity-100 border-b-2 border-orange-500 "
+              : " hover:bg-ub-warm-grey hover:bg-opacity-5 ") +
+            " w-28 md:w-full md:pl-3 cursor-default outline-none py-1.5 focus:outline-none duration-100 my-0.5 flex justify-start items-center"
           }
         >
           <img
@@ -167,12 +167,18 @@ export class AboutAman extends Component {
           />
           <span className=" ml-1 md:ml-2 text-gray-50 ">Resume</span>
         </div>
-        <div className="my-1 w-28 md:w-full px-2 md:px-2.5">
+        <div className="my-0.5 w-28 md:w-full md:pl-3 py-1.5 flex justify-start items-center hover:bg-ub-warm-grey hover:bg-opacity-5 cursor-pointer">
+          <img
+            className="w-3 md:w-4"
+            alt="aman's resume"
+            src="./themes/Yaru/status/sponsor.svg"
+          />
           <a
+            rel="noreferrer"
+            noopener="true"
             href="https://github.com/sponsors/xlibraries"
             target="_blank"
-            rel="noreferrer noopener"
-            className="block text-center text-xs rounded border border-white border-opacity-20 py-1 hover:bg-white hover:bg-opacity-10"
+            className=" ml-1 md:ml-2 text-gray-50 "
           >
             Sponsor
           </a>
@@ -184,31 +190,18 @@ export class AboutAman extends Component {
   render() {
     return (
       <div className="w-full h-full flex bg-ub-cool-grey text-white select-none relative">
-        <div className="md:flex hidden flex-col w-1/4 md:w-1/5 text-sm overflow-y-auto windowMainScreen border-r border-black">
+        <div className="md:flex hidden flex-col w-1/4 md:w-1/5 text-sm overflow-y-auto window-sidebar">
           {this.renderNavLinks()}
         </div>
-        <div
-          onClick={this.showNavBar}
-          className="md:hidden flex flex-col items-center justify-center absolute bg-ub-cool-grey rounded w-6 h-6 top-1 left-1"
-        >
+        <div onClick={this.showNavBar} className="md:hidden flex flex-col items-center justify-center absolute bg-ub-warm-grey rounded-full h-6 w-6 z-50 top-1 left-1">
           <div className=" w-3.5 border-t border-white"></div>
-          <div
-            className=" w-3.5 border-t border-white"
-            style={{ marginTop: "2pt", marginBottom: "2pt" }}
-          ></div>
-          <div className=" w-3.5 border-t border-white"></div>
-          <div
-            className={
-              (this.state.navbar
-                ? " visible animateShow z-30 "
-                : " invisible ") +
-              " md:hidden text-xs absolute bg-ub-cool-grey py-0.5 px-1 rounded-sm top-full mt-1 left-0 shadow border-black border border-opacity-20"
-            }
-          >
-            {this.renderNavLinks()}
-          </div>
+          <div className=" w-3.5 border-t border-white mt-1"></div>
+          <div className=" w-3.5 border-t border-white mt-1"></div>
         </div>
-        <div className="flex flex-col w-3/4 md:w-4/5 justify-start items-center flex-grow bg-ub-grey overflow-y-auto windowMainScreen">
+        <div className={(this.state.navbar ? "  visible animate-sidebar-fade-in " : " invisible ") + " md:hidden flex flex-col w-2/3 bg-ub-cool-grey absolute z-40 text-sm overflow-y-auto window-sidebar"}>
+          {this.renderNavLinks()}
+        </div>
+        <div className="flex-grow h-full overflow-y-auto bg-ub-grey">
           {this.state.screen}
         </div>
       </div>
@@ -238,38 +231,34 @@ function About() {
         </div>
         <div className="font-normal ml-1">
           I'm a{" "}
-          <span className="text-pink-600 font-bold">FullStack Developer!</span>
+          <span className="text-ubt-blue font-bold">Senior Research Engineer!</span>
         </div>
       </div>
       <div className=" mt-4 relative md:my-8 pt-px bg-white w-32 md:w-48">
         <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-0"></div>
         <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-0"></div>
       </div>
-      <ul className=" mt-4 leading-tight tracking-tight text-sm md:text-base w-5/6 md:w-3/4 emoji-list">
-        <li className=" list-pc">
-          I'm a<span className=" font-medium">FullStack Developer </span>
-          at &nbsp;
-          <u className=" cursor-pointer ">
-            <a href="https://www.persistent.com/" target="_blank" rel="noreferrer noopener">
-              Persistent Systems
-            </a>
-          </u>
-          , and open for opportunities in software development roles. (Hit me up{" "}
-          <a className="text-underline" href="mailto:aman989308964@gmail.com">
-            <u>aman989308964@gmail.com</u>
+      <ul className=" mt-4 leading-tight tracking-tight text-sm md:text-base w-5/6 md:w-3/4">
+        <li className=" list-inside list-disc">
+          I'm a <span className=" font-medium">Senior Research Engineer</span> at{" "}
+          <a rel="noreferrer" target="_blank" href="https://flamapp.com/">
+            Flam
+          </a>
+          , specializing in Visual Computing and AI. (Hit me up{" "}
+          <a className=" underline" href="mailto:aman989308964@gmail.com">
+            aman989308964@gmail.com
           </a>{" "}
           :) )
         </li>
-        <li className=" mt-3 list-building">
+        <li className=" list-inside list-disc mt-5">
           {" "}
-          I enjoy building & shipping awesome projects.
+          I focus on designing and implementing real-time visual perception platforms, specializing in visual SLAM, 3D reconstruction, and GPU-accelerated pipelines.
         </li>
-        <li className=" mt-3 list-time">
+        <li className=" list-inside list-disc mt-5">
           {" "}
-          When I am not coding my next project, I like to go out for treks and play
-          City Skylines.
+          When I am not coding my next project, I like to go out for treks and play City Skylines.
         </li>
-        <li className=" mt-3 list-star">
+        <li className=" list-inside list-disc mt-5">
           {" "}
           I also have an interest in building games, extended reality applications, and robotics.
         </li>
@@ -277,258 +266,135 @@ function About() {
     </>
   );
 }
+
 function Experience() {
   return (
     <>
       <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
         Experience
-        <div className="absolute pt-px bg-white mt-px top-full w-full">
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
-        </div>
+        <div className="absolute pt-px bg-white w-full top-full"></div>
       </div>
-      <ul className="w-10/12 mt-4 ml-4 px-0 md:px-1">
-        <li className="list-disc">
-          <div className="text-lg md:text-xl text-left font-bold leading-tight">
-            Persistent Systems
+      <ul className=" w-10/12  mt-4 ml-4 px-2  border-l-2 border-white">
+        <li className="relative flex flex-col gap-y-1.5 mb-10">
+          <div className="absolute h-3 w-3 -left-3.5 bg-white rounded-full top-1"></div>
+          <div className="text-lg font-semibold text-gray-100">Flam</div>
+          <div className="text-sm font-medium text-gray-300">Senior Research Engineer / Systems Developer / AI Engineer</div>
+          <div className="text-xs text-gray-400">Jan 2026 - Present, Bengaluru, India</div>
+          <div className="text-sm text-gray-200 mt-2">
+            <ul className="list-disc list-inside space-y-1">
+              <li>Leading the design and implementation of a modular real-time Visual SLAM and tracking engine in modern C++23.</li>
+              <li>Engineered GPU-accelerated image processing pipelines for real-time tracking on mobile, browser, and desktop.</li>
+              <li>Developed cross-platform visual SDKs (WASM, Android, iOS, macOS, Linux) under 100 KB per platform.</li>
+            </ul>
           </div>
-          <div className="text-sm md:text-base">FullStack Developer</div>
-          <div className="text-sm text-gray-400 mt-0.5">
-            2021 - Present, Pune, India
+        </li>
+        <li className="relative flex flex-col gap-y-1.5 mb-10">
+          <div className="absolute h-3 w-3 -left-3.5 bg-white rounded-full top-1"></div>
+          <div className="text-lg font-semibold text-gray-100">Flam</div>
+          <div className="text-sm font-medium text-gray-300">Research Engineer / Systems Developer / AI Engineer</div>
+          <div className="text-xs text-gray-400">Jul 2024 - Jan 2026, Bengaluru, India</div>
+          <div className="text-sm text-gray-200 mt-2">
+            <ul className="list-disc list-inside space-y-1">
+              <li>Built end-to-end multi-view 3D reconstruction pipelines integrating feature matching and PnP pose estimation.</li>
+              <li>Prototyped Gaussian splatting pipelines for neural scene representations with real-time rendering optimizations.</li>
+              <li>Implemented platform bindings (JNI, iOS, WebAssembly) for consistent tracking logic across all devices.</li>
+            </ul>
           </div>
-          <div className="text-sm md:text-base font-bold mt-1">CCH-CPELink</div>
-          <ul className="list-disc pl-5">
-            <li>
-              Migrating the platform from legacy code (PHP5, Angular Js) to
-              updated code (PHP8, Symfony, Angular13). This involves leveraging
-              the new features and optimizations in PHP8 such as named
-              arguments, union types, attributes, constructor property
-              promotion, match expression, nullsafe operator, and JIT. The
-              frontend is refactored with Angular13, taking advantage of its
-              advancements in Typescript, NodeJs, and Angular CLI versions.
-              Symfony is integrated for better web application development,
-              utilizing its set of reusable PHP components.
-            </li>
-            <li>
-              Assisting the team in migration from AWS infrastructure to Azure.
-              This includes planning the migration strategy, setting up the
-              Azure environment, and transferring data securely and efficiently.
-              A significant contribution was the migration from MySQL Single
-              server to flexible server, which allowed for the configuration of
-              I/Os and other parameters, resulting in reducing the cost per
-              server by 20%.
-            </li>
-            <li>
-              Improved angular routing and error log handling throughout the
-              application which reduced 150k bugs reported every week. This
-              involved optimizing the routing logic and implementing a robust
-              error handling mechanism to reduce the load on db servers. Also,
-              fixed code structure and introduced practice to improve the code
-              quality resulting in Sonarlint and Checkmarks rating from E to B
-              in a single quarter.
-            </li>
-            <li>
-              Improved the efficiency of the reports in the application. This
-              involved analyzing the existing reports, identifying areas for
-              improvement, and implementing optimizations to enhance report
-              generation speed and accuracy. Techniques such as establishing a
-              consistent reporting schedule, working on data visualization,
-              automating data collection, starting with some goal metrics, and
-              centralizing data were used to improve the reporting process.
-            </li>
-            <li>
-              Wrote a custom bash script for cleaning up old unused Bitbucket
-              branches. This script automates the process of identifying and
-              deleting branches that are no longer in use, keeping the
-              repository clean and manageable. As an active code reviewer, I
-              examine the code changes made by peers, provide constructive
-              feedback, and ensure the code adheres to the project's coding
-              standards and guidelines.
-            </li>
-            <li>
-              Solved all the Checkmarks High and improved the security. This
-              involved addressing all high-priority issues identified by
-              Checkmarx, implementing necessary fixes, and enhancing the overall
-              security of the application.
-            </li>
-          </ul>
+        </li>
+        <li className="relative flex flex-col gap-y-1.5 mb-10">
+          <div className="absolute h-3 w-3 -left-3.5 bg-white rounded-full top-1"></div>
+          <div className="text-lg font-semibold text-gray-100">Persistent Systems</div>
+          <div className="text-sm font-medium text-gray-300">Software Engineer</div>
+          <div className="text-xs text-gray-400">Jun 2022 - Sep 2024, Pune, India</div>
+          <div className="text-sm text-gray-200 mt-2">
+            <ul className="list-disc list-inside space-y-1">
+              <li>Migrating the platform from legacy code (PHP5, Angular Js) to updated code (PHP8, Symfony, Angular13).</li>
+              <li>Assisting the team in migration from AWS infrastructure to Azure, reducing cost per server by 20%.</li>
+              <li>Improved angular routing and error log handling which reduced 150k bugs reported every week.</li>
+            </ul>
+          </div>
         </li>
       </ul>
     </>
   );
 }
+
 function Education() {
   return (
     <>
       <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
         Education
-        <div className="absolute pt-px bg-white mt-px top-full w-full">
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
-        </div>
+        <div className="absolute pt-px bg-white w-full top-full"></div>
       </div>
-      <ul className=" w-10/12  mt-4 ml-4 px-0 md:px-1">
-        <li className="list-disc">
-          <div className=" text-lg md:text-xl text-left font-bold leading-tight">
+      <ul className=" w-10/12  mt-4 ml-4 px-2  border-l-2 border-white">
+        <li className="relative flex flex-col gap-y-1.5 mb-10">
+          <div className="absolute h-3 w-3 -left-3.5 bg-white rounded-full top-1"></div>
+          <div className="text-lg font-semibold text-gray-100">
             Shri Ramdeobaba College of Engineering and Management - RCOEM
           </div>
-          <div className=" text-sm text-gray-400 mt-0.5">2018 - 2022</div>
-          <div className=" text-sm md:text-base">
+          <div className="text-sm font-medium text-gray-300">2018 - 2022</div>
+          <div className="text-sm text-gray-200">
             Bachelor's of Engineering in Electronics
           </div>
-          <div className="text-sm text-gray-300 font-bold mt-1">
-            CGPA &nbsp; 7.63/10.0
-          </div>
-          <div className="text-sm md:text-base">
-            Co-President: Technical Club RCOEM
-          </div>
-          <div className="text-sm md:text-base">
-            Member: Robotics Club RCOEM
-          </div>
+          <div className="text-sm text-gray-200">CGPA &nbsp; 7.63/10.0</div>
+          <div className="text-sm text-gray-200">Co-President: Technical Club RCOEM</div>
+          <div className="text-sm text-gray-200">Member: Robotics Club RCOEM</div>
         </li>
       </ul>
     </>
   );
 }
+
 function Skills() {
   return (
     <>
       <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
         Technical Skills
-        <div className="absolute pt-px bg-white mt-px top-full w-full">
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
-        </div>
+        <div className="absolute pt-px bg-white w-full top-full"></div>
       </div>
-      <ul className=" tracking-tight text-sm md:text-base w-10/12 emoji-list">
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
+      <ul className=" tracking-tight text-sm md:text-base w-10/12 pt-px list-disc list-inside">
+        <li className=" list-item text-ubt-blue font-medium mt-4">
           I've worked with a wide variety of programming languages & frameworks.
         </li>
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
-          <div>
-            {" "}
-            My areas of expertise are{" "}
-            <strong className="text-ubt-gedit-orange">
-              Backend development, .NET & Unity!
-            </strong>
-          </div>
-        </li>
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
-          <div>Here are my most frequently used</div>
+        <li className=" list-item text-ubt-blue font-medium mt-4">
+          {" "}
+          My areas of expertise are{" "}
+          <span className="text-white">
+            Visual SLAM, 3D Reconstruction, C++23 & WebGPU!
+          </span>
         </li>
       </ul>
-      <div className="w-full md:w-10/12 flex mt-4">
-        <div className=" text-sm text-center md:text-base w-1/2 font-bold">
+      <div className=" w-full md:w-10/12 flex mt-4">
+        <div className=" text-sm text-center w-1/2 font-bold border-r border-white">
           Languages & Tools
         </div>
-        <div className=" text-sm text-center md:text-base w-1/2 font-bold">
+        <div className=" text-sm text-center w-1/2 font-bold">
           Frameworks & Libraries
         </div>
       </div>
-      <div className="w-full md:w-10/12 flex justify-center items-start font-bold text-center">
-        <div className="px-2 w-1/2">
-          <div className="flex flex-wrap justify-center items-start w-full mt-2">
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/c%23-%23239120.svg?style=for-the-badge&logo=c-sharp&logoColor=white"
-              alt="aman c-sharp"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/unity-%23000000.svg?style=for-the-badge&logo=unity&logoColor=white"
-              alt="aman unity"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/php-%23777BB4.svg?style=for-the-badge&logo=php&logoColor=white"
-              alt="aman PHP"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E"
-              alt="aman javascript"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white"
-              alt="aman c++"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/css3-%231572B6.svg?style=for-the-badge&logo=css3&logoColor=white"
-              alt="aman css"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/azure-%230072C6.svg?style=for-the-badge&logo=microsoftazure&logoColor=white"
-              alt="aman azure"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/mysql-%2300f.svg?style=for-the-badge&logo=mysql&logoColor=white"
-              alt="aman mysql"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white"
-              alt="aman typescript"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white"
-              alt="aman HTML"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white"
-              alt="aman git"
-            />
-          </div>
+      <div className=" w-full md:w-10/12 flex justify-center mt-4">
+        <div className=" flex flex-wrap justify-center items-start w-1/2 px-1">
+          <img className="m-1" src="https://img.shields.io/badge/C%2B%2B-00599C?style=flat&logo=c%2B%2B&logoColor=white" alt="aman c++" />
+          <img className="m-1" src="https://img.shields.io/badge/-C%23-239120?style=flat&logo=c-sharp&logoColor=white" alt="aman c-sharp" />
+          <img className="m-1" src="https://img.shields.io/badge/-JavaScript-%23F7DF1C?style=flat&logo=javascript&logoColor=000" alt="aman javascript" />
+          <img className="m-1" src="https://img.shields.io/badge/-TypeScript-007ACC?style=flat&logo=typescript&logoColor=white" alt="aman typescript" />
+          <img className="m-1" src="https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white" alt="aman python" />
+          <img className="m-1" src="https://img.shields.io/badge/-Git-F05032?style=flat&logo=git&logoColor=white" alt="aman git" />
+          <img className="m-1" src="https://img.shields.io/badge/-OpenCV-5C3EE8?style=flat&logo=opencv&logoColor=white" alt="aman opencv" />
         </div>
-        <div className="px-2 flex flex-wrap items-start w-1/2">
-          <div className="flex flex-wrap justify-center items-start w-full mt-2">
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/.NET-5C2D91?style=for-the-badge&logo=.net&logoColor=white"
-              alt="aman .NET"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/bootstrap-%238511FA.svg?style=for-the-badge&logo=bootstrap&logoColor=white"
-              alt="aman bootstrap"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/angular-%23DD0031.svg?style=for-the-badge&logo=angular&logoColor=white"
-              alt="aman angular"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/symfony-%23000000.svg?style=for-the-badge&logo=symfony&logoColor=white"
-              alt="aman symfony"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/NPM-%23CB3837.svg?style=for-the-badge&logo=npm&logoColor=white"
-              alt="aman npm"
-            />
-            <img
-              className="m-1"
-              src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white"
-              alt="aman node"
-            />
-          </div>
+        <div className=" flex flex-wrap justify-center items-start w-1/2 px-1">
+          <img className="m-1" src="https://img.shields.io/badge/-Unity-000000?style=flat&logo=unity&logoColor=white" alt="aman unity" />
+          <img className="m-1" src="https://img.shields.io/badge/-WebAssembly-654FF0?style=flat&logo=webassembly&logoColor=white" alt="aman wasm" />
+          <img className="m-1" src="https://img.shields.io/badge/-WebGPU-red?style=flat" alt="aman webgpu" />
+          <img className="m-1" src="https://img.shields.io/badge/-React-61DAFB?style=flat&logo=react&logoColor=black" alt="aman react" />
+          <img className="m-1" src="https://img.shields.io/badge/-Node.js-339933?style=flat&logo=node.js&logoColor=white" alt="aman node" />
+          <img className="m-1" src="https://img.shields.io/badge/-Azure-0089D6?style=flat&logo=microsoft-azure&logoColor=white" alt="aman azure" />
         </div>
       </div>
-      <ul className=" tracking-tight text-sm md:text-base w-10/12 emoji-list mt-4">
-        <li className=" list-arrow text-sm md:text-base mt-4 leading-tight tracking-tight">
-          <span> And of course,</span>{" "}
-          <img
-            className=" inline ml-1"
-            src="http://img.shields.io/badge/-Linux-0078D6?style=plastic&logo=linux&logoColor=ffffff"
-            alt="aman linux"
-          />{" "}
-          <span>!</span>
+      <ul className=" tracking-tight text-sm md:text-base w-10/12 pt-px list-disc list-inside mt-4">
+        <li className=" list-item text-ubt-blue font-medium mt-4">
+          {" "}
+          And of course, <span className="text-white">Linux</span> !{" "}
         </li>
       </ul>
     </>
@@ -538,148 +404,96 @@ function Skills() {
 function Projects() {
   const project_list = [
     {
-      name: "Smart Onboarders",
-      date: "Feb 2024 - Feb 2024",
-      link: "https://github.com/xlibraries/SmartOnboaders",
+      name: "Xlib - Portfolio",
+      date: "2021 - Present",
+      link: "https://github.com/xlibraries/Xlib",
       description: [
-        "End-to-End Onboarding Platform made for SemiColons(Annual Hackathon of Persistent Systems) for new hires, with Gen-AI powered document processing and HRMS integration.",
+        "A personal portfolio website simulating an Ubuntu desktop environment, built with React, Tailwind CSS, and Next.js.",
       ],
-      domains: ["React", "MySQL", "OCR", "Bedrock"],
+      domains: ["React", "Tailwind", "Next.js"],
     },
     {
-      name: "Turbo Trails",
-      date: "Apr 2023 - Present",
-      link: "https://github.com/xlibraries/funny-Racing",
+      name: "Smart Onboarders",
+      date: "Feb 2024",
+      link: "https://github.com/xlibraries/SmartOnboaders",
       description: [
-        "The game I am creating is an immersive journey through the evolution of vehicles across different eras and regions."+
-        " Players assume the role of various vehicles, starting as a simple cart in ancient Mesopotamia and progressing through history as new vehicles are invented.",
+        "End-to-End Onboarding Platform with Gen-AI powered document processing and HRMS integration.",
       ],
-      domains: ["C#", "Unity", "Playfab", "Google Play Services"],
+      domains: ["React", "MySQL", "Bedrock"],
     },
     {
       name: "Pact and Promise: The Arcane Door",
-      date: "Nov 2023 - Dec 2023",
+      date: "Oct 2023 - Present",
       link: "https://github.com/xlibraries/FairyTail-VN-Jam",
       description: [
-        "A Visual Novel game made for FairyTail Visual novel game jam hostel on itch.io",
+        "A Visual novel game with In-house text engine developed inside Unity.",
       ],
       domains: ["C#", "Unity"],
     },
     {
-      name: "SAPA (Software As Product Augmentations)", //Software as product augmentations
-      date: "Apr 2023 - Apr 2023",
-      link: "https://github.com/xlibraries/Technothon-AR_marker",
+      name: "Lego Mini World",
+      date: "Feb 2021",
+      link: "https://xlibraries.itch.io/lego-mini-world",
       description: [
-        "An augmented reality application developed for simulating environment for sales pitch, where 3D models stored in cloud storage.",
-      ],
-      domains: ["AR", "Azure", ".NET"],
-    },
-    {
-      name: "The Lone Ember",
-      date: "Jul 2021 - Jul 2021",
-      link: "https://xlibraries.itch.io/the-lone-ember",
-      description: [
-        "The Lone Ember is a game of lone chances: each key you press can only be used once. Can you guide your little ember back home?",
+        "Explore the Lego World with various tasks and hidden levels.",
       ],
       domains: ["Unity", "C#"],
     },
   ];
 
   const tag_styles = {
-    "react": "border-sky-400 text-sky-300",
-    "mysql": "border-blue-500 text-blue-300",
-    "ocr": "border-purple-400 text-purple-300",
-    "bedrock": "border-orange-400 text-orange-300",
+    react: "border-sky-400 text-sky-300",
+    mysql: "border-blue-500 text-blue-300",
+    bedrock: "border-orange-400 text-orange-300",
     "c#": "border-violet-400 text-violet-300",
-    "unity": "border-gray-300 text-gray-100",
-    "playfab": "border-cyan-400 text-cyan-300",
-    "google play services": "border-lime-400 text-lime-300",
-    "ar": "border-pink-400 text-pink-300",
-    "azure": "border-blue-400 text-blue-200",
-    ".net": "border-indigo-400 text-indigo-300",
+    unity: "border-gray-300 text-gray-100",
+    tailwind: "border-teal-400 text-teal-300",
+    "next.js": "border-gray-200 text-white",
   };
 
   return (
     <>
       <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
         Projects
-        <div className="absolute pt-px bg-white mt-px top-full w-full">
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
-          <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
-        </div>
+        <div className="absolute pt-px bg-white w-full top-full"></div>
       </div>
-      <a
-        href="https://github.com/sponsors/xlibraries"
-        target="_blank"
-        rel="noreferrer noopener"
-        className="my-4 w-5/6 md:w-3/4 border border-white border-opacity-20 rounded py-2 text-center text-sm hover:bg-white hover:bg-opacity-10"
-      >
-        Support my work on GitHub Sponsors
-      </a>
-
-      {project_list.map((project, index) => {
-        const projectNameFromLink = project.link.split("/");
-        const projectName = projectNameFromLink[projectNameFromLink.length - 1];
-        return (
+      <div className="flex flex-col gap-4">
+        {project_list.map((project, index) => (
           <a
             key={index}
             href={project.link}
             target="_blank"
-            rel="noreferrer noopener"
-            className="flex w-full flex-col px-4"
+            rel="noreferrer"
+            className="flex w-full flex-col px-4 py-2 border border-white border-opacity-20 hover:bg-white hover:bg-opacity-5 transition-all duration-300 rounded"
           >
-            <div className="w-full py-1 px-2 my-2 border border-gray-50 border-opacity-10 rounded hover:bg-gray-50 hover:bg-opacity-5 cursor-pointer">
-              <div className="flex flex-wrap justify-between items-center">
-                <div className="flex justify-center items-center">
-                  <div className=" text-base md:text-lg mr-2">
-                    {project.name.toLowerCase()}
-                  </div>
-                  <iframe
-                    src={`https://ghbtns.com/github-btn.html?user=xlibraries&repo=${projectName}&type=star&count=true`}
-                    frameBorder="0"
-                    scrolling="0"
-                    width="150"
-                    height="20"
-                    loading="lazy"
-                    title={project.name.toLowerCase() + "-star"}
-                  ></iframe>
-                </div>
-                <div className="text-gray-300 font-light text-sm">
-                  {project.date}
-                </div>
-              </div>
-              <ul className=" tracking-normal leading-tight text-sm font-light ml-4 mt-1">
-                {project.description.map((desc, index) => {
-                  return (
-                    <li key={index} className="list-disc mt-1 text-gray-100">
-                      {desc}
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="flex flex-wrap items-start justify-start text-xs py-2">
-                {project.domains
-                  ? project.domains.map((domain, index) => {
-                      const styleClass = tag_styles[domain.toLowerCase()] || "border-gray-400 text-gray-200";
-
-                      return (
-                        <span
-                          key={index}
-                          className={`px-1.5 py-0.5 w-max border ${styleClass} m-1 rounded-full`}
-                        >
-                          {domain}
-                        </span>
-                      );
-                    })
-                  : null}
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-ubt-blue">{project.name}</span>
+              <span className="text-xs text-gray-400">{project.date}</span>
+            </div>
+            <div className="text-sm text-gray-300 mt-1">
+              {project.description.map((desc, i) => (
+                <p key={i}>{desc}</p>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {project.domains.map((domain, i) => (
+                <span
+                  key={i}
+                  className={`text-xs px-1.5 py-0.5 border rounded ${
+                    tag_styles[domain.toLowerCase()] || "border-gray-500 text-gray-400"
+                  }`}
+                >
+                  {domain}
+                </span>
+              ))}
             </div>
           </a>
-        );
-      })}
+        ))}
+      </div>
     </>
   );
 }
+
 function Resume() {
   return (
     <iframe
@@ -687,7 +501,6 @@ function Resume() {
       src="./files/Aman-Agrawal-Resume.pdf"
       title="Aman Agrawal resume"
       frameBorder="0"
-      loading="lazy"
     ></iframe>
   );
 }
