@@ -50,7 +50,7 @@ export class Chrome extends Component {
                 url = 'https://www.google.com/webhp?igu=1';
                 display_url = "https://www.google.com";
             }
-            this.setState({ url, display_url: url });
+            this.setState({ url, display_url });
             this.storeVisitedUrl(url, display_url);
             document.getElementById("chrome-url-bar").blur();
         }
@@ -63,12 +63,12 @@ export class Chrome extends Component {
     displayUrlBar = () => {
         return (
             <div className="w-full pt-0.5 pb-1 flex justify-start items-center text-white text-sm border-b border-gray-900">
-                <div onClick={this.refreshChrome} className=" ml-2 mr-1 flex justify-center items-center rounded-full bg-gray-50 bg-opacity-0 hover:bg-opacity-10">
+                <button type="button" onClick={this.refreshChrome} className=" ml-2 mr-1 flex justify-center items-center rounded-full bg-gray-50 bg-opacity-0 hover:bg-opacity-10 border-0 bg-transparent p-0">
                     <img className="w-5" src="./themes/Yaru/status/chrome_refresh.svg" alt="Ubuntu Chrome Refresh" />
-                </div>
-                <div onClick={this.goToHome} className=" mr-2 ml-1 flex justify-center items-center rounded-full bg-gray-50 bg-opacity-0 hover:bg-opacity-10">
+                </button>
+                <button type="button" onClick={this.goToHome} className=" mr-2 ml-1 flex justify-center items-center rounded-full bg-gray-50 bg-opacity-0 hover:bg-opacity-10 border-0 bg-transparent p-0">
                     <img className="w-5" src="./themes/Yaru/status/chrome_home.svg" alt="Ubuntu Chrome Home" />
-                </div>
+                </button>
                 <input onKeyDown={this.checkKey} onChange={this.handleDisplayUrl} value={this.state.display_url} id="chrome-url-bar" className="outline-none bg-ub-grey rounded-full pl-3 py-0.5 mr-3 w-5/6 text-gray-300 focus:text-white" type="url" spellCheck={false} autoComplete="off" />
             </div>
         );

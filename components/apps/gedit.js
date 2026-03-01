@@ -60,7 +60,7 @@ export class Gedit extends Component {
 
         ReactGA.event({
             category: "Send Message",
-            action: `${name}, ${subject}, ${message}`
+            action: "Submitted contact form"
         });
 
     }

@@ -73,8 +73,8 @@ export default class Ubuntu extends Component {
 	unLockScreen = () => {
 		ReactGA.send({ hitType: "pageview", page: "/desktop", title: "Custom Title" });
 
-		window.removeEventListener('click', this.unLockScreen);
-		window.removeEventListener('keypress', this.unLockScreen);
+		window.removeEventListener('pointerdown', this.unLockScreen);
+		window.removeEventListener('keydown', this.unLockScreen);
 
 		this.setState({ screen_locked: false });
 		localStorage.setItem('screen-locked', false);
