@@ -237,8 +237,8 @@ function About() {
           my name is <span className="font-bold">Aman Agrawal</span> ,
         </div>
         <div className="font-normal ml-1">
-          I'm a{" "}
-          <span className="text-pink-600 font-bold">FullStack Developer!</span>
+          I turn{" "}
+          <span className="text-pink-600 font-bold">complex technical ideas into usable products.</span>
         </div>
       </div>
       <div className=" mt-4 relative md:my-8 pt-px bg-white w-32 md:w-48">
@@ -247,31 +247,20 @@ function About() {
       </div>
       <ul className=" mt-4 leading-tight tracking-tight text-sm md:text-base w-5/6 md:w-3/4 emoji-list">
         <li className=" list-pc">
-          I'm a<span className=" font-medium">FullStack Developer </span>
-          at &nbsp;
-          <u className=" cursor-pointer ">
-            <a href="https://www.persistent.com/" target="_blank" rel="noreferrer noopener">
-              Persistent Systems
-            </a>
-          </u>
-          , and open for opportunities in software development roles. (Hit me up{" "}
-          <a className="text-underline" href="mailto:aman989308964@gmail.com">
-            <u>aman989308964@gmail.com</u>
-          </a>{" "}
-          :) )
+          At Flam, I work on <span className=" font-medium">Visual Computing and AR systems </span>
+          that run across web, mobile, and desktop.
         </li>
         <li className=" mt-3 list-building">
           {" "}
-          I enjoy building & shipping awesome projects.
+          I enjoy owning the full journey: framing the challenge, shaping the architecture, and shipping the solution.
         </li>
         <li className=" mt-3 list-time">
           {" "}
-          When I am not coding my next project, I like to go out for treks and play
-          City Skylines.
+          I care about speed, reliability, and making hard technology simple for users and teams.
         </li>
         <li className=" mt-3 list-star">
           {" "}
-          I also have an interest in building games, extended reality applications, and robotics.
+          I spend my spare time prototyping interactive experiences in XR, games, and robotics.
         </li>
       </ul>
     </>
