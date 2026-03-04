@@ -530,6 +530,15 @@ function Skills() {
 function Projects() {
   const project_list = [
     {
+      name: "Auction Duniya",
+      date: "2026 - Present",
+      link: "https://auction-duniya.vercel.app/",
+      description: [
+        "Live deployment of Auction Duniya.",
+      ],
+      domains: ["Next.js", "TypeScript", "Marketplace"],
+    },
+    {
       name: "Smart Onboarders",
       date: "Feb 2024 - Feb 2024",
       link: "https://github.com/xlibraries/SmartOnboaders",
@@ -610,8 +619,14 @@ function Projects() {
       </a>
 
       {project_list.map((project, index) => {
-        const projectNameFromLink = project.link.split("/");
-        const projectName = projectNameFromLink[projectNameFromLink.length - 1];
+        const githubUrl = project.githubLink || (project.link.includes("github.com") ? project.link : null);
+        let githubUser = null;
+        let githubRepo = null;
+        if (githubUrl) {
+          const parsed = githubUrl.replace("https://github.com/", "").split("/");
+          githubUser = parsed[0] || null;
+          githubRepo = parsed[1] || null;
+        }
         return (
           <a
             key={index}
@@ -626,15 +641,17 @@ function Projects() {
                   <div className=" text-base md:text-lg mr-2">
                     {project.name.toLowerCase()}
                   </div>
-                  <iframe
-                    src={`https://ghbtns.com/github-btn.html?user=xlibraries&repo=${projectName}&type=star&count=true`}
-                    frameBorder="0"
-                    scrolling="0"
-                    width="150"
-                    height="20"
-                    loading="lazy"
-                    title={project.name.toLowerCase() + "-star"}
-                  ></iframe>
+                  {githubUser && githubRepo ? (
+                    <iframe
+                      src={`https://ghbtns.com/github-btn.html?user=${githubUser}&repo=${githubRepo}&type=star&count=true`}
+                      frameBorder="0"
+                      scrolling="0"
+                      width="150"
+                      height="20"
+                      loading="lazy"
+                      title={project.name.toLowerCase() + "-star"}
+                    ></iframe>
+                  ) : null}
                 </div>
                 <div className="text-gray-300 font-light text-sm">
                   {project.date}
