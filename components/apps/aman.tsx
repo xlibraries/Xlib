@@ -293,32 +293,63 @@ function Experience() {
             Flam
           </div>
           <div className="text-sm md:text-base">
-            R&D Engineer — AR Infrastructure
+            Full-time · 1 yr 9 mos
+          </div>
+          <div className="text-sm md:text-base">
+            Bengaluru, Karnataka, India · On-site
+          </div>
+          <div className="text-sm text-gray-300">
+            LinkedIn helped me get this job.
+          </div>
+
+          <div className="text-sm md:text-base mt-2">
+            Senior Research Engineer / Systems Developer / AI Engineer - Visual Computing & AR
           </div>
           <div className="text-sm text-gray-400">
-            2023 - Present
+            Jan 2026 - Present · 3 mos
+          </div>
+
+          <div className="text-sm md:text-base mt-2">
+            Research Engineer / Systems Developer / AI Engineer - Visual Computing & AR
+          </div>
+          <div className="text-sm text-gray-400">
+            Jul 2024 - Jan 2026 · 1 yr 7 mos
+          </div>
+
+          <div className="text-sm md:text-base mt-2">
+            Research Engineer / Systems Developer - Visual Computing & AR
+          </div>
+          <div className="text-sm text-gray-400">
+            Flam | Jul 2024 - Present | Bengaluru
           </div>
 
           <ul className="list-disc pl-5 mt-2">
             <li>
-              Architecting WebAR systems handling real-time image tracking,
-              marker detection, and pose estimation optimized for mobile browsers.
+              Led the design and implementation of a modular real-time Visual SLAM and tracking engine in modern C++23, with deterministic state machines (IDLE / TRACKING / LOST), RAII-based resource management, and low-latency execution.
             </li>
             <li>
-              Built performance-critical computer vision pipelines in JS & C++,
-              focusing on memory efficiency, SIMD strategies, and frame-level optimization.
+              Built end-to-end multi-view 3D reconstruction pipelines, integrating feature matching, PnP pose estimation, homography refinement, and sparse/dense reconstruction to generate high-fidelity scene geometry.
             </li>
             <li>
-              Designed SDK-level abstractions enabling brands to deploy AR
-              campaigns with minimal integration complexity.
+              Researched and prototyped Gaussian splatting pipelines for neural and implicit scene representations, optimizing memory layout, parameterization, and real-time rendering.
             </li>
             <li>
-              Worked on production-scale AR experiences requiring device
-              compatibility, stability, and scalable architecture decisions.
+              Designed and shipped a cross-platform visual SDK targeting Web (WASM/WebGPU), Android, iOS, macOS, and Linux, all powered by a single C++ core engine and packaged under 100 KB per platform for fast load times and minimal integration overhead.
             </li>
             <li>
-              Contributed to core technical direction — balancing browser limits,
-              compute constraints, and visual fidelity.
+              Implemented platform bindings (JNI, iOS native, WebAssembly, desktop) enabling identical tracking, geometry, and optimization logic to run consistently across all devices.
+            </li>
+            <li>
+              Engineered GPU-accelerated image processing pipelines (BRISK/ORB keypoints, custom shaders, compute kernels) for real-time tracking and feature extraction on mobile, browser, and desktop.
+            </li>
+            <li>
+              Ported native research code to the browser using Emscripten, WebAssembly, WebGPU, and WebGL2, enabling interactive demos, reproducible experiments, and production-grade web deployments.
+            </li>
+            <li>
+              Built extensible tooling and experiment frameworks to ensure reproducibility, benchmarking, and easy transition from research to product.
+            </li>
+            <li>
+              Tech stack: C++23, OpenCV, PnP solvers, Gauss-Newton, Gaussian splatting, WebGPU, WebAssembly (WASM), Emscripten, WebGL2, TypeScript, BRISK/ORB, RAII, smart pointers.
             </li>
           </ul>
         </li>
@@ -326,28 +357,68 @@ function Experience() {
         {/* PERSISTENT — PREVIOUS ROLE */}
 
         <li className="list-disc">
-          <div className="text-lg md:text-xl font-bold">
+          <div className="text-lg md:text-xl text-left font-bold leading-tight">
             Persistent Systems
           </div>
-          <div className="text-sm md:text-base">
-            FullStack Developer
+          <div className="text-sm md:text-base">FullStack Developer</div>
+          <div className="text-sm text-gray-400 mt-0.5">
+            2021 - current, Pune, India
           </div>
-          <div className="text-sm text-gray-400">
-            2021 - 2023, Pune
-          </div>
+          <div className="text-sm md:text-base font-bold mt-1">CCH-CPELink</div>
 
-          <ul className="list-disc pl-5 mt-2">
+          <ul className="list-disc pl-5">
             <li>
-              Led migration from legacy PHP5 & AngularJS stack to PHP8, Symfony & Angular13.
+              Migrating the platform from legacy code (PHP5, Angular Js) to
+              updated code (PHP8, Symfony, Angular13). This involves
+              leveraging the new features and optimizations in PHP8 such as
+              named arguments, union types, attributes, constructor property
+              promotion, match expression, nullsafe operator, and JIT. The
+              frontend is refactored with Angular13, taking advantage of its
+              advancements in Typescript, NodeJs, and Angular CLI versions.
+              Symfony is integrated for better web application development,
+              utilizing its set of reusable PHP components.
             </li>
             <li>
-              Contributed to AWS → Azure infra migration reducing server cost by ~20%.
+              Assisting the team in migration from AWS infrastructure to Azure.
+              This includes planning the migration strategy, setting up the
+              Azure environment, and transferring data securely and efficiently.
+              A significant contribution was the migration from MySQL Single
+              server to flexible server, which allowed for the configuration of
+              I/Os and other parameters, resulting in reducing the cost per
+              server by 20%.
             </li>
             <li>
-              Improved routing and error handling reducing weekly bug reports significantly.
+              Improved angular routing and error log handling throughout the
+              application which reduced 150k bugs reported every week. This
+              involved optimizing the routing logic and implementing a robust
+              error handling mechanism to reduce the load on db servers. Also,
+              fixed code structure and introduced practice to improve the code
+              quality resulting in Sonarlint and Checkmarks rating from E to B
+              in a single quarter.
             </li>
             <li>
-              Resolved high-priority security issues (Checkmarx) and improved code quality ratings.
+              Improved the efficiency of the reports in the application. This
+              involved analyzing the existing reports, identifying areas for
+              improvement, and implementing optimizations to enhance report
+              generation speed and accuracy. Techniques such as establishing a
+              consistent reporting schedule, working on data visualization,
+              automating data collection, starting with some goal metrics, and
+              centralizing data were used to improve the reporting process.
+            </li>
+            <li>
+              Wrote a custom bash script for cleaning up old unused Bitbucket
+              branches. This script automates the process of identifying and
+              deleting branches that are no longer in use, keeping the
+              repository clean and manageable. As an active code reviewer, I
+              examine the code changes made by peers, provide constructive
+              feedback, and ensure the code adheres to the project&apos;s coding
+              standards and guidelines.
+            </li>
+            <li>
+              Solved all the Checkmarks High and improved the security. This
+              involved addressing all high-priority issues identified by
+              Checkmarx, implementing necessary fixes, and enhancing the
+              overall security of the application.
             </li>
           </ul>
         </li>
