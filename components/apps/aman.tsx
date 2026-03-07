@@ -691,12 +691,21 @@ function Projects() {
 }
 function Resume() {
   return (
-    <iframe
-      className="h-full w-full"
-      src="./files/Aman-Agrawal-Resume.pdf"
-      title="Aman Agrawal resume"
-      frameBorder="0"
-      loading="lazy"
-    ></iframe>
+    <div className="w-full h-[82vh] md:h-full">
+      <object
+        data="./files/Aman-Agrawal-Resume.pdf#view=FitH"
+        type="application/pdf"
+        className="w-full h-full"
+        aria-label="Aman Agrawal resume"
+      >
+        <iframe
+          className="w-full h-full"
+          src="./files/Aman-Agrawal-Resume.pdf#view=FitH"
+          title="Aman Agrawal resume"
+          frameBorder="0"
+          loading="lazy"
+        ></iframe>
+      </object>
+    </div>
   );
 }
