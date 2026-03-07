@@ -208,7 +208,7 @@ export class AboutAman extends Component {
             {this.renderNavLinks()}
           </div>
         </div>
-        <div className="flex flex-col w-3/4 md:w-4/5 justify-start items-center flex-grow bg-ub-grey overflow-y-auto windowMainScreen">
+        <div className="flex flex-col w-full md:w-4/5 pt-8 md:pt-0 justify-start items-center flex-grow bg-ub-grey overflow-y-auto windowMainScreen">
           {this.state.screen}
         </div>
       </div>
@@ -269,11 +269,11 @@ function About() {
 function Experience() {
   return (
     <>
-      <div className=" font-medium relative text-2xl mt-4 mb-4">
+      <div className=" font-medium relative text-xl md:text-2xl mt-4 mb-4">
         Experience
       </div>
 
-      <ul className="w-10/12 mt-4 ml-4">
+      <ul className="w-10/12 mt-4 ml-0 md:ml-4">
 
         {/* FLAM — CURRENT ROLE */}
 
@@ -419,14 +419,14 @@ function Experience() {
 function Education() {
   return (
     <>
-      <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
+      <div className=" font-medium relative text-xl md:text-2xl mt-2 md:mt-4 mb-4">
         Education
         <div className="absolute pt-px bg-white mt-px top-full w-full">
           <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
           <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 right-full"></div>
         </div>
       </div>
-      <ul className=" w-10/12  mt-4 ml-4 px-0 md:px-1">
+      <ul className=" w-10/12 mt-4 ml-0 md:ml-4 px-0 md:px-1">
         <li className="list-disc">
           <div className=" text-lg md:text-xl text-left font-bold leading-tight">
             Shri Ramdeobaba College of Engineering and Management - RCOEM
@@ -452,7 +452,7 @@ function Education() {
 function Skills() {
   return (
     <>
-      <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
+      <div className=" font-medium relative text-xl md:text-2xl mt-2 md:mt-4 mb-4">
         Technical Skills
         <div className="absolute pt-px bg-white mt-px top-full w-full">
           <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
@@ -602,7 +602,7 @@ function Projects() {
 
   return (
     <>
-      <div className=" font-medium relative text-2xl mt-2 md:mt-4 mb-4">
+      <div className=" font-medium relative text-xl md:text-2xl mt-2 md:mt-4 mb-4">
         Projects
         <div className="absolute pt-px bg-white mt-px top-full w-full">
           <div className="bg-white absolute rounded-full p-0.5 md:p-1 top-0 transform -translate-y-1/2 left-full"></div>
@@ -633,10 +633,10 @@ function Projects() {
             href={project.link}
             target="_blank"
             rel="noreferrer noopener"
-            className="flex w-full flex-col px-4"
+            className="flex w-full flex-col px-2 md:px-4"
           >
             <div className="w-full py-1 px-2 my-2 border border-gray-50 border-opacity-10 rounded hover:bg-gray-50 hover:bg-opacity-5 cursor-pointer">
-              <div className="flex flex-wrap justify-between items-center">
+              <div className="flex flex-wrap justify-between items-start md:items-center">
                 <div className="flex justify-center items-center">
                   <div className=" text-base md:text-lg mr-2">
                     {project.name.toLowerCase()}
@@ -653,11 +653,11 @@ function Projects() {
                     ></iframe>
                   ) : null}
                 </div>
-                <div className="text-gray-300 font-light text-sm">
+                <div className="w-full md:w-auto mt-1 md:mt-0 text-gray-300 font-light text-sm">
                   {project.date}
                 </div>
               </div>
-              <ul className=" tracking-normal leading-tight text-sm font-light ml-4 mt-1">
+              <ul className=" tracking-normal leading-tight text-sm font-light ml-2 md:ml-4 mt-1">
                 {project.description.map((desc, index) => {
                   return (
                     <li key={index} className="list-disc mt-1 text-gray-100">
