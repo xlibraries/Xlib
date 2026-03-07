@@ -690,22 +690,98 @@ function Projects() {
   );
 }
 function Resume() {
+  const containerRef = React.useRef(null);
+  const canvasRefs = React.useRef([]);
+  const pdfRef = React.useRef(null);
+  const renderTokenRef = React.useRef(0);
+  const [numPages, setNumPages] = React.useState(0);
+  const [loadError, setLoadError] = React.useState(false);
+
+  const renderAllPages = React.useCallback(async () => {
+    if (!pdfRef.current || !containerRef.current || numPages === 0) return;
+
+    const token = ++renderTokenRef.current;
+    const containerWidth = Math.max((containerRef.current.clientWidth || 800) - 16, 280);
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+
+    for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
+      if (token !== renderTokenRef.current) return;
+      const page = await pdfRef.current.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = containerWidth / baseViewport.width;
+      const viewport = page.getViewport({ scale });
+      const canvas = canvasRefs.current[pageNumber - 1];
+      if (!canvas) continue;
+
+      const context = canvas.getContext("2d");
+      if (!context) continue;
+
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      await page.render({ canvasContext: context, viewport }).promise;
+    }
+  }, [numPages]);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    const loadPdf = async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+        const task = pdfjs.getDocument("./files/Aman-Agrawal-Resume.pdf");
+        const pdf = await task.promise;
+        if (!mounted) return;
+        pdfRef.current = pdf;
+        setNumPages(pdf.numPages);
+      } catch (error) {
+        setLoadError(true);
+      }
+    };
+
+    loadPdf();
+    return () => {
+      mounted = false;
+      renderTokenRef.current++;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    renderAllPages();
+  }, [numPages, renderAllPages]);
+
+  React.useEffect(() => {
+    const onResize = () => {
+      renderAllPages();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [renderAllPages]);
+
+  if (loadError) {
+    return (
+      <div className="w-full h-full flex items-center justify-center px-4 text-center text-sm md:text-base">
+        Unable to render resume preview.
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full h-[82vh] md:h-full">
-      <object
-        data="./files/Aman-Agrawal-Resume.pdf#view=FitH"
-        type="application/pdf"
-        className="w-full h-full"
-        aria-label="Aman Agrawal resume"
-      >
-        <iframe
-          className="w-full h-full"
-          src="./files/Aman-Agrawal-Resume.pdf#view=FitH"
-          title="Aman Agrawal resume"
-          frameBorder="0"
-          loading="lazy"
-        ></iframe>
-      </object>
+    <div ref={containerRef} className="w-full h-full overflow-y-auto px-2 md:px-4 py-3">
+      {Array.from({ length: numPages || 1 }).map((_, index) => (
+        <canvas
+          key={index}
+          ref={(el) => {
+            canvasRefs.current[index] = el;
+          }}
+          className="block w-full max-w-4xl mx-auto mb-4 bg-white rounded-sm"
+          aria-label={`Resume page ${index + 1}`}
+        />
+      ))}
     </div>
   );
 }
