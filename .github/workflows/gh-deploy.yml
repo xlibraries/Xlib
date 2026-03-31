@@ -13,6 +13,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_EMAILJS_SERVICE_ID: service_iq50ply
+      NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: template_4ltm9uh
+      NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: DOo_-w0czR8uQX_2N
 
     strategy:
       matrix:
@@ -22,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.4
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
@@ -36,9 +40,6 @@ jobs:
         run: pnpm run build
         # env:
         #   NEXT_PUBLIC_TRACKING_ID: G-8FBXBFXC10
-        #   NEXT_PUBLIC_SERVICE_ID: service_qt4ryip
-        #   NEXT_PUBLIC_TEMPLATE_ID: template_2ni69n8
-        #   NEXT_PUBLIC_USER_ID: user_Do31sKneP4eYfn5n1nLTD
 
       - name: Exporting Bundle Files 🎪
         run: pnpm run export
