@@ -14,9 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      NEXT_PUBLIC_EMAILJS_SERVICE_ID: service_iq50ply
-      NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: template_4ltm9uh
-      NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: DOo_-w0czR8uQX_2N
+      NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${{ secrets.EMAILJS_SERVICE_ID }}
+      NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
+      NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: ${{ secrets.EMAILJS_PUBLIC_KEY }}
 
     strategy:
       matrix:
@@ -33,14 +33,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
           cache-dependency-path: pnpm-lock.yaml
-      - name: Installing Packages 🥁
+      - name: Installing Packages
         run: pnpm install --frozen-lockfile
-
-      - name: Building 🧱
+      - name: Building
         run: pnpm run build
-        # env:
-        #   NEXT_PUBLIC_TRACKING_ID: G-8FBXBFXC10
-
-      - name: Exporting Bundle Files 🎪
+      - name: Exporting Bundle Files
         run: pnpm run export
       - run: touch ./out/.nojekyll
+
+                  
