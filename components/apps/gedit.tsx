@@ -27,6 +27,7 @@ export class Gedit extends Component {
 
         if (publicKey && serviceID && templateID) {
             this.setState({ emailjsReady: true });
+            emailjs.init(publicKey);
             return;
         }
 
