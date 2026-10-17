@@ -6,23 +6,32 @@ import ReactGA from 'react-ga4';
 // Travel data comes from public/side-quests/travel.json (built by scripts/side-quests/build_travel_data.py,
 // town-level only, private places removed). Everything else is curated below.
 
+// Bright, sunny palette (the app icon's navy and gold, plus candy accents)
 const THEME = {
-    bg: "#0d1220",
-    panel: "#151c2e",
-    panel2: "#1b2438",
-    line: "rgba(255, 255, 255, 0.08)",
-    gold: "#ffb347",
-    teal: "#3dd6c6",
-    text: "#ece8e1",
-    muted: "#9aa3b5",
+    bg: "#fff7ec",
+    card: "#ffffff",
+    ink: "#1d2340",
+    muted: "#5d6683",
+    line: "rgba(29, 35, 64, 0.08)",
+    sunset: "linear-gradient(100deg, #ff8a3d 0%, #ff4f8b 55%, #7b5cff 100%)",
+    coral: "#ff5a5f",
+    pink: "#ff3d7f",
+    orange: "#ff8a00",
+    sky: "#0a9bff",
+    violet: "#8b5cf6",
+    teal: "#00b8a9",
+    sun: "#ffc93c",
 };
 
 const RARITY = {
-    Legendary: "#ffb347",
-    Epic: "#c084fc",
-    Rare: "#60a5fa",
-    Common: "#9aa3b5",
+    Legendary: { color: "#e07a00", gradient: "linear-gradient(90deg, #ffc93c, #ff8a00)" },
+    Epic: { color: "#a634d6", gradient: "linear-gradient(90deg, #c77dff, #ff4f8b)" },
+    Rare: { color: "#0a84d6", gradient: "linear-gradient(90deg, #4cc9f0, #0a9bff)" },
+    Common: { color: "#159a6a", gradient: "linear-gradient(90deg, #7ae582, #25c38b)" },
 };
+
+// A different pastel for every hobby card
+const PASTELS = ["#ffe3d3", "#e3f4ff", "#efe4ff", "#dff7ea", "#fff1c9", "#ffe0ec", "#dff3f1"];
 
 const QUESTS = [
     {
@@ -165,10 +174,10 @@ const LORE = [
 const SONG_ID = "aaHlegqIIik";
 
 const MODE_STYLE = {
-    car: { color: THEME.gold, label: "Road trips" },
-    motorcycle: { color: "#ff7a59", label: "Motorcycle" },
-    train: { color: THEME.teal, label: "Rail", dash: "4 6" },
-    bus: { color: "#a78bfa", label: "Bus" },
+    car: { color: THEME.pink, label: "Road trips" },
+    motorcycle: { color: THEME.orange, label: "Motorcycle" },
+    train: { color: THEME.sky, label: "Rail", dash: "6 6" },
+    bus: { color: THEME.violet, label: "Bus" },
 };
 
 const formatKm = (n) => (n || 0).toLocaleString("en-IN");
@@ -214,7 +223,7 @@ function WorldMap({ travel, focus }) {
             const map = L.map(el.current, { zoomControl: false, attributionControl: true, worldCopyJump: true }).setView([21, 79], 5);
             mapRef.current = map;
             L.control.zoom({ position: "bottomright" }).addTo(map);
-            // Standard OSM tiles (no API key), darkened with a CSS filter to match the theme
+            // Standard full-colour OSM tiles (no API key), slightly softened so routes and pins pop
             L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
                 maxZoom: 12,
                 className: "side-quests-tiles",
@@ -224,21 +233,22 @@ function WorldMap({ travel, focus }) {
             const bounds = [];
             (travel ? travel.routes : []).forEach(route => {
                 const style = MODE_STYLE[route.mode] || MODE_STYLE.car;
-                L.polyline(route.points, { color: style.color, weight: 7, opacity: 0.12 }).addTo(map);
-                L.polyline(route.points, { color: style.color, weight: 2, opacity: 0.85, dashArray: style.dash }).addTo(map);
+                // white casing under a saturated line keeps routes readable over any map colour
+                L.polyline(route.points, { color: "#ffffff", weight: 6, opacity: 0.95 }).addTo(map);
+                L.polyline(route.points, { color: style.color, weight: 3.5, opacity: 1, dashArray: style.dash }).addTo(map);
                 route.points.forEach(p => bounds.push(p));
             });
             (travel ? travel.places : []).forEach(place => {
-                const marker = L.circleMarker([place.lat, place.lng], { radius: 5, color: THEME.gold, weight: 2, fillColor: THEME.gold, fillOpacity: 0.55 }).addTo(map);
+                const marker = L.circleMarker([place.lat, place.lng], { radius: 6, color: "#ffffff", weight: 2.5, fillColor: THEME.coral, fillOpacity: 1 }).addTo(map);
                 marker.bindPopup(`<b>${place.name}</b><br/>${place.state}<br/><span style="opacity:.7">${place.months.map(monthLabel).join(", ")}</span>`);
                 bounds.push([place.lat, place.lng]);
             });
             MEMORIES.forEach(m => {
-                L.circleMarker(m.at, { radius: 4, color: THEME.teal, weight: 2, fillColor: THEME.teal, fillOpacity: 0.35 })
+                L.circleMarker(m.at, { radius: 6, color: "#ffffff", weight: 2.5, fillColor: THEME.teal, fillOpacity: 1 })
                     .addTo(map).bindPopup(`<b>${m.name}</b><br/><span style="opacity:.7">Earlier adventure</span>`);
             });
             L.marker([12.97, 77.59], {
-                icon: L.divIcon({ className: "", html: '<div style="font-size:20px;filter:drop-shadow(0 0 6px #ffb347)">⭐</div>', iconSize: [20, 20], iconAnchor: [10, 10] }),
+                icon: L.divIcon({ className: "", html: '<div style="font-size:24px;line-height:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">⭐</div>', iconSize: [24, 24], iconAnchor: [12, 12] }),
             }).addTo(map).bindPopup("<b>Bengaluru</b><br/>Home base");
 
             if (focus) map.setView(focus, 9);
@@ -264,8 +274,12 @@ function WorldMap({ travel, focus }) {
     if (failed) return <div className="w-full h-full flex items-center justify-center" style={{ color: THEME.muted }}>The map couldn't load. Check your connection.</div>;
     return (
         <>
-            <style>{`.side-quests-tiles { filter: invert(1) hue-rotate(200deg) brightness(0.62) contrast(1.15) saturate(0.5); }`}</style>
-            <div ref={el} className="w-full h-full" style={{ background: THEME.bg }} />
+            <style>{`
+                .side-quests-tiles { filter: saturate(0.75) brightness(1.04); }
+                .side-quests-map .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 6px 20px rgba(29,35,64,.18); }
+                .side-quests-map .leaflet-popup-content { color: ${THEME.ink}; font-size: 13px; }
+            `}</style>
+            <div ref={el} className="side-quests-map w-full h-full" style={{ background: "#e8eef3" }} />
         </>
     );
 }
@@ -273,63 +287,79 @@ function WorldMap({ travel, focus }) {
 function WorldTab({ travel, focus }) {
     const km = travel ? travel.km : {};
     const stats = [
-        { icon: "🏍️", value: formatKm(km.motorcycle), label: "km on two wheels" },
-        { icon: "🚗", value: formatKm(km.car), label: "km road-tripping" },
-        { icon: "🚆", value: formatKm(km.train), label: "km by rail" },
-        { icon: "✈️", value: formatKm(km.flight), label: "km flown" },
-        { icon: "📍", value: travel ? travel.places.length : "–", label: `towns · ${travel ? travel.states.length : "–"} states` },
+        { icon: "🏍️", value: formatKm(km.motorcycle), label: "km on two wheels", color: THEME.orange },
+        { icon: "🚗", value: formatKm(km.car), label: "km road-tripping", color: THEME.pink },
+        { icon: "🚆", value: formatKm(km.train), label: "km by rail", color: THEME.sky },
+        { icon: "✈️", value: formatKm(km.flight), label: "km flown", color: THEME.violet },
+        { icon: "📍", value: travel ? travel.places.length : "–", label: `towns · ${travel ? travel.states.length : "–"} states`, color: THEME.coral },
     ];
     return (
         <div className="relative w-full h-full">
             <WorldMap travel={travel} focus={focus} />
             <div className="absolute top-2 left-2 right-2 flex flex-wrap gap-1.5 pointer-events-none" style={{ zIndex: 500 }}>
                 {stats.map(s => (
-                    <div key={s.label} className="px-2.5 py-1 rounded-lg text-xs backdrop-blur" style={{ background: "rgba(13, 18, 32, 0.78)", border: `1px solid ${THEME.line}` }}>
+                    <div key={s.label} className="px-2.5 py-1 rounded-full text-xs shadow-md" style={{ background: "#ffffff", color: THEME.ink, border: `2px solid ${s.color}` }}>
                         <span className="mr-1">{s.icon}</span>
-                        <b style={{ color: THEME.gold }}>{s.value}</b> <span style={{ color: THEME.muted }}>{s.label}</span>
+                        <b style={{ color: s.color }}>{s.value}</b> <span style={{ color: THEME.muted }}>{s.label}</span>
                     </div>
                 ))}
             </div>
-            <div className="absolute bottom-2 left-2 px-2.5 py-1.5 rounded-lg text-xs space-y-0.5" style={{ zIndex: 500, background: "rgba(13, 18, 32, 0.78)", border: `1px solid ${THEME.line}` }}>
-                <div><span style={{ color: THEME.gold }}>●</span> Last 12 months{travel ? ` (${monthLabel(travel.period.from)} – ${monthLabel(travel.period.to)})` : ""}</div>
-                <div><span style={{ color: THEME.teal }}>●</span> Earlier adventures</div>
-                <div style={{ color: THEME.muted }}>
-                    {Object.entries(MODE_STYLE).map(([mode, s]) => <span key={mode} className="mr-2"><span style={{ color: s.color }}>━</span> {s.label}</span>)}
+            <div className="absolute bottom-2 left-2 px-3 py-2 rounded-xl text-xs space-y-1 shadow-md" style={{ zIndex: 500, background: "rgba(255,255,255,0.95)", color: THEME.ink }}>
+                <div className="flex items-center gap-1.5"><Dot color={THEME.coral} /> Last 12 months{travel ? ` (${monthLabel(travel.period.from)} – ${monthLabel(travel.period.to)})` : ""}</div>
+                <div className="flex items-center gap-1.5"><Dot color={THEME.teal} /> Earlier adventures</div>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
+                    {Object.entries(MODE_STYLE).map(([mode, s]) => (
+                        <span key={mode} className="flex items-center gap-1">
+                            <span className="inline-block w-4 rounded-full" style={{ height: 4, background: s.color }} /> {s.label}
+                        </span>
+                    ))}
                 </div>
             </div>
         </div>
     );
 }
 
+const Dot = ({ color }) => (
+    <span className="inline-block w-3 h-3 rounded-full flex-shrink-0" style={{ background: color, boxShadow: "0 0 0 2px #fff, 0 0 0 3px rgba(29,35,64,.15)" }} />
+);
+
 function QuestsTab({ onShow }) {
     return (
         <div className="w-full h-full overflow-y-auto windowMainScreen p-3 md:p-5">
-            <SectionTitle>Quest log</SectionTitle>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {QUESTS.map(q => (
-                    <div key={q.title} className="rounded-xl p-3.5 flex flex-col" style={{ background: THEME.panel, border: `1px solid ${THEME.line}`, boxShadow: `inset 3px 0 0 ${RARITY[q.rarity]}` }}>
-                        <div className="flex items-start justify-between gap-2">
-                            <div>
-                                <div className="font-bold text-base">{q.title}</div>
-                                <div className="text-xs" style={{ color: THEME.muted }}>{q.when} · {q.where}</div>
+            <SectionTitle emoji="📜" color={THEME.pink}>Quest log</SectionTitle>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {QUESTS.map(q => {
+                    const rarity = RARITY[q.rarity];
+                    return (
+                        <div key={q.title} className="rounded-2xl overflow-hidden flex flex-col shadow-md transform hover:-translate-y-0.5 transition-transform" style={{ background: THEME.card }}>
+                            <div style={{ height: 6, background: rarity.gradient }} />
+                            <div className="p-3.5 flex flex-col flex-grow">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <div className="font-bold text-base" style={{ color: THEME.ink }}>{q.title}</div>
+                                        <div className="text-xs" style={{ color: THEME.muted }}>{q.when} · {q.where}</div>
+                                    </div>
+                                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap text-white shadow-sm" style={{ background: rarity.gradient }}>{q.rarity}</span>
+                                </div>
+                                <p className="text-sm mt-2 leading-snug flex-grow" style={{ color: "#3a4160" }}>{q.story}</p>
+                                <div className="flex items-center justify-between mt-3">
+                                    <div className="flex flex-wrap gap-1">
+                                        {q.tags.map(t => <span key={t} className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${rarity.color}14`, color: rarity.color }}>{t}</span>)}
+                                    </div>
+                                    <button type="button" onClick={() => onShow(q.at)} className="text-xs font-bold px-3 py-1 rounded-full text-white shadow-sm hover:opacity-90" style={{ background: THEME.sunset }}>
+                                        Show on map →
+                                    </button>
+                                </div>
                             </div>
-                            <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap" style={{ color: RARITY[q.rarity], border: `1px solid ${RARITY[q.rarity]}55` }}>{q.rarity}</span>
                         </div>
-                        <p className="text-sm mt-2 leading-snug flex-grow" style={{ color: "#d6d2ca" }}>{q.story}</p>
-                        <div className="flex items-center justify-between mt-3">
-                            <div className="flex flex-wrap gap-1">
-                                {q.tags.map(t => <span key={t} className="text-xs px-1.5 py-0.5 rounded" style={{ background: THEME.panel2, color: THEME.muted }}>{t}</span>)}
-                            </div>
-                            <button type="button" onClick={() => onShow(q.at)} className="text-xs px-2 py-1 rounded hover:bg-white hover:bg-opacity-10" style={{ color: THEME.gold }}>
-                                Show on map →
-                            </button>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
-            <SectionTitle className="mt-6">Chapter zero · earlier adventures</SectionTitle>
+            <SectionTitle emoji="🧭" color={THEME.teal} className="mt-6">Chapter zero · earlier adventures</SectionTitle>
             <div className="flex flex-wrap gap-2">
-                {ORIGINS.map(o => <span key={o} className="text-xs md:text-sm px-2.5 py-1 rounded-full" style={{ background: THEME.panel, border: `1px solid ${THEME.teal}44`, color: "#cfe9e5" }}>{o}</span>)}
+                {ORIGINS.map((o, i) => (
+                    <span key={o} className="text-xs md:text-sm px-3 py-1 rounded-full font-medium" style={{ background: PASTELS[i % PASTELS.length], color: THEME.ink }}>{o}</span>
+                ))}
             </div>
         </div>
     );
@@ -338,24 +368,24 @@ function QuestsTab({ onShow }) {
 function CharacterTab({ travel }) {
     return (
         <div className="w-full h-full overflow-y-auto windowMainScreen p-3 md:p-5">
-            <div className="rounded-xl p-4 flex items-center gap-4" style={{ background: `linear-gradient(135deg, ${THEME.panel2}, ${THEME.panel})`, border: `1px solid ${THEME.line}` }}>
-                <img src="./images/logos/bitmoji.png" alt="" className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white flex-shrink-0" />
+            <div className="rounded-2xl p-4 flex items-center gap-4 text-white shadow-lg" style={{ background: THEME.sunset }}>
+                <img src="./images/logos/bitmoji.png" alt="" className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white flex-shrink-0 shadow-md" style={{ boxShadow: "0 0 0 4px rgba(255,255,255,.6)" }} />
                 <div className="min-w-0">
                     <div className="text-xl md:text-2xl font-bold">Aman</div>
-                    <div className="text-sm" style={{ color: THEME.gold }}>Class: Engineer · Wanderer · Storyteller</div>
-                    <div className="text-xs mt-1" style={{ color: THEME.muted }}>
+                    <div className="text-sm font-medium">Class: Engineer · Wanderer · Storyteller</div>
+                    <div className="text-xs mt-1 opacity-90">
                         Home base: Bengaluru{travel ? ` · ${travel.states.length} states explored this year` : ""}
                     </div>
                 </div>
             </div>
-            <SectionTitle className="mt-5">Skills & side hustles of the soul</SectionTitle>
+            <SectionTitle emoji="✨" color={THEME.violet} className="mt-5">Skills & side hustles of the soul</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {SKILLS.map(s => (
-                    <div key={s.name} className="rounded-xl p-3 flex gap-3" style={{ background: THEME.panel, border: `1px solid ${THEME.line}` }}>
-                        <div className="text-2xl leading-none">{s.icon}</div>
+                {SKILLS.map((s, i) => (
+                    <div key={s.name} className="rounded-2xl p-3 flex gap-3 transform hover:scale-[1.02] transition-transform" style={{ background: PASTELS[i % PASTELS.length] }}>
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl flex-shrink-0 shadow-sm">{s.icon}</div>
                         <div className="min-w-0">
-                            <div className="font-bold text-sm">{s.name}</div>
-                            <div className="text-xs mt-0.5 leading-snug" style={{ color: THEME.muted }}>{s.note}</div>
+                            <div className="font-bold text-sm" style={{ color: THEME.ink }}>{s.name}</div>
+                            <div className="text-xs mt-0.5 leading-snug" style={{ color: "#454d6b" }}>{s.note}</div>
                         </div>
                     </div>
                 ))}
@@ -366,18 +396,23 @@ function CharacterTab({ travel }) {
 
 function LoreTab() {
     const [playing, setPlaying] = React.useState(false);
+    const notes = [{ bg: "#fff1a8", tilt: "-1.5deg" }, { bg: "#ffd6e7", tilt: "1.2deg" }];
     return (
         <div className="w-full h-full overflow-y-auto windowMainScreen p-3 md:p-5">
-            <SectionTitle>Scrolls</SectionTitle>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {LORE.map(line => (
-                    <blockquote key={line} className="rounded-xl p-5 text-lg md:text-xl italic leading-snug" style={{ background: THEME.panel, border: `1px solid ${THEME.gold}33`, fontFamily: "Georgia, 'Times New Roman', serif" }}>
-                        <span style={{ color: THEME.gold }}>“</span>{line}<span style={{ color: THEME.gold }}>”</span>
+            <SectionTitle emoji="🪶" color={THEME.orange}>Scrolls</SectionTitle>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 px-1 py-2">
+                {LORE.map((line, i) => (
+                    <blockquote
+                        key={line}
+                        className="rounded-md p-5 text-lg md:text-xl italic leading-snug shadow-lg"
+                        style={{ background: notes[i % notes.length].bg, color: THEME.ink, transform: `rotate(${notes[i % notes.length].tilt})`, fontFamily: "Georgia, 'Times New Roman', serif" }}
+                    >
+                        “{line}”
                     </blockquote>
                 ))}
             </div>
-            <SectionTitle className="mt-6">Bard's corner</SectionTitle>
-            <div className="rounded-xl overflow-hidden max-w-xl" style={{ background: THEME.panel, border: `1px solid ${THEME.line}` }}>
+            <SectionTitle emoji="🎸" color={THEME.pink} className="mt-6">Bard's corner</SectionTitle>
+            <div className="rounded-2xl overflow-hidden max-w-xl shadow-lg" style={{ background: THEME.card }}>
                 <div className="relative w-full" style={{ paddingTop: "56.25%" }}>
                     {playing ? (
                         <iframe
@@ -388,20 +423,20 @@ function LoreTab() {
                             allowFullScreen
                         />
                     ) : (
-                        <button type="button" onClick={() => setPlaying(true)} className="absolute inset-0 w-full h-full group" aria-label="Play Debugging Love">
-                            <img src={`https://i.ytimg.com/vi/${SONG_ID}/hqdefault.jpg`} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                        <button type="button" onClick={() => setPlaying(true)} className="absolute inset-0 w-full h-full group bg-black" aria-label="Play Debugging Love">
+                            <img src={`https://i.ytimg.com/vi/${SONG_ID}/hqdefault.jpg`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             <span className="absolute inset-0 flex items-center justify-center">
-                                <span className="w-14 h-14 rounded-full flex items-center justify-center text-xl text-black shadow-lg" style={{ background: THEME.gold }}>▶</span>
+                                <span className="w-16 h-16 rounded-full flex items-center justify-center text-2xl text-white shadow-xl" style={{ background: THEME.sunset }}>▶</span>
                             </span>
                         </button>
                     )}
                 </div>
                 <div className="p-3 flex items-center justify-between">
                     <div>
-                        <div className="font-bold">Debugging Love</div>
+                        <div className="font-bold" style={{ color: THEME.ink }}>Debugging Love</div>
                         <div className="text-xs" style={{ color: THEME.muted }}>An original song · xlibraries</div>
                     </div>
-                    <a href="https://www.youtube.com/@xlibraries" target="_blank" rel="noreferrer noopener" className="text-xs px-2 py-1 rounded hover:bg-white hover:bg-opacity-10" style={{ color: THEME.gold }}>
+                    <a href="https://www.youtube.com/@xlibraries" target="_blank" rel="noreferrer noopener" className="text-xs font-bold px-3 py-1 rounded-full text-white shadow-sm hover:opacity-90" style={{ background: THEME.coral }}>
                         YouTube channel ↗
                     </a>
                 </div>
@@ -410,11 +445,12 @@ function LoreTab() {
     );
 }
 
-function SectionTitle({ children, className = "" }) {
+function SectionTitle({ children, emoji, color, className = "" }) {
     return (
-        <div className={className + " text-xs uppercase tracking-widest mb-3 flex items-center gap-2"} style={{ color: THEME.gold }}>
+        <div className={className + " text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2"} style={{ color }}>
+            <span className="text-base">{emoji}</span>
             <span>{children}</span>
-            <span className="flex-grow h-px" style={{ background: `${THEME.gold}33` }} />
+            <span className="flex-grow rounded-full" style={{ height: 3, background: `linear-gradient(90deg, ${color}66, transparent)` }} />
         </div>
     );
 }
@@ -451,21 +487,21 @@ export function SideQuests() {
     };
 
     return (
-        <div className="w-full h-full flex flex-col select-none" style={{ background: THEME.bg, color: THEME.text }}>
-            <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto windowMainScreen" style={{ background: THEME.panel, borderBottom: `1px solid ${THEME.line}` }}>
+        <div className="w-full h-full flex flex-col select-none" style={{ background: THEME.bg, color: THEME.ink }}>
+            <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto windowMainScreen" style={{ background: THEME.sunset }}>
                 {TABS.map(t => (
                     <button
                         key={t.id}
                         type="button"
                         onClick={() => open(t.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
-                        style={tab === t.id ? { background: `${THEME.gold}22`, color: THEME.gold, boxShadow: `inset 0 -2px 0 ${THEME.gold}` } : { color: THEME.muted }}
+                        className={(tab === t.id ? "bg-white shadow-md font-bold " : "text-white hover:bg-white hover:bg-opacity-20 ") + "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors"}
+                        style={tab === t.id ? { color: THEME.pink } : undefined}
                     >
                         <span>{t.icon}</span>{t.label}
                     </button>
                 ))}
-                <div className="ml-auto pl-3 text-xs whitespace-nowrap hidden md:block" style={{ color: THEME.muted }}>
-                    Off the clock · things I do for fun
+                <div className="ml-auto pl-3 text-xs whitespace-nowrap hidden md:block text-white font-medium opacity-95">
+                    Off the clock · things I do for fun ✌️
                 </div>
             </div>
             <div className="flex-grow overflow-hidden">
