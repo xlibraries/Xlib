@@ -257,10 +257,11 @@ const ExperienceDoc = ({ children }) => (
   </ul>
 );
 
-const FlamProjectDoc = ({ children }) => (
+const FlamProjectDoc = ({ role, period, children }) => (
   <ExperienceDoc>
-    <div className="text-lg md:text-xl font-bold">Flam (Flamapp.ai)</div>
-    <div className="text-sm text-gray-400">Research &amp; Development · Jul 2024 - Present</div>
+    <div className="text-lg md:text-xl font-bold">Flam (Flying Flamingos)</div>
+    <div className="text-sm md:text-base">{role}</div>
+    <div className="text-sm text-gray-400">{period}</div>
     {children}
   </ExperienceDoc>
 );
@@ -287,11 +288,16 @@ function getFileTree() {
               <FlamStack />
             </ExperienceDoc>
           )),
-          textFile("Talking Avatar.md", () => <FlamProjectDoc><FlamTalkingAvatar /></FlamProjectDoc>),
-          textFile("3D Reconstruction.md", () => <FlamProjectDoc><FlamReconstruction /></FlamProjectDoc>),
-          textFile("6-DoF Tracking (Patent Filed).md", () => <FlamProjectDoc><FlamTracking /></FlamProjectDoc>),
+          textFile("Talking Avatar.md", () => (
+            <FlamProjectDoc role="Senior Research & Development Engineer" period="Jan 2026 - Present"><FlamTalkingAvatar /></FlamProjectDoc>
+          )),
+          textFile("3D Reconstruction.md", () => (
+            <FlamProjectDoc role="Research & Development Engineer" period="Jun 2025 - Aug 2025"><FlamReconstruction /></FlamProjectDoc>
+          )),
+          textFile("6-DoF Tracking (Patent Filed).md", () => (
+            <FlamProjectDoc role="Research & Development Engineer - Visual Computing & AR" period="Jul 2024 - Dec 2025"><FlamTracking /></FlamProjectDoc>
+          )),
         ]),
-        textFile("Flying Flamingos.md", () => <ExperienceDoc><FlyingFlamingos /></ExperienceDoc>),
         textFile("Persistent Systems.md", () => <ExperienceDoc><PersistentSystems /></ExperienceDoc>),
         textFile("Game Development.md", () => <ExperienceDoc><GameDevelopment /></ExperienceDoc>),
       ], "./themes/Yaru/status/experience.svg"),
@@ -578,9 +584,6 @@ function Experience() {
           <FlamStack />
         </li>
         <li className="list-disc mb-6">
-          <FlyingFlamingos />
-        </li>
-        <li className="list-disc mb-6">
           <PersistentSystems />
         </li>
         <li className="list-disc">
@@ -597,10 +600,10 @@ function FlamOverview() {
   return (
     <>
       <div className="text-lg md:text-xl font-bold">
-        Flam (Flamapp.ai)
+        Flam (Flying Flamingos)
       </div>
       <div className="text-sm md:text-base">
-        Full-time · Bengaluru, Karnataka, India · On-site
+        Founding Engineer · Full-time · Bengaluru, Karnataka, India · On-site
       </div>
 
       <div className="text-sm md:text-base mt-2">
@@ -686,20 +689,6 @@ function FlamStack() {
           Tech stack: C++23, Python, CUDA, gRPC, OpenCV, differentiable rendering, Gaussian splatting, NeRF, WebGPU, WebAssembly, Emscripten, TypeScript.
         </li>
       </ul>
-    </>
-  );
-}
-
-function FlyingFlamingos() {
-  return (
-    <>
-      <div className="text-lg md:text-xl text-left font-bold leading-tight">
-        Flying Flamingos
-      </div>
-      <div className="text-sm md:text-base">Founding Engineer · Advertising &amp; creative tech company</div>
-      <div className="text-sm text-gray-400 mt-0.5">
-        2024 - Present
-      </div>
     </>
   );
 }
