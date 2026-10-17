@@ -332,7 +332,7 @@ function Experience() {
               Co-developed (equal ownership) a production SDK for real-time 6-DoF pose estimation, with a differentiable keypoint pipeline that outperforms ORB, SIFT, and BRISK, plus ICP-based refinement.
             </li>
             <li>
-              Built the modular C++23 Visual SLAM and tracking engine behind it, with deterministic tracking states and low-latency execution.
+              Built the modular C++23 Visual SLAM and tracking engine behind it, with deterministic tracking states, SIMD-optimized paths, and low-latency execution.
             </li>
             <li>
               Shipped it cross-platform from one C++ core: Web (WASM/WebGPU), Android, iOS, macOS, and Linux, optimized for edge deployment under 260 KB.
@@ -346,9 +346,21 @@ function Experience() {
           </ul>
         </li>
 
+        {/* FLYING FLAMINGOS — SIDE VENTURE */}
+
+        <li className="list-disc mb-6">
+          <div className="text-lg md:text-xl text-left font-bold leading-tight">
+            Flying Flamingos
+          </div>
+          <div className="text-sm md:text-base">Founding Engineer · Advertising &amp; creative tech company</div>
+          <div className="text-sm text-gray-400 mt-0.5">
+            2024 - Present
+          </div>
+        </li>
+
         {/* PERSISTENT — PREVIOUS ROLE */}
 
-        <li className="list-disc">
+        <li className="list-disc mb-6">
           <div className="text-lg md:text-xl text-left font-bold leading-tight">
             Persistent Systems
           </div>
@@ -412,6 +424,30 @@ function Experience() {
               setup, and resolved multiple Severity-1 production incidents in
               enterprise systems.
             </li>
+            <li>
+              Led Unity/XR prototypes in internal hackathons (Technothon,
+              SemiColons) to support sales initiatives.
+            </li>
+          </ul>
+        </li>
+
+        {/* GAME DEVELOPMENT — EARLY CAREER */}
+
+        <li className="list-disc">
+          <div className="text-lg md:text-xl text-left font-bold leading-tight">
+            Game Developer &amp; Level Designer
+          </div>
+          <div className="text-sm md:text-base">Multiple studios</div>
+          <div className="text-sm text-gray-400 mt-0.5">
+            Mar 2021 - Feb 2022
+          </div>
+          <ul className="list-disc pl-5">
+            <li>
+              Bharatiya Gaming Company: designed game levels and mechanics for mobile games.
+            </li>
+            <li>
+              GamerGage Studio &amp; Chessegy: developed hyper-casual and chess games in Unity3D.
+            </li>
           </ul>
         </li>
 
@@ -455,6 +491,23 @@ function Education() {
           </div>
           <div className="text-sm md:text-base">
             Member: .NET Foundation (2021)
+          </div>
+        </li>
+        <li className="list-disc mt-6">
+          <div className=" text-lg md:text-xl text-left font-bold leading-tight">
+            Certifications
+          </div>
+          <div className="text-sm md:text-base mt-1">
+            Microsoft Identity Platform: Workshop Champ 2022 (Microsoft)
+          </div>
+          <div className="text-sm md:text-base">
+            Developing Microsoft Azure Solutions (Microsoft, 2022)
+          </div>
+          <div className="text-sm md:text-base">
+            Game Design and Development Specialization (Michigan State University, 2020)
+          </div>
+          <div className="text-sm md:text-base">
+            Rapid Gameplay Prototyping (Unity Technologies, 2020)
           </div>
         </li>
       </ul>
