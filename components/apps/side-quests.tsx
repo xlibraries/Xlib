@@ -229,6 +229,18 @@ function loadLeaflet() {
     return leafletPromise;
 }
 
+// Redraws India's official boundaries over standard OSM tiles (disputed lines masked, J&K, Ladakh and
+// Aksai Chin shown as part of India): https://github.com/ramSeraph/india_boundary_corrector
+let correctorPromise = null;
+function loadBoundaryCorrector(L) {
+    if (!correctorPromise) {
+        correctorPromise = import(/* webpackIgnore: true */ "https://cdn.jsdelivr.net/npm/@india-boundary-corrector/leaflet-layer@0.2.2/+esm")
+            .then(module => { module.extendLeaflet(L); return L; })
+            .catch(err => { correctorPromise = null; throw err; });
+    }
+    return correctorPromise;
+}
+
 let travelPromise = null;
 function loadTravel() {
     if (!travelPromise) {
@@ -248,16 +260,18 @@ function WorldMap({ travel, focus }) {
     React.useEffect(() => {
         let cancelled = false;
         let observer = null;
-        loadLeaflet().then(L => {
+        // No uncorrected fallback: if the corrector can't load, the map shows an error instead
+        loadLeaflet().then(loadBoundaryCorrector).then(L => {
             if (cancelled || !el.current) return;
             const map = L.map(el.current, { zoomControl: false, attributionControl: true, worldCopyJump: true }).setView([21, 79], 5);
             mapRef.current = map;
             L.control.zoom({ position: "bottomright" }).addTo(map);
             // Standard full-colour OSM tiles (no API key), slightly softened so routes and pins pop
-            L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            L.tileLayer.indiaBoundaryCorrected("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
                 maxZoom: 12,
                 className: "side-quests-tiles",
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                layerConfig: "osm-carto",
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · India boundaries corrected with <a href="https://github.com/ramSeraph/india_boundary_corrector">india_boundary_corrector</a>',
             }).addTo(map);
 
             const bounds = [];
