@@ -1,21 +1,28 @@
 // @ts-nocheck
 import React, { Component } from 'react';
 
+// Home is a local start page; searches show Bing results in the window, since Google shows a
+// "unusual traffic" captcha inside frames and Brave Search / DuckDuckGo refuse to be framed.
+const HOME_URL = './brave/newtab.html';
+const searchUrl = (query) => 'https://www.bing.com/search?q=' + encodeURIComponent(query);
+const looksLikeUrl = (text) => /^(https?:\/\/)?(localhost|[\w-]+(\.[\w-]+)+)(:\d+)?(\/\S*)?$/i.test(text);
+
 export class Brave extends Component {
     constructor() {
         super();
-        this.home_url = 'https://www.google.com/webhp?igu=1';
+        this.home_url = HOME_URL;
         this.state = {
-            url: 'https://www.google.com/webhp?igu=1',
-            display_url: "https://www.google.com",
+            url: HOME_URL,
+            display_url: "",
         }
     }
 
     componentDidMount() {
         let lastVisitedUrl = localStorage.getItem("brave-url");
         let lastDisplayedUrl = localStorage.getItem("brave-display-url");
-        if (lastVisitedUrl !== null && lastVisitedUrl !== undefined) {
-            this.setState({ url: lastVisitedUrl, display_url: lastDisplayedUrl }, this.refreshBrave);
+        // The old Google home page triggered captchas; start fresh for anyone who left it open
+        if (lastVisitedUrl && !lastVisitedUrl.includes("google.com")) {
+            this.setState({ url: lastVisitedUrl, display_url: lastDisplayedUrl || "" }, this.refreshBrave);
         }
     }
 
@@ -29,7 +36,8 @@ export class Brave extends Component {
     }
 
     goToHome = () => {
-        this.setState({ url: this.home_url, display_url: "https://www.google.com" });
+        this.setState({ url: this.home_url, display_url: "" });
+        this.storeVisitedUrl(this.home_url, "");
         this.refreshBrave();
     }
 
@@ -41,15 +49,22 @@ export class Brave extends Component {
             url = url.trim();
             if (url.length === 0) return;
 
-            if (url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) {
-                url = "https://" + url;
-            }
-
-            url = encodeURI(url);
-            display_url = url;
-            if (url.includes("google.com")) { // 😅
-                url = 'https://www.google.com/webhp?igu=1';
-                display_url = "https://www.google.com";
+            if (!looksLikeUrl(url)) {
+                // Plain words: search for them
+                display_url = url;
+                url = searchUrl(url);
+            } else {
+                if (url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) {
+                    url = "https://" + url;
+                }
+                url = encodeURI(url);
+                display_url = url;
+                if (/(^|\.)google\.com/.test(new URL(url).hostname)) {
+                    // Google blocks searches from inside frames with a captcha; open it as a real tab
+                    window.open(url, "_blank", "noopener");
+                    document.getElementById("brave-url-bar").blur();
+                    return;
+                }
             }
             this.setState({ url, display_url });
             this.storeVisitedUrl(url, display_url);
@@ -70,7 +85,7 @@ export class Brave extends Component {
                 <button type="button" onClick={this.goToHome} className=" mr-2 ml-1 flex justify-center items-center rounded-full bg-gray-50 bg-opacity-0 hover:bg-opacity-10 border-0 bg-transparent p-0">
                     <img className="w-5" src="./themes/Yaru/status/chrome_home.svg" alt="Ubuntu Brave Home" />
                 </button>
-                <input onKeyDown={this.checkKey} onChange={this.handleDisplayUrl} value={this.state.display_url} id="brave-url-bar" className="outline-none bg-ub-grey rounded-full pl-3 py-0.5 mr-3 w-5/6 text-gray-300 focus:text-white" type="url" spellCheck={false} autoComplete="off" />
+                <input onKeyDown={this.checkKey} onChange={this.handleDisplayUrl} value={this.state.display_url} id="brave-url-bar" placeholder="Search the web or type a URL" className="outline-none bg-ub-grey rounded-full pl-3 py-0.5 mr-3 w-5/6 text-gray-300 focus:text-white placeholder-gray-500" type="text" spellCheck={false} autoComplete="off" />
             </div>
         );
     }
