@@ -173,6 +173,10 @@ const LORE = [
 
 const SONG_ID = "aaHlegqIIik";
 
+// Town centres, not addresses
+const HOME_BASE = { name: "Katangi", detail: "Madhya Pradesh 481445", at: [21.77, 79.8] };
+const WORK_BASE = { name: "Bengaluru", at: [12.97, 77.59] };
+
 const MODE_STYLE = {
     car: { color: THEME.pink, label: "Road trips" },
     motorcycle: { color: THEME.orange, label: "Motorcycle" },
@@ -247,9 +251,9 @@ function WorldMap({ travel, focus }) {
                 L.circleMarker(m.at, { radius: 6, color: "#ffffff", weight: 2.5, fillColor: THEME.teal, fillOpacity: 1 })
                     .addTo(map).bindPopup(`<b>${m.name}</b><br/><span style="opacity:.7">Earlier adventure</span>`);
             });
-            L.marker([12.97, 77.59], {
-                icon: L.divIcon({ className: "", html: '<div style="font-size:24px;line-height:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">⭐</div>', iconSize: [24, 24], iconAnchor: [12, 12] }),
-            }).addTo(map).bindPopup("<b>Bengaluru</b><br/>Home base");
+            const emojiIcon = (emoji) => L.divIcon({ className: "", html: `<div style="font-size:24px;line-height:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">${emoji}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] });
+            L.marker(HOME_BASE.at, { icon: emojiIcon("⭐") }).addTo(map).bindPopup(`<b>${HOME_BASE.name}</b><br/>${HOME_BASE.detail}<br/>Home base`);
+            L.marker(WORK_BASE.at, { icon: emojiIcon("💼") }).addTo(map).bindPopup(`<b>${WORK_BASE.name}</b><br/>Work base`);
 
             if (focus) map.setView(focus, 9);
             else if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 6 });
@@ -374,7 +378,7 @@ function CharacterTab({ travel }) {
                     <div className="text-xl md:text-2xl font-bold">Aman</div>
                     <div className="text-sm font-medium">Class: Engineer · Wanderer · Storyteller</div>
                     <div className="text-xs mt-1 opacity-90">
-                        Home base: Bengaluru{travel ? ` · ${travel.states.length} states explored this year` : ""}
+                        Home base: {HOME_BASE.name}, MP · Work base: {WORK_BASE.name}{travel ? ` · ${travel.states.length} states explored this year` : ""}
                     </div>
                 </div>
             </div>
