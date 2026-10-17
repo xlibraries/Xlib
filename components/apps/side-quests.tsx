@@ -320,11 +320,16 @@ function WorldMap({ travel, focus }) {
     );
 }
 
+// Earlier road trips are stored one way unless they're loops; count the drive back too
+const roadTripKm = (trips) => (trips || []).reduce((sum, t) => sum + (t.stops[0] === t.stops[t.stops.length - 1] ? t.km : 2 * t.km), 0);
+
 function WorldTab({ travel, focus }) {
     const km = travel ? travel.km : {};
+    const earlierKm = travel ? roadTripKm(travel.roadTrips) : 0;
+    const roadKm = (km.road || 0) + earlierKm;
     const stats = [
+        { icon: "🛣️", value: formatKm(Math.round(roadKm / 100) * 100), label: "km on the road", color: THEME.pink },
         { icon: "🏍️", value: formatKm(km.motorcycle), label: "km on two wheels", color: THEME.orange },
-        { icon: "🚗", value: formatKm(km.car), label: "km road-tripping", color: THEME.pink },
         { icon: "🚆", value: formatKm(km.train), label: "km by rail", color: THEME.sky },
         { icon: "✈️", value: formatKm(km.flight), label: "km flown", color: THEME.violet },
         { icon: "📍", value: travel ? travel.places.length : "–", label: `towns · ${travel ? travel.states.length : "–"} states`, color: THEME.coral },
@@ -342,6 +347,11 @@ function WorldTab({ travel, focus }) {
             </div>
             <div className="absolute bottom-2 left-2 px-3 py-2 rounded-xl text-xs space-y-1 shadow-md" style={{ zIndex: 500, background: "rgba(255,255,255,0.95)", color: THEME.ink }}>
                 <div className="flex items-center gap-1.5"><Dot color={THEME.coral} /> Last 12 months{travel ? ` (${monthLabel(travel.period.from)} – ${monthLabel(travel.period.to)})` : ""}</div>
+                {travel && (
+                    <div style={{ color: THEME.muted }}>
+                        🛣️ {formatKm(Math.round(km.road || 0))} km tracked by road + {formatKm(earlierKm)} km of earlier road trips
+                    </div>
+                )}
                 <div className="flex items-center gap-1.5"><Dot color={THEME.teal} /> Earlier adventures <span className="inline-block w-4 rounded-full ml-1" style={{ height: 4, background: THEME.teal }} /> earlier road trips</div>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
                     {Object.entries(MODE_STYLE).map(([mode, s]) => (
