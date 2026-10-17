@@ -2,5 +2,5 @@
 // The URL is not a secret — uploads are protected by the passcode, which is checked on the server.
 window.PHOTO_DROP = {
     endpoint: "",
-    albumName: "Website Uploads",
+    albumName: "xlib's gallery",
 };
