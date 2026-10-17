@@ -7,10 +7,14 @@
  *
  * Files arrive in base64 chunks and are forwarded to the Photos Library API's resumable
  * upload, so large videos work despite Apps Script's request size limits.
+ *
+ * Chunks may arrive out of order or twice (Chrome's Background Fetch sends up to two requests
+ * at once and may retry), so each chunk waits for the previous one and duplicates are ignored.
  */
 
 const PHOTOS_API = 'https://photoslibrary.googleapis.com/v1';
 const SESSION_TTL = 6 * 60 * 60; // seconds (CacheService maximum)
+const ORDER_WAIT_MS = 90 * 1000; // how long a chunk waits for the one before it (normally a few seconds)
 
 // Script properties (Project Settings → Script properties). Only PASSCODE is required.
 const DEFAULTS = {
@@ -89,9 +93,23 @@ function startUpload(req) {
 }
 
 function uploadChunk(req) {
-  const session = getSession(req.uploadId);
-  const bytes = req.data ? Utilities.base64Decode(req.data) : [];
+  const id = req.uploadId;
+  const session = getSession(id);
+  const offset = Number(req.offset) || 0;
 
+  // Wait until every byte before this chunk has reached Google
+  const deadline = Date.now() + ORDER_WAIT_MS;
+  let received = getProgress(id).received;
+  while (received < offset) {
+    if (Date.now() > deadline) throw new Error('An earlier part of this file never arrived.');
+    Utilities.sleep(500);
+    received = getProgress(id).received;
+  }
+  // Already forwarded (a retry or duplicate request)
+  if (received > offset || getProgress(id).done) return { ok: true, duplicate: true, done: getProgress(id).done };
+  if (!claim(id, offset)) return { ok: true, duplicate: true, done: getProgress(id).done };
+
+  const bytes = req.data ? Utilities.base64Decode(req.data) : [];
   const res = UrlFetchApp.fetch(session.url, {
     method: 'post',
     contentType: 'application/octet-stream',
@@ -102,12 +120,18 @@ function uploadChunk(req) {
     }),
     muteHttpExceptions: true,
   });
-  if (res.getResponseCode() !== 200) throw new Error('Chunk upload failed (' + res.getResponseCode() + ').');
-  if (!req.final) return { ok: true };
+  if (res.getResponseCode() !== 200) {
+    release(id, offset);
+    throw new Error('Chunk upload failed (' + res.getResponseCode() + ').');
+  }
+  if (!req.final) {
+    setProgress(id, { received: offset + bytes.length });
+    return { ok: true };
+  }
 
   const uploadToken = res.getContentText();
   createMediaItem(uploadToken, session.fileName, req.uploader);
-  CacheService.getScriptCache().remove('upload:' + req.uploadId);
+  setProgress(id, { received: offset + bytes.length, done: true });
   return { ok: true, done: true };
 }
 
@@ -121,10 +145,10 @@ function uploadStatus(req) {
     muteHttpExceptions: true,
   });
   const headers = res.getAllHeaders();
-  return {
-    received: Number(header(headers, 'X-Goog-Upload-Size-Received')) || 0,
-    state: header(headers, 'X-Goog-Upload-Status') || 'unknown',
-  };
+  const received = Number(header(headers, 'X-Goog-Upload-Size-Received')) || 0;
+  const progress = getProgress(req.uploadId);
+  if (!progress.done) setProgress(req.uploadId, { received: received });
+  return { received: received, done: progress.done, state: header(headers, 'X-Goog-Upload-Status') || 'unknown' };
 }
 
 function createMediaItem(uploadToken, fileName, uploader) {
@@ -185,6 +209,34 @@ function checkPasscode(passcode) {
   if (String(passcode || '') === expected) return true;
   Utilities.sleep(1500); // slow down guessing
   return false;
+}
+
+// Bytes forwarded to Google so far, shared between concurrent executions
+function getProgress(id) {
+  return JSON.parse(CacheService.getScriptCache().get('progress:' + id) || '{"received":0}');
+}
+
+function setProgress(id, progress) {
+  CacheService.getScriptCache().put('progress:' + id, JSON.stringify(progress), SESSION_TTL);
+}
+
+// Only one execution may forward a given chunk, even if it was sent twice at the same time
+function claim(id, offset) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const cache = CacheService.getScriptCache();
+    const key = 'claim:' + id + ':' + offset;
+    if (cache.get(key)) return false;
+    cache.put(key, '1', SESSION_TTL);
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function release(id, offset) {
+  CacheService.getScriptCache().remove('claim:' + id + ':' + offset);
 }
 
 function saveSession(id, session) {
