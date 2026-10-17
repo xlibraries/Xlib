@@ -1,8 +1,8 @@
-import { displaySpotify } from './components/apps/spotify';
+import { displayMusic } from './components/apps/music';
 import { displayVsCode } from './components/apps/vscode';
 import { displayTerminal } from './components/apps/terminal';
 import { displaySettings } from './components/apps/settings';
-import { displayChrome } from './components/apps/chrome';
+import { displayBrave } from './components/apps/brave';
 import { displayTrash } from './components/apps/trash';
 import { displayGedit } from './components/apps/gedit';
 import { displayAboutAman } from './components/apps/aman';
@@ -11,13 +11,13 @@ import { displayTodoist } from './components/apps/todoist';
 
 const apps = [
     {
-        id: "chrome",
-        title: "Google Chrome",
-        icon: './themes/Yaru/apps/chrome.png',
+        id: "brave",
+        title: "Brave",
+        icon: './themes/Yaru/apps/brave.png',
         disabled: false,
         favourite: true,
         desktop_shortcut: true,
-        screen: displayChrome,
+        screen: displayBrave,
     },
     {
         id: "calc",
@@ -56,13 +56,13 @@ const apps = [
         screen: displayTerminal,
     },
     {
-        id: "spotify",
-        title: "Spotify",
-        icon: './themes/Yaru/apps/spotify.png',
+        id: "music",
+        title: "Music",
+        icon: './themes/Yaru/apps/rhythmbox.png',
         disabled: false,
         favourite: true,
         desktop_shortcut: false,
-        screen: displaySpotify, // India Top 50 Playlist 😅
+        screen: displayMusic, // Ad-free SomaFM radio, no signup
     },
     {
         id: "settings",

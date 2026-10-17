@@ -1,7 +1,7 @@
 // @ts-nocheck
 import 'tailwindcss/tailwind.css'
 import '../styles/index.css'
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react"
 
 function MyApp({ Component, pageProps }) {
   return (
