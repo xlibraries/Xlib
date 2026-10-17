@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#16131a">
+    <title>Photo Drop</title>
+    <style>
+        :root {
+            --accent: #F7752B;
+            --accent-deep: #9B1D5A;
+            --gradient: linear-gradient(135deg, var(--accent), var(--accent-deep));
+            --bg: #16131a;
+            --panel: #1f1b24;
+            --line: rgba(255, 255, 255, 0.08);
+            --text: #f3f0f5;
+            --muted: #a59fae;
+            --ok: #4ade80;
+            --err: #f87171;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body { margin: 0; min-height: 100%; }
+
+        body {
+            background:
+                radial-gradient(ellipse at 15% -10%, rgba(155, 29, 90, 0.5), transparent 55%),
+                radial-gradient(ellipse at 110% 110%, rgba(247, 117, 43, 0.22), transparent 50%),
+                var(--bg);
+            background-attachment: fixed;
+            color: var(--text);
+            font-family: Ubuntu, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        main {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: max(24px, env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+        }
+
+        header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+
+        .logo {
+            width: 44px; height: 44px; border-radius: 12px; background: var(--gradient);
+            display: grid; place-items: center; font-size: 22px; flex-shrink: 0;
+            box-shadow: 0 6px 20px rgba(155, 29, 90, 0.4);
+        }
+
+        h1 { font-size: 22px; margin: 0; }
+        .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+
+        input[type=text], input[type=password] {
+            width: 100%;
+            font: inherit;
+            font-size: 16px; /* prevents iOS zoom on focus */
+            color: var(--text);
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px 14px;
+            outline: none;
+        }
+
+        input:focus { border-color: var(--accent); }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%;
+            min-height: 52px;
+            border: 0;
+            border-radius: 14px;
+            font: inherit; font-size: 16px; font-weight: 600;
+            color: #fff;
+            background: var(--gradient);
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(155, 29, 90, 0.35);
+        }
+
+        .btn:disabled { opacity: 0.5; cursor: default; }
+        .btn.secondary { background: rgba(255, 255, 255, 0.08); box-shadow: none; font-weight: 500; }
+        .row { display: flex; gap: 10px; margin-top: 12px; }
+        .row .btn { flex: 1; }
+
+        .drop {
+            border: 2px dashed rgba(255, 255, 255, 0.18);
+            border-radius: 16px;
+            padding: 28px 16px;
+            text-align: center;
+            color: var(--muted);
+            margin-top: 16px;
+        }
+
+        .drop strong { color: var(--text); display: block; font-size: 17px; margin-bottom: 4px; }
+
+        body.dragging::after {
+            content: "Drop to upload";
+            position: fixed; inset: 12px;
+            border: 3px dashed var(--accent);
+            border-radius: 20px;
+            background: rgba(22, 19, 26, 0.85);
+            display: grid; place-items: center;
+            font-size: 24px; font-weight: 600;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .error { color: var(--err); font-size: 14px; margin-top: 10px; min-height: 1em; }
+
+        .summary { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+        .summary b { color: var(--text); font-size: 16px; }
+
+        .bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+        .bar > div { height: 100%; width: 0; background: var(--gradient); transition: width 0.3s ease; }
+
+        ul { list-style: none; margin: 16px 0 0; padding: 0; }
+
+        li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+
+        .thumb {
+            width: 52px; height: 52px; border-radius: 10px; flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.06); overflow: hidden;
+            display: grid; place-items: center; font-size: 22px;
+        }
+
+        .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; }
+        .info { flex: 1; min-width: 0; }
+        .name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .meta { font-size: 12px; color: var(--muted); margin: 3px 0 6px; }
+        .meta.ok { color: var(--ok); }
+        .meta.err { color: var(--err); }
+
+        .icon-btn {
+            border: 0; background: rgba(255, 255, 255, 0.08); color: var(--text);
+            width: 40px; height: 40px; border-radius: 50%; font-size: 16px; cursor: pointer; flex-shrink: 0;
+        }
+
+        .done {
+            text-align: center; padding: 8px 0 4px;
+        }
+
+        .done .big { font-size: 40px; }
+        .hint { color: var(--muted); font-size: 13px; text-align: center; margin-top: 16px; line-height: 1.5; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <div class="logo">📸</div>
+            <div>
+                <h1>Photo Drop</h1>
+                <div class="sub" id="subtitle">Share your photos &amp; videos</div>
+            </div>
+        </header>
+
+        <!-- Not configured -->
+        <section class="card hidden" id="setup-needed">
+            <strong>Uploader not set up yet.</strong>
+            <p class="sub">The site owner needs to add the Apps Script URL to <code>drop/config.js</code>.</p>
+        </section>
+
+        <!-- Step 1: passcode -->
+        <form class="card hidden" id="lock" autocomplete="off">
+            <label for="passcode">Passcode</label>
+            <input type="password" id="passcode" placeholder="Enter the passcode you were given" autocomplete="current-password" required>
+            <div class="error" id="lock-error"></div>
+            <button class="btn" type="submit" id="unlock">Continue</button>
+        </form>
+
+        <!-- Step 2: pick + upload -->
+        <section class="hidden" id="uploader">
+            <div class="card">
+                <label for="name">Your name (optional)</label>
+                <input type="text" id="name" placeholder="So we know who shared these" maxlength="100" autocomplete="name">
+
+                <div class="drop" id="dropzone">
+                    <strong>Add photos &amp; videos</strong>
+                    <span id="drop-hint">Pick from your gallery or drag files here</span>
+                    <div class="row">
+                        <button class="btn" type="button" id="pick">🖼️ Choose files</button>
+                        <button class="btn secondary hidden" type="button" id="camera">📷 Camera</button>
+                    </div>
+                </div>
+                <input type="file" id="files" accept="image/*,video/*" multiple hidden>
+                <input type="file" id="camera-input" accept="image/*,video/*" capture="environment" hidden>
+            </div>
+
+            <div class="card hidden" id="queue-card">
+                <div class="summary">
+                    <span id="summary-text"><b>0</b> files</span>
+                    <span id="summary-size"></span>
+                </div>
+                <div class="bar"><div id="total-bar"></div></div>
+                <div class="done hidden" id="done">
+                    <div class="big">🎉</div>
+                    <div><b>All done — thank you!</b></div>
+                    <div class="sub" id="done-text"></div>
+                </div>
+                <ul id="queue"></ul>
+            </div>
+
+            <p class="hint">
+                Files go straight to a private album and never use your own storage.<br>
+                Keep this page open until uploads finish.
+            </p>
+        </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script>
+    (function () {
+        "use strict";
+
+        const config = window.PHOTO_DROP || {};
+        const CHUNK_SIZE = 8 * 1024 * 1024; // raw bytes per request (~11 MB once base64-encoded)
+        const PARALLEL_FILES = 2;
+        const MAX_RETRIES = 5;
+
+        const $ = (id) => document.getElementById(id);
+        const store = {
+            get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+            set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } },
+            remove: (k) => { try { localStorage.removeItem(k); } catch (e) { } },
+        };
+
+        const EXT_TYPES = {
+            heic: "image/heic", heif: "image/heif", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+            gif: "image/gif", webp: "image/webp", dng: "image/x-adobe-dng", mov: "video/quicktime",
+            mp4: "video/mp4", m4v: "video/x-m4v", "3gp": "video/3gpp", mkv: "video/x-matroska",
+            avi: "video/x-msvideo", webm: "video/webm",
+        };
+
+        let passcode = "";
+        let maxFileMb = 4096;
+        const queue = [];
+        let active = 0;
+        let wakeLock = null;
+
+        // ---------- API ----------
+
+        class ApiError extends Error {
+            constructor(message, fatal, code) { super(message); this.fatal = fatal; this.code = code; }
+        }
+
+        async function api(body) {
+            let res;
+            try {
+                // text/plain keeps this a "simple" request (no CORS preflight), which Apps Script requires
+                res = await fetch(config.endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify(Object.assign({ passcode }, body)),
+                });
+            } catch (e) {
+                throw new ApiError("Network problem — retrying…", false);
+            }
+            let data;
+            try { data = await res.json(); } catch (e) { throw new ApiError("Unexpected server response", false); }
+            if (data.error) throw new ApiError(data.error, !!data.fatal, data.code);
+            return data;
+        }
+
+        // ---------- Step 1: passcode ----------
+
+        async function unlock(code, silent) {
+            passcode = code;
+            $("unlock").disabled = true;
+            $("lock-error").textContent = "";
+            try {
+                const info = await api({ action: "check" });
+                if (info.maxFileMb) maxFileMb = info.maxFileMb;
+                store.set("drop-passcode", code);
+                showUploader();
+            } catch (e) {
+                store.remove("drop-passcode");
+                show("lock");
+                if (!silent || e.code !== "passcode") $("lock-error").textContent = e.code === "passcode" ? "That passcode isn't right." : e.message;
+            } finally {
+                $("unlock").disabled = false;
+            }
+        }
+
+        function show(id) {
+            ["setup-needed", "lock", "uploader"].forEach(x => $(x).classList.toggle("hidden", x !== id));
+        }
+
+        function showUploader() {
+            show("uploader");
+            $("subtitle").textContent = "Uploading to “" + (config.albumName || "Website Uploads") + "”";
+            $("name").value = store.get("drop-name") || "";
+        }
+
+        // ---------- Step 2: files ----------
+
+        function addFiles(fileList) {
+            const files = Array.from(fileList || []);
+            if (!files.length) return;
+            $("queue-card").classList.remove("hidden");
+            $("done").classList.add("hidden");
+
+            files.forEach(file => {
+                const type = file.type || EXT_TYPES[(file.name.split(".").pop() || "").toLowerCase()] || "";
+                const item = { file, type, sent: 0, status: "waiting", error: "" };
+                item.el = renderItem(item);
+                $("queue").appendChild(item.el.root);
+
+                if (!/^(image|video)\//.test(type)) fail(item, "Not a photo or video", true);
+                else if (file.size > maxFileMb * 1024 * 1024) fail(item, "Too large (max " + formatSize(maxFileMb * 1024 * 1024) + ")", true);
+                queue.push(item);
+            });
+            updateSummary();
+            pump();
+        }
+
+        function renderItem(item) {
+            const root = document.createElement("li");
+            const thumb = document.createElement("div");
+            thumb.className = "thumb";
+            thumb.textContent = /^video\//.test(item.type) ? "🎬" : /^image\//.test(item.type) ? "🖼️" : "📄";
+            const url = URL.createObjectURL(item.file);
+            if (/^image\//.test(item.type)) {
+                const img = new Image();
+                img.onload = () => { thumb.textContent = ""; thumb.appendChild(img); };
+                img.src = url;
+            } else if (/^video\//.test(item.type)) {
+                const video = document.createElement("video");
+                video.muted = true;
+                video.playsInline = true;
+                video.preload = "metadata";
+                video.onloadeddata = () => { thumb.textContent = ""; thumb.appendChild(video); };
+                video.src = url + "#t=0.1";
+            }
+
+            const info = document.createElement("div");
+            info.className = "info";
+            const name = document.createElement("div");
+            name.className = "name";
+            name.textContent = item.file.name;
+            const meta = document.createElement("div");
+            meta.className = "meta";
+            const bar = document.createElement("div");
+            bar.className = "bar";
+            const fill = document.createElement("div");
+            bar.appendChild(fill);
+            info.append(name, meta, bar);
+
+            const retry = document.createElement("button");
+            retry.className = "icon-btn hidden";
+            retry.type = "button";
+            retry.title = "Retry";
+            retry.textContent = "↻";
+            retry.onclick = () => {
+                item.status = "waiting";
+                item.sent = 0;
+                item.error = "";
+                retry.classList.add("hidden");
+                paint(item);
+                updateSummary();
+                pump();
+            };
+
+            root.append(thumb, info, retry);
+            const el = { root, meta, fill, retry };
+            item.el = el;
+            paint(item);
+            return el;
+        }
+
+        function paint(item) {
+            const { meta, fill, retry } = item.el;
+            const pct = item.file.size ? Math.round((item.sent / item.file.size) * 100) : 0;
+            meta.className = "meta" + (item.status === "done" ? " ok" : item.status === "failed" ? " err" : "");
+            meta.textContent =
+                item.status === "done" ? "✓ Uploaded · " + formatSize(item.file.size) :
+                item.status === "failed" ? item.error :
+                item.status === "uploading" ? (item.note || pct + "% of " + formatSize(item.file.size)) :
+                "Waiting · " + formatSize(item.file.size);
+            fill.style.width = (item.status === "done" ? 100 : pct) + "%";
+            retry.classList.toggle("hidden", !(item.status === "failed" && item.retryable));
+        }
+
+        function fail(item, message, permanent) {
+            item.status = "failed";
+            item.error = message;
+            item.retryable = !permanent;
+            paint(item);
+        }
+
+        function pump() {
+            while (active < PARALLEL_FILES) {
+                const next = queue.find(i => i.status === "waiting");
+                if (!next) break;
+                active++;
+                next.status = "uploading";
+                keepAwake(true);
+                uploadFile(next)
+                    .then(() => { next.status = "done"; next.sent = next.file.size; })
+                    .catch(e => fail(next, e.message, e.fatal && e.code !== "passcode"))
+                    .finally(() => {
+                        active--;
+                        paint(next);
+                        updateSummary();
+                        pump();
+                    });
+            }
+            if (!active) {
+                keepAwake(false);
+                const finished = queue.filter(i => i.status === "done").length;
+                const skipped = queue.filter(i => i.status === "failed" && !i.retryable).length;
+                const retryable = queue.filter(i => i.status === "failed" && i.retryable).length;
+                if (queue.length && !queue.some(i => i.status === "waiting" || i.status === "uploading")) {
+                    $("done").classList.toggle("hidden", retryable > 0 || finished === 0);
+                    $("done-text").textContent = finished + " file" + (finished === 1 ? "" : "s") + " uploaded" +
+                        (skipped ? " · " + skipped + " skipped" : "") + ".";
+                }
+            }
+        }
+
+        async function uploadFile(item) {
+            const uploader = $("name").value.trim();
+            store.set("drop-name", uploader);
+
+            const { uploadId, granularity } = await withRetry(item, () => api({
+                action: "start", fileName: item.file.name, mimeType: item.type, size: item.file.size,
+            }));
+
+            // Chunks must be a multiple of Google's granularity (except the last one)
+            const g = granularity || 262144;
+            const chunkSize = Math.max(g, Math.floor(CHUNK_SIZE / g) * g);
+            let offset = 0;
+            let failures = 0;
+
+            for (;;) {
+                const end = Math.min(offset + chunkSize, item.file.size);
+                const final = end === item.file.size;
+                try {
+                    const data = await toBase64(item.file.slice(offset, end));
+                    const res = await api({ action: "chunk", uploadId, offset, data, final, uploader });
+                    offset = end;
+                    item.sent = offset;
+                    item.note = "";
+                    failures = 0;
+                    paint(item);
+                    updateSummary();
+                    if (final && res.done) return;
+                } catch (e) {
+                    if (e.fatal || ++failures > MAX_RETRIES) throw e;
+                    item.note = "Connection hiccup — retrying…";
+                    paint(item);
+                    await sleep(Math.min(30000, 1000 * 2 ** failures));
+                    // Ask Google how much it already has, then resume from there
+                    try {
+                        const status = await api({ action: "status", uploadId });
+                        if (typeof status.received === "number" && status.received <= item.file.size) offset = status.received;
+                    } catch (err) { }
+                }
+            }
+        }
+
+        async function withRetry(item, fn) {
+            for (let attempt = 1; ; attempt++) {
+                try { return await fn(); } catch (e) {
+                    if (e.fatal || attempt > MAX_RETRIES) throw e;
+                    item.note = "Connection hiccup — retrying…";
+                    paint(item);
+                    await sleep(Math.min(30000, 1000 * 2 ** attempt));
+                }
+            }
+        }
+
+        function toBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+                reader.onerror = () => reject(new ApiError("Couldn't read the file", true));
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function updateSummary() {
+            const total = queue.reduce((s, i) => s + i.file.size, 0);
+            const sent = queue.reduce((s, i) => s + (i.status === "done" ? i.file.size : i.sent), 0);
+            const done = queue.filter(i => i.status === "done").length;
+            $("summary-text").innerHTML = "<b>" + done + " / " + queue.length + "</b> uploaded";
+            $("summary-size").textContent = formatSize(sent) + " of " + formatSize(total);
+            $("total-bar").style.width = (total ? Math.round((sent / total) * 100) : 0) + "%";
+        }
+
+        // ---------- Phone comfort ----------
+
+        async function keepAwake(on) {
+            try {
+                if (on && !wakeLock && navigator.wakeLock) {
+                    wakeLock = await navigator.wakeLock.request("screen");
+                    wakeLock.addEventListener("release", () => { wakeLock = null; });
+                } else if (!on && wakeLock) {
+                    await wakeLock.release();
+                    wakeLock = null;
+                }
+            } catch (e) { }
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible" && active) keepAwake(true);
+        });
+
+        window.addEventListener("beforeunload", (e) => {
+            if (active) { e.preventDefault(); e.returnValue = ""; }
+        });
+
+        // ---------- Utils ----------
+
+        function formatSize(bytes) {
+            if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + " KB";
+            if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
+            return (bytes / 1024 / 1024 / 1024).toFixed(2) + " GB";
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        // ---------- Wire up ----------
+
+        const isTouch = window.matchMedia("(pointer: coarse)").matches;
+        if (isTouch) {
+            $("camera").classList.remove("hidden");
+            $("drop-hint").textContent = "Pick from your gallery or take a new one";
+        }
+
+        $("pick").onclick = () => $("files").click();
+        $("camera").onclick = () => $("camera-input").click();
+        $("files").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+        $("camera-input").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+        $("lock").onsubmit = (e) => { e.preventDefault(); unlock($("passcode").value.trim()); };
+
+        let dragDepth = 0;
+        window.addEventListener("dragenter", (e) => {
+            if ($("uploader").classList.contains("hidden")) return;
+            e.preventDefault();
+            dragDepth++;
+            document.body.classList.add("dragging");
+        });
+        window.addEventListener("dragleave", () => {
+            if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); }
+        });
+        window.addEventListener("dragover", (e) => e.preventDefault());
+        window.addEventListener("drop", (e) => {
+            e.preventDefault();
+            dragDepth = 0;
+            document.body.classList.remove("dragging");
+            if (!$("uploader").classList.contains("hidden")) addFiles(e.dataTransfer.files);
+        });
+
+        // Start: passcode can come from a share link (#k=...), else the one saved on this device
+        if (!config.endpoint) {
+            show("setup-needed");
+        } else {
+            const fromLink = new URLSearchParams(location.hash.slice(1)).get("k");
+            if (fromLink) history.replaceState(null, "", location.pathname + location.search);
+            const saved = fromLink || store.get("drop-passcode");
+            if (saved) {
+                $("passcode").value = saved;
+                unlock(saved, true);
+            } else {
+                show("lock");
+            }
+        }
+    })();
+    </script>
+</body>
+</html>
