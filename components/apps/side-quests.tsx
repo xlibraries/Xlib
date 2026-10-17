@@ -231,7 +231,12 @@ function loadLeaflet() {
 
 let travelPromise = null;
 function loadTravel() {
-    if (!travelPromise) travelPromise = fetch("./side-quests/travel.json").then(r => r.json()).catch(() => null);
+    if (!travelPromise) {
+        // GPS-tracked travel (last 12 months) + routed older road trips (scripts/side-quests/build_road_trips.mjs)
+        const get = (url) => fetch(url).then(r => r.json()).catch(() => null);
+        travelPromise = Promise.all([get("./side-quests/travel.json"), get("./side-quests/road-trips.json")])
+            .then(([travel, roadTrips]) => travel && { ...travel, roadTrips: roadTrips || [] });
+    }
     return travelPromise;
 }
 
@@ -262,6 +267,12 @@ function WorldMap({ travel, focus }) {
                 L.polyline(route.points, { color: "#ffffff", weight: 6, opacity: 0.95 }).addTo(map);
                 L.polyline(route.points, { color: style.color, weight: 3.5, opacity: 1, dashArray: style.dash }).addTo(map);
                 route.points.forEach(p => bounds.push(p));
+            });
+            (travel ? travel.roadTrips : []).forEach(trip => {
+                L.polyline(trip.points, { color: "#ffffff", weight: 6, opacity: 0.95 }).addTo(map);
+                L.polyline(trip.points, { color: THEME.teal, weight: 3.5, opacity: 1 }).addTo(map)
+                    .bindPopup(`<b>${trip.name}</b><br/>${trip.stops.join(" → ")}<br/><span style="opacity:.7">~${trip.km.toLocaleString("en-IN")} km by road</span>`);
+                trip.points.forEach(p => bounds.push(p));
             });
             (travel ? travel.places : []).forEach(place => {
                 const marker = L.circleMarker([place.lat, place.lng], { radius: 6, color: "#ffffff", weight: 2.5, fillColor: THEME.coral, fillOpacity: 1 }).addTo(map);
@@ -331,7 +342,7 @@ function WorldTab({ travel, focus }) {
             </div>
             <div className="absolute bottom-2 left-2 px-3 py-2 rounded-xl text-xs space-y-1 shadow-md" style={{ zIndex: 500, background: "rgba(255,255,255,0.95)", color: THEME.ink }}>
                 <div className="flex items-center gap-1.5"><Dot color={THEME.coral} /> Last 12 months{travel ? ` (${monthLabel(travel.period.from)} – ${monthLabel(travel.period.to)})` : ""}</div>
-                <div className="flex items-center gap-1.5"><Dot color={THEME.teal} /> Earlier adventures</div>
+                <div className="flex items-center gap-1.5"><Dot color={THEME.teal} /> Earlier adventures <span className="inline-block w-4 rounded-full ml-1" style={{ height: 4, background: THEME.teal }} /> earlier road trips</div>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
                     {Object.entries(MODE_STYLE).map(([mode, s]) => (
                         <span key={mode} className="flex items-center gap-1">

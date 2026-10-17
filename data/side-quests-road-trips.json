@@ -1,0 +1,15 @@
+[
+    { "name": "Rameswaram to Trivandrum", "stops": [["Bengaluru", 12.9716, 77.5946], ["Rameswaram", 9.2876, 79.3129], ["Thiruvananthapuram", 8.5241, 76.9366], ["Bengaluru", 12.9716, 77.5946]] },
+    { "name": "Kodaikanal Road Trip", "stops": [["Bengaluru", 12.9716, 77.5946], ["Kodaikanal", 10.2381, 77.4892]] },
+    { "name": "Edayilakkad Island Run", "stops": [["Bengaluru", 12.9716, 77.5946], ["Edayilakkad", 12.152, 75.164]] },
+    { "name": "Ooty", "stops": [["Bengaluru", 12.9716, 77.5946], ["Mysuru", 12.2958, 76.6394], ["Ooty", 11.4102, 76.695]] },
+    { "name": "Nandi Hills", "stops": [["Bengaluru", 12.9716, 77.5946], ["Nandi Hills", 13.3702, 77.6835]] },
+    { "name": "Kolar Gold Fields & Kotilingeshwara", "stops": [["Bengaluru", 12.9716, 77.5946], ["Kotilingeshwara", 13.003, 78.257], ["Kolar Gold Fields", 12.9551, 78.2699]] },
+    { "name": "Penukonda Fort", "stops": [["Bengaluru", 12.9716, 77.5946], ["Penukonda", 14.084, 77.596]] },
+    { "name": "Lohagad & Visapur forts", "stops": [["Pune", 18.5204, 73.8567], ["Lohagad", 18.7096, 73.4763], ["Visapur", 18.7196, 73.4877]] },
+    { "name": "Lonavala & Bhushi Dam", "stops": [["Pune", 18.5204, 73.8567], ["Bhushi Dam", 18.762, 73.39]] },
+    { "name": "Igatpuri", "stops": [["Pune", 18.5204, 73.8567], ["Igatpuri", 19.695, 73.563]] },
+    { "name": "Pench National Park", "stops": [["Katangi", 21.77, 79.8], ["Pench", 21.7, 79.32]] },
+    { "name": "Kanha National Park", "stops": [["Katangi", 21.77, 79.8], ["Kanha", 22.33, 80.61]] },
+    { "name": "Pachmarhi", "stops": [["Katangi", 21.77, 79.8], ["Pachmarhi", 22.468, 78.434]] }
+]
