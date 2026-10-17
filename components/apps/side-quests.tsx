@@ -126,26 +126,19 @@ const MEMORIES = [
     { name: "Mysuru", at: [12.3, 76.64] },
     { name: "Ooty", at: [11.41, 76.7] },
     { name: "Kodaikanal", at: [10.24, 77.49] },
-    { name: "Darjeeling", at: [27.04, 88.27] },
-    { name: "Gangtok", at: [27.34, 88.61] },
     { name: "Kanha National Park", at: [22.33, 80.61] },
     { name: "Pench National Park", at: [21.7, 79.32] },
     { name: "Pachmarhi", at: [22.47, 78.43] },
-    { name: "Gopalpur-on-Sea", at: [19.26, 84.91] },
     { name: "Kedarnath", at: [30.735, 79.067] },
-    { name: "Sabaudia, Italy", at: [41.3, 13.02] },
 ];
 
 const ORIGINS = [
     "Sahyadri forts: Lohagad, Visapur, Sus Hill, Marunji",
     "Bhushi & Kasarsai dams, Pataleshwar Caves",
     "Penukonda Fort & Kolar Gold Fields",
-    "Darjeeling & Gangtok",
     "Mysuru, Ooty & Nandi Hills",
     "Kanha, Pench & Pachmarhi",
     "Lonavala & Igatpuri",
-    "Gopalpur-on-Sea",
-    "Sabaudia, Italy",
 ];
 
 const SKILLS = [
