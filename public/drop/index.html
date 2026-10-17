@@ -215,7 +215,7 @@
 
             <p class="hint">
                 Files go straight to a private album and never use your own storage.<br>
-                Keep this page open until uploads finish.
+                You can switch apps while it uploads — just don't close this tab.
             </p>
         </section>
     </main>
@@ -498,11 +498,13 @@
             $("summary-text").innerHTML = "<b>" + done + " / " + queue.length + "</b> uploaded";
             $("summary-size").textContent = formatSize(sent) + " of " + formatSize(total);
             $("total-bar").style.width = (total ? Math.round((sent / total) * 100) : 0) + "%";
+            updateMediaSession(done, queue.length, total ? Math.round((sent / total) * 100) : 0);
         }
 
         // ---------- Phone comfort ----------
 
         async function keepAwake(on) {
+            backgroundAudio(on);
             try {
                 if (on && !wakeLock && navigator.wakeLock) {
                     wakeLock = await navigator.wakeLock.request("screen");
@@ -512,6 +514,77 @@
                     wakeLock = null;
                 }
             } catch (e) { }
+        }
+
+        // Android freezes background tabs, but not ones playing audio. While uploads run, loop a
+        // 30 Hz tone at about -54 dBFS: below human hearing and phone-speaker range, yet not digital
+        // silence (Chrome ignores silent audio when deciding whether a tab is "playing").
+        let audio = null;
+
+        function keepAliveTrack() {
+            const rate = 8000, samples = rate * 2; // 2 s = exactly 60 cycles, so it loops seamlessly
+            const view = new DataView(new ArrayBuffer(44 + samples * 2));
+            const text = (offset, str) => [...str].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+            text(0, "RIFF"); view.setUint32(4, 36 + samples * 2, true); text(8, "WAVE");
+            text(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+            view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+            text(36, "data"); view.setUint32(40, samples * 2, true);
+            for (let i = 0; i < samples; i++) view.setInt16(44 + i * 2, Math.round(Math.sin(2 * Math.PI * 30 * i / rate) * 64), true);
+            return URL.createObjectURL(new Blob([view], { type: "audio/wav" }));
+        }
+
+        // Called from a tap so the browser allows playback later, when uploads actually start
+        function primeAudio() {
+            if (audio) return;
+            audio = new Audio(keepAliveTrack());
+            audio.loop = true;
+            audio.play().then(() => { if (!active) audio.pause(); }).catch(() => { });
+            if ("mediaSession" in navigator) {
+                // Pausing from the notification would let Android freeze the upload, so ignore it
+                ["play", "pause", "stop"].forEach(action => {
+                    try { navigator.mediaSession.setActionHandler(action, () => audio.play().catch(() => { })); } catch (e) { }
+                });
+            }
+        }
+
+        function backgroundAudio(on) {
+            if (!audio) return;
+            if (on) audio.play().catch(() => { });
+            else {
+                audio.pause();
+                if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
+            }
+        }
+
+        // Progress in Android's notification shade / lock screen
+        let artwork = null;
+        let lastMediaText = "";
+        function updateMediaSession(done, count, pct) {
+            if (!("mediaSession" in navigator) || !window.MediaMetadata || !active) return;
+            const title = "Uploading " + Math.min(done + 1, count) + " of " + count + "…";
+            const text = title + pct;
+            if (text === lastMediaText) return;
+            lastMediaText = text;
+            if (!artwork) {
+                const canvas = document.createElement("canvas");
+                canvas.width = canvas.height = 256;
+                const ctx = canvas.getContext("2d");
+                const gradient = ctx.createLinearGradient(0, 0, 256, 256);
+                gradient.addColorStop(0, "#F7752B");
+                gradient.addColorStop(1, "#9B1D5A");
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.font = "140px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("📸", 128, 140);
+                artwork = canvas.toDataURL("image/png");
+            }
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title,
+                artist: pct + "% · " + (config.albumName || "Photo Drop"),
+                artwork: [{ src: artwork, sizes: "256x256", type: "image/png" }],
+            });
         }
 
         document.addEventListener("visibilitychange", () => {
@@ -540,11 +613,13 @@
             $("drop-hint").textContent = "Pick from your gallery or take a new one";
         }
 
-        $("pick").onclick = () => $("files").click();
-        $("camera").onclick = () => $("camera-input").click();
+        $("pick").onclick = () => { primeAudio(); $("files").click(); };
+        $("camera").onclick = () => { primeAudio(); $("camera-input").click(); };
         $("files").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
         $("camera-input").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
         $("lock").onsubmit = (e) => { e.preventDefault(); unlock($("passcode").value.trim()); };
+
+        document.addEventListener("pointerdown", primeAudio, { once: true });
 
         let dragDepth = 0;
         window.addEventListener("dragenter", (e) => {
