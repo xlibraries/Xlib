@@ -1,22 +1,46 @@
 // @ts-nocheck
 import React, { Component } from 'react';
+import PLAYLISTS from '../../data/music-playlists.json';
 
 // Playback: YouTube's embeddable player (privacy-enhanced nocookie host).
 // Track lists + search: Invidious, an open-source YouTube front-end (no API key, no signup).
-const PLAYLISTS = [
-    { id: "PL4fGSI1pDJn5kI81J1fYWK5eZRl1zJ5kM", title: "Top 100 Global" },
-    { id: "PL4fGSI1pDJn4pTWyM3t61lOyZ6_4jcNOw", title: "Top 100 India" },
-    { id: "PL8uMy8wRTA4Ia6xJrIPKjUedqIneepYqb", title: "Top 100 Indie" },
-    { id: "PLHuHXHyLu7BEnMJNeVvkXpxapvDSp5UdI", title: "Bollywood Top 50" },
-    { id: "PLOzDu-MXXLliO9fBNZOQTBDddoA3FzZUo", title: "Lo-Fi Hip Hop" },
-    { id: "PL3-sRm8xAzY9Qd1BoHHYFXRMUQlB4BZNt", title: "Hip-Hop / Rap" },
-    { id: "PLVrjISGsj84NDByMHaXQ-d-qzzNNSN76h", title: "Top 100 EDM" },
-    { id: "PLyORnIW1xT6wFALM5dZlkFhOULbToFok3", title: "Rock Classics" },
-    { id: "PLzgNR90nQBQCmJdLinrmlo7_Ac8QLc6-i", title: "Acoustic Covers" },
-];
 
 // Public Invidious instances come and go; more are discovered at runtime.
 const DEFAULT_INSTANCES = ["https://invidious.f5.si"];
+const REQUEST_TIMEOUT = 10000;
+
+// Theme — matches the app icon
+const ACCENT = "#F7752B";
+const ACCENT_DEEP = "#9B1D5A";
+const GRADIENT = `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`;
+const COLORS = { base: "#1d1a21", panel: "#16131a", bar: "#110e14" };
+const sliderFill = (value, max) => {
+    const pct = max ? Math.min(100, (value / max) * 100) : 0;
+    return { backgroundImage: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT_DEEP} ${pct}%, rgba(175, 175, 175, 0.3) ${pct}%)` };
+}
+
+// ---------- Playlist cache ----------
+// Lists show instantly from (1) this browser's cache or (2) the snapshot shipped with the site
+// (scripts/update-music-snapshot.mjs), then refresh from Invidious in the background.
+const CACHE_TTL = 6 * 60 * 60 * 1000;
+
+let snapshotPromise = null;
+const loadSnapshot = () => {
+    if (!snapshotPromise) {
+        snapshotPromise = fetch("./music/snapshot.json")
+            .then(res => res.ok ? res.json() : null)
+            .catch(() => null);
+    }
+    return snapshotPromise;
+}
+
+const readCache = (id) => {
+    try { return JSON.parse(localStorage.getItem("music-cache-" + id)); } catch (e) { return null; }
+}
+
+const writeCache = (id, tracks) => {
+    try { localStorage.setItem("music-cache-" + id, JSON.stringify({ t: Date.now(), tracks })); } catch (e) { }
+}
 
 const formatTime = (secs) => {
     if (!secs || isNaN(secs)) return "0:00";
@@ -184,7 +208,10 @@ export class Music extends Component {
             });
         }
         const base = this.instances[i];
-        return fetch(base + "/api/v1" + path)
+        const controller = window.AbortController ? new AbortController() : null;
+        const timer = controller && setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+        return fetch(base + "/api/v1" + path, controller ? { signal: controller.signal } : undefined)
+            .finally(() => clearTimeout(timer))
             .then(res => {
                 if (!res.ok) throw new Error(res.status);
                 return res.json();
@@ -197,9 +224,34 @@ export class Music extends Component {
     }
 
     loadPlaylist = (playlist) => {
-        this.setState({ showNowPlaying: false });
         try { localStorage.setItem("music-playlist", playlist.id); } catch (e) { }
-        this.showList(playlist, this.invidious(`/playlists/${playlist.id}`).then(data => (data.videos || []).map(toTrack)));
+        const cached = readCache(playlist.id);
+        this.setState({ view: playlist, showNowPlaying: false, tracks: cached ? cached.tracks : [], loadingList: !cached, listError: null });
+
+        const show = (tracks) => {
+            if (this.state.view === playlist && tracks && tracks.length) this.setState({ tracks, loadingList: false, listError: null });
+        };
+        if (!cached) {
+            loadSnapshot().then(snapshot => {
+                if (!this.state.tracks.length) show(snapshot && snapshot.playlists[playlist.id]);
+            });
+        }
+        if (cached && Date.now() - cached.t < CACHE_TTL) return;
+
+        this.invidious(`/playlists/${playlist.id}`)
+            .then(data => {
+                const tracks = (data.videos || []).map(toTrack);
+                if (!tracks.length) throw new Error("empty playlist");
+                writeCache(playlist.id, tracks);
+                show(tracks);
+            })
+            .catch(() => {
+                if (this.state.view !== playlist || this.state.tracks.length) return;
+                loadSnapshot().then(() => {
+                    if (this.state.view !== playlist || this.state.tracks.length) return;
+                    this.setState({ loadingList: false, listError: "Couldn't load the track list. Press ▶ to play it straight from YouTube; the songs will appear once it starts." });
+                });
+            });
     }
 
     searchSongs = (e) => {
@@ -221,12 +273,7 @@ export class Music extends Component {
             })
             .catch(() => {
                 if (this.state.view !== view) return;
-                this.setState({
-                    loadingList: false,
-                    listError: view.search
-                        ? "Search is unavailable right now (the free Invidious servers are down). Try again later."
-                        : "Couldn't load the track list. Press ▶ to play it straight from YouTube; the songs will appear once it starts.",
-                });
+                this.setState({ loadingList: false, listError: "Search is unavailable right now (the free Invidious servers are down). Try again later." });
             });
     }
 
@@ -427,17 +474,21 @@ export class Music extends Component {
     // ---------- UI ----------
 
     renderSidebar = () => (
-        <div className="w-1/4 min-w-max border-r border-gray-900 overflow-y-auto windowMainScreen hidden sm:block">
-            <div className="px-3 pt-3 pb-2 text-xs uppercase tracking-wider text-gray-400">Playlists</div>
-            {PLAYLISTS.map(p => (
-                <div
-                    key={p.id}
-                    onClick={() => this.loadPlaylist(p)}
-                    className={(p.id === this.state.view.id ? "bg-gray-50 bg-opacity-10 text-white " : "text-gray-300 hover:text-white ") + "px-3 py-1.5 text-sm cursor-default"}
-                >
-                    {p.title}
-                </div>
-            ))}
+        <div className="w-1/4 min-w-max overflow-y-auto windowMainScreen hidden sm:block" style={{ backgroundColor: COLORS.panel }}>
+            <div className="px-4 pt-4 pb-2 text-xs uppercase tracking-wider text-gray-500">Playlists</div>
+            {PLAYLISTS.map(p => {
+                const active = p.id === this.state.view.id;
+                return (
+                    <div
+                        key={p.id}
+                        onClick={() => this.loadPlaylist(p)}
+                        className={(active ? "text-white " : "text-gray-400 hover:text-white ") + "mx-2 my-0.5 px-3 py-1.5 text-sm rounded-md cursor-default border-l-2 transition-colors"}
+                        style={active ? { borderColor: ACCENT, backgroundColor: "rgba(247, 117, 43, 0.12)" } : { borderColor: "transparent" }}
+                    >
+                        {p.title}
+                    </div>
+                );
+            })}
         </div>
     )
 
@@ -446,26 +497,37 @@ export class Music extends Component {
 
         return (
             <div className="flex-grow overflow-y-auto windowMainScreen">
+                <div style={{ backgroundImage: `linear-gradient(180deg, rgba(155, 29, 90, 0.6) 0%, rgba(247, 117, 43, 0.12) 70%, rgba(0, 0, 0, 0) 100%)` }}>
                 <form onSubmit={this.searchSongs} className="p-3 pb-0 flex">
                     <input
                         value={this.state.search}
                         onChange={e => this.setState({ search: e.target.value })}
                         placeholder="Search any song or artist…"
-                        className="flex-grow outline-none bg-ub-grey rounded-full px-4 py-1.5 text-sm text-gray-300 focus:text-white"
+                        className="flex-grow outline-none bg-black bg-opacity-30 border border-white border-opacity-10 focus:border-opacity-30 rounded-full px-4 py-1.5 text-sm text-gray-200 focus:text-white placeholder-gray-400"
                         spellCheck={false}
                     />
                 </form>
-                <div className="flex items-end p-4">
+                <div className="flex items-end p-4 pb-5">
                     {tracks[0] && <img src={thumb(tracks[0].id)} alt="" onError={hideBrokenImage} className="w-24 h-16 md:w-36 md:h-20 rounded shadow-lg object-cover bg-black" />}
                     <div className={(tracks[0] ? "ml-4 " : "") + "min-w-0"}>
-                        <div className="text-xs uppercase text-gray-300">{view.search ? "Search results" : "Playlist"}</div>
-                        <div className="text-xl md:text-2xl font-bold truncate">{view.title}</div>
-                        <div className="text-xs text-gray-400 mt-1">{tracks.length ? `${tracks.length} songs · ` : ""}YouTube</div>
+                        <div className="text-xs uppercase tracking-wider text-gray-200">{view.search ? "Search results" : "Playlist"}</div>
+                        <div className="text-xl md:text-3xl font-bold truncate">{view.title}</div>
+                        <div className="text-xs text-gray-300 mt-1">{tracks.length ? `${tracks.length} songs · ` : ""}YouTube</div>
                     </div>
                     {(tracks.length > 0 || (!view.search && !loadingList)) &&
-                        <button type="button" onClick={this.playView} className="ml-auto w-11 h-11 flex-shrink-0 rounded-full bg-ub-orange flex justify-center items-center text-lg" aria-label="Play all">▶</button>}
+                        <button type="button" onClick={this.playView} className="ml-auto w-12 h-12 flex-shrink-0 rounded-full flex justify-center items-center text-lg shadow-lg transform hover:scale-105 transition-transform" style={{ backgroundImage: GRADIENT }} aria-label="Play all">▶</button>}
                 </div>
-                {loadingList && <div className="px-4 pb-4 text-sm text-gray-400">Loading songs…</div>}
+                </div>
+                {loadingList && !tracks.length && [...Array(8)].map((_, i) => (
+                    <div key={i} className="flex items-center px-4 py-2 animate-pulse">
+                        <div className="w-6 mr-3" />
+                        <div className="w-14 h-8 rounded mr-3 bg-white bg-opacity-10" />
+                        <div className="flex-grow">
+                            <div className="h-3 rounded bg-white bg-opacity-10 w-2/3" />
+                            <div className="h-2 rounded bg-white bg-opacity-5 w-1/3 mt-2" />
+                        </div>
+                    </div>
+                ))}
                 {listError && <div className="px-4 pb-4 text-sm text-gray-300">{listError}</div>}
                 {direct && !tracks.length && <div className="px-4 pb-4 text-sm text-gray-400">Playing directly from YouTube. Use ⏮ ⏭ to move through the playlist.</div>}
                 {tracks.map((t, i) => {
@@ -474,7 +536,8 @@ export class Music extends Component {
                         <div
                             key={t.id + i}
                             onDoubleClick={() => this.playFromList(i)}
-                            className={(active ? "text-ub-orange " : "") + "group flex items-center px-4 py-1.5 text-sm hover:bg-gray-50 hover:bg-opacity-5 cursor-default"}
+                            className={(active ? "bg-white bg-opacity-5 " : "") + "group flex items-center mx-2 px-2 py-1.5 text-sm rounded-md hover:bg-white hover:bg-opacity-5 cursor-default"}
+                            style={active ? { color: ACCENT } : undefined}
                         >
                             <button type="button" onClick={() => this.playFromList(i)} className="w-6 text-right text-gray-400 mr-3 flex-shrink-0">
                                 <span className="group-hover:hidden">{active && playing ? "♫" : i + 1}</span>
@@ -497,7 +560,7 @@ export class Music extends Component {
         const { playing, time, duration, volume, nowPlaying } = this.state;
 
         return (
-            <div className="w-full border-t border-gray-900 px-3 py-2 flex items-center">
+            <div className="w-full px-3 py-2 flex items-center border-t border-white border-opacity-5" style={{ backgroundColor: COLORS.bar }}>
                 <div className="flex items-center w-1/3 min-w-0">
                     {/* Mini player slot: the floating YouTube player sits here (it must stay visible) */}
                     <div ref={el => this.miniSlot = el} className={(this.state.showNowPlaying ? "w-0 " : "w-24 md:w-28 mr-2 ") + "h-14 md:h-16 flex-shrink-0"} />
@@ -508,24 +571,24 @@ export class Music extends Component {
                 </div>
                 <div className="flex flex-col items-center flex-grow px-2">
                     <div className="flex items-center">
-                        <button type="button" onClick={this.prev} className="px-2 hover:text-ub-orange" aria-label="Previous">⏮</button>
-                        <button type="button" onClick={this.togglePlay} className="mx-2 w-8 h-8 rounded-full bg-white text-black flex justify-center items-center text-sm" aria-label={playing ? "Pause" : "Play"}>
+                        <button type="button" onClick={this.prev} className="px-2 text-gray-300 hover:text-white" aria-label="Previous">⏮</button>
+                        <button type="button" onClick={this.togglePlay} className="mx-2 w-9 h-9 rounded-full flex justify-center items-center text-sm shadow transform hover:scale-105 transition-transform" style={{ backgroundImage: GRADIENT }} aria-label={playing ? "Pause" : "Play"}>
                             {playing ? "❚❚" : "▶"}
                         </button>
-                        <button type="button" onClick={this.next} className="px-2 hover:text-ub-orange" aria-label="Next">⏭</button>
+                        <button type="button" onClick={this.next} className="px-2 text-gray-300 hover:text-white" aria-label="Next">⏭</button>
                     </div>
                     <div className="flex items-center w-full text-xs text-gray-400 mt-1">
                         <span className="w-9 text-right">{formatTime(time)}</span>
-                        <input type="range" min="0" max={duration || 0} step="1" value={time} onChange={this.seek} className="flex-grow mx-2 ubuntu-slider" aria-label="Seek" />
+                        <input type="range" min="0" max={duration || 0} step="1" value={time} onChange={this.seek} className="flex-grow mx-2 ubuntu-slider" style={sliderFill(time, duration)} aria-label="Seek" />
                         <span className="w-9">{formatTime(duration)}</span>
                     </div>
                 </div>
                 <div className="w-1/4 flex items-center justify-end">
-                    <button type="button" onClick={this.toggleNowPlaying} className={(this.state.showNowPlaying ? "bg-ub-orange " : "bg-gray-50 bg-opacity-10 hover:bg-opacity-20 ") + "mr-3 px-3 py-1 rounded-full text-xs whitespace-nowrap"}>
+                    <button type="button" onClick={this.toggleNowPlaying} className={(this.state.showNowPlaying ? "" : "bg-white bg-opacity-10 hover:bg-opacity-20 ") + "mr-3 px-3 py-1 rounded-full text-xs whitespace-nowrap"} style={this.state.showNowPlaying ? { backgroundImage: GRADIENT } : undefined}>
                         {this.state.showNowPlaying ? "☰ Songs" : "♪ Video & Lyrics"}
                     </button>
                     <span className="mr-2 text-sm hidden md:inline">🔊</span>
-                    <input type="range" min="0" max="100" step="1" value={volume} onChange={this.handleVolume} className="w-24 ubuntu-slider hidden md:block" aria-label="Volume" />
+                    <input type="range" min="0" max="100" step="1" value={volume} onChange={this.handleVolume} className="w-24 ubuntu-slider hidden md:block" style={sliderFill(volume, 100)} aria-label="Volume" />
                 </div>
             </div>
         );
@@ -560,9 +623,9 @@ export class Music extends Component {
     renderNowPlaying = () => {
         const { nowPlaying } = this.state;
         return (
-            <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+            <div className="flex-grow flex flex-col md:flex-row overflow-hidden" style={{ backgroundImage: `radial-gradient(ellipse at 20% 0%, rgba(155, 29, 90, 0.45), rgba(0, 0, 0, 0) 60%), radial-gradient(ellipse at 100% 100%, rgba(247, 117, 43, 0.18), rgba(0, 0, 0, 0) 55%)` }}>
                 <div className="md:w-3/5 p-4 flex-shrink-0">
-                    <div ref={el => this.bigSlot = el} className="w-full aspect-video rounded-lg" />
+                    <div ref={el => this.bigSlot = el} className="w-full aspect-video rounded-lg shadow-2xl" />
                     <div className="mt-3 text-base md:text-lg font-bold truncate">{nowPlaying ? nowPlaying.title : "Nothing playing"}</div>
                     <div className="text-sm text-gray-400 truncate">{nowPlaying && nowPlaying.author}</div>
                 </div>
@@ -575,7 +638,7 @@ export class Music extends Component {
 
     render() {
         return (
-            <div ref={el => this.root = el} className="relative h-full w-full flex flex-col bg-ub-cool-grey text-white select-none">
+            <div ref={el => this.root = el} className="relative h-full w-full flex flex-col text-white select-none" style={{ backgroundColor: COLORS.base }}>
                 <div className="flex flex-grow overflow-hidden">
                     {this.state.showNowPlaying
                         ? this.renderNowPlaying()
