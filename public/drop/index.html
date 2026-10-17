@@ -213,6 +213,7 @@
                 <ul id="queue"></ul>
             </div>
 
+            <p class="hint hidden" id="bg-note"></p>
             <p class="hint">
                 Files go straight to a private album and never use your own storage.<br>
                 You can switch apps while it uploads — just don't close this tab.
@@ -387,7 +388,8 @@
             meta.textContent =
                 item.status === "done" ? "✓ Uploaded · " + formatSize(item.file.size) :
                 item.status === "failed" ? item.error :
-                item.status === "uploading" ? (item.note || pct + "% of " + formatSize(item.file.size)) :
+                item.status === "uploading" ? (item.note ||
+                    (item.background && pct >= 100 ? "Finishing up…" : pct + "% of " + formatSize(item.file.size) + (item.background ? " · continues in background" : ""))) :
                 "Waiting · " + formatSize(item.file.size);
             fill.style.width = (item.status === "done" ? 100 : pct) + "%";
             retry.classList.toggle("hidden", !(item.status === "failed" && item.retryable));
@@ -406,7 +408,7 @@
                 if (!next) break;
                 active++;
                 next.status = "uploading";
-                keepAwake(true);
+                refreshKeepAlive();
                 uploadFile(next)
                     .then(() => { next.status = "done"; next.sent = next.file.size; })
                     .catch(e => fail(next, e.message, e.fatal && e.code !== "passcode"))
@@ -417,8 +419,8 @@
                         pump();
                     });
             }
+            refreshKeepAlive();
             if (!active) {
-                keepAwake(false);
                 const finished = queue.filter(i => i.status === "done").length;
                 const skipped = queue.filter(i => i.status === "failed" && !i.retryable).length;
                 const retryable = queue.filter(i => i.status === "failed" && i.retryable).length;
@@ -442,6 +444,21 @@
             const g = granularity || 262144;
             const chunkSize = Math.max(g, Math.floor(CHUNK_SIZE / g) * g);
             let offset = 0;
+
+            if (swRegistration) {
+                const result = await uploadInBackground(item, uploadId, chunkSize, uploader);
+                if (result === "done") return;
+                // Hand-off was interrupted: finish from this page, starting wherever Google got to
+                if (result === "interrupted") {
+                    const status = await withRetry(item, () => api({ action: "status", uploadId }));
+                    if (status.done) return;
+                    offset = status.received || 0;
+                }
+            }
+            await uploadInPage(item, uploadId, chunkSize, uploader, offset);
+        }
+
+        async function uploadInPage(item, uploadId, chunkSize, uploader, offset) {
             let failures = 0;
 
             for (;;) {
@@ -469,6 +486,91 @@
                     } catch (err) { }
                 }
             }
+        }
+
+        // ---------- Background Fetch (Android Chrome) ----------
+        // Chrome's transfer manager sends the chunks as a system task with its own notification, so the
+        // upload continues with the page in the background or closed, whatever other apps are playing.
+        // Returns "done", "interrupted" (finish in-page from Google's progress) or "unavailable".
+
+        let swRegistration = null;
+        const pendingBackground = new Map();
+        const channel = "BroadcastChannel" in window ? new BroadcastChannel("photo-drop") : null;
+        if (channel) {
+            channel.onmessage = (e) => {
+                const resolve = pendingBackground.get(e.data.id);
+                if (resolve) { pendingBackground.delete(e.data.id); resolve(e.data); }
+            };
+        }
+
+        if (channel && "serviceWorker" in navigator && "BackgroundFetchManager" in window) {
+            navigator.serviceWorker.register("./sw.js")
+                .then(() => navigator.serviceWorker.ready)
+                .then(reg => {
+                    if (!reg.backgroundFetch) return;
+                    swRegistration = reg;
+                    return reg.backgroundFetch.getIds().then(ids => {
+                        if (ids.length) {
+                            $("bg-note").textContent = ids.length + " upload" + (ids.length === 1 ? " is" : "s are") + " still finishing in the background — see your notifications.";
+                            $("bg-note").classList.remove("hidden");
+                        }
+                    });
+                })
+                .catch(() => { });
+        }
+
+        async function uploadInBackground(item, uploadId, chunkSize, uploader) {
+            // Build every chunk request up front (Background Fetch needs them all at once)
+            const requests = [];
+            for (let offset = 0; ; offset += chunkSize) {
+                const end = Math.min(offset + chunkSize, item.file.size);
+                const final = end === item.file.size;
+                const data = await toBase64(item.file.slice(offset, end));
+                // Same JSON body as the in-page upload, assembled around the base64 so it isn't copied again
+                const head = JSON.stringify({ passcode, action: "chunk", uploadId, offset, final, uploader, data: "" }).slice(0, -2);
+                requests.push(new Request(config.endpoint + "?part=" + offset, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: new Blob([head, data, '"}']),
+                }));
+                item.note = "Preparing… " + Math.round((end / item.file.size) * 100) + "%";
+                paint(item);
+                if (final) break;
+            }
+
+            let registration;
+            try {
+                registration = await swRegistration.backgroundFetch.fetch("drop-" + uploadId, requests, {
+                    title: "Uploading " + item.file.name,
+                    icons: [{ src: artworkUrl(), sizes: "256x256", type: "image/png" }],
+                });
+            } catch (e) {
+                item.note = "";
+                return "unavailable";
+            }
+
+            item.background = true;
+            item.note = "";
+            refreshKeepAlive();
+            paint(item);
+
+            const result = await new Promise(resolve => {
+                pendingBackground.set(registration.id, resolve);
+                registration.addEventListener("progress", () => {
+                    if (registration.uploadTotal) item.sent = Math.round(item.file.size * registration.uploaded / registration.uploadTotal);
+                    paint(item);
+                    updateSummary();
+                    // Safety net in case the service worker's message never arrives
+                    if (registration.result === "failure") setTimeout(() => resolve({ done: false }), 15000);
+                });
+            });
+            pendingBackground.delete(registration.id);
+            item.background = false;
+            refreshKeepAlive();
+
+            if (result.done) return "done";
+            if (result.error && /passcode/i.test(result.error)) throw new ApiError(result.error, true, "passcode");
+            return "interrupted";
         }
 
         async function withRetry(item, fn) {
@@ -502,6 +604,13 @@
         }
 
         // ---------- Phone comfort ----------
+
+        // Background Fetch uploads don't need the page; only in-page ones (or ones still preparing) do
+        const needsPage = () => queue.some(i => i.status === "uploading" && !i.background);
+
+        function refreshKeepAlive() {
+            keepAwake(needsPage());
+        }
 
         async function keepAwake(on) {
             backgroundAudio(on);
@@ -560,11 +669,19 @@
         let artwork = null;
         let lastMediaText = "";
         function updateMediaSession(done, count, pct) {
-            if (!("mediaSession" in navigator) || !window.MediaMetadata || !active) return;
+            if (!("mediaSession" in navigator) || !window.MediaMetadata || !needsPage()) return;
             const title = "Uploading " + Math.min(done + 1, count) + " of " + count + "…";
             const text = title + pct;
             if (text === lastMediaText) return;
             lastMediaText = text;
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title,
+                artist: pct + "% · " + (config.albumName || "Photo Drop"),
+                artwork: [{ src: artworkUrl(), sizes: "256x256", type: "image/png" }],
+            });
+        }
+
+        function artworkUrl() {
             if (!artwork) {
                 const canvas = document.createElement("canvas");
                 canvas.width = canvas.height = 256;
@@ -580,19 +697,15 @@
                 ctx.fillText("📸", 128, 140);
                 artwork = canvas.toDataURL("image/png");
             }
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title,
-                artist: pct + "% · " + (config.albumName || "Photo Drop"),
-                artwork: [{ src: artwork, sizes: "256x256", type: "image/png" }],
-            });
+            return artwork;
         }
 
         document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible" && active) keepAwake(true);
+            if (document.visibilityState === "visible" && needsPage()) keepAwake(true);
         });
 
         window.addEventListener("beforeunload", (e) => {
-            if (active) { e.preventDefault(); e.returnValue = ""; }
+            if (needsPage()) { e.preventDefault(); e.returnValue = ""; }
         });
 
         // ---------- Utils ----------
