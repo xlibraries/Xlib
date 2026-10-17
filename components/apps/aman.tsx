@@ -247,20 +247,20 @@ function About() {
       </div>
       <ul className=" mt-4 leading-tight tracking-tight text-sm md:text-base w-5/6 md:w-3/4 emoji-list">
         <li className=" list-pc">
-          At Flam, I work on <span className=" font-medium">Visual Computing and AR systems </span>
-          that run across web, mobile, and desktop.
+          At Flam, I build <span className=" font-medium">generative AI and computer vision systems</span>{" "}
+          (real-time talking avatars, 3D reconstruction, 6-DoF tracking) used by brands like Google, Samsung, YouTube, and Emirates.
         </li>
         <li className=" mt-3 list-building">
           {" "}
-          I enjoy owning the full journey: framing the challenge, shaping the architecture, and shipping the solution.
+          I enjoy owning the full journey, from research and model work to distributed inference and cross-platform SDKs, with a patent filed along the way.
         </li>
         <li className=" mt-3 list-time">
           {" "}
-          I care about speed, reliability, and making hard technology simple for users and teams.
+          I care about speed and reliability: sub-1.2s avatar first frames, tracking SDKs under 260 KB, hard tech made simple to use.
         </li>
         <li className=" mt-3 list-star">
           {" "}
-          I spend my spare time prototyping interactive experiences in XR, games, and robotics.
+          Outside work I build ML trading systems, panorama tools, games, and AI agents. I started out in robotics (ABU Robocon 2020, top 16 in India).
         </li>
       </ul>
     </>
@@ -279,66 +279,69 @@ function Experience() {
 
         <li className="list-disc mb-6">
           <div className="text-lg md:text-xl font-bold">
-            Flam
+            Flam (Flamapp.ai)
           </div>
           <div className="text-sm md:text-base">
-            Full-time · 1 yr 9 mos
-          </div>
-          <div className="text-sm md:text-base">
-            Bengaluru, Karnataka, India · On-site
-          </div>
-          <div className="text-sm text-gray-300">
-            LinkedIn helped me get this job.
+            Full-time · Bengaluru, Karnataka, India · On-site
           </div>
 
           <div className="text-sm md:text-base mt-2">
-            Senior Research Engineer / Systems Developer / AI Engineer - Visual Computing & AR
+            Senior Research &amp; Development Engineer
           </div>
           <div className="text-sm text-gray-400">
-            Jan 2026 - Present · 3 mos
+            Jan 2026 - Present
           </div>
 
           <div className="text-sm md:text-base mt-2">
-            Research Engineer / Systems Developer / AI Engineer - Visual Computing & AR
+            Research &amp; Development Engineer - Visual Computing &amp; AR
           </div>
           <div className="text-sm text-gray-400">
-            Jul 2024 - Jan 2026 · 1 yr 7 mos
+            Jul 2024 - Dec 2025
           </div>
 
-          <div className="text-sm md:text-base mt-2">
-            Research Engineer / Systems Developer - Visual Computing & AR
+          <div className="text-sm text-gray-300 mt-2">
+            Systems deployed for global brands including Google, Samsung, Hyundai, YouTube, and Emirates, and used by a large share of Fortune 500 companies.
           </div>
-          <div className="text-sm text-gray-400">
-            Flam | Jul 2024 - Present | Bengaluru
-          </div>
+
+          <div className="text-sm md:text-base font-bold mt-3">Talking Avatar · 2026</div>
+          <ul className="list-disc pl-5 mt-1">
+            <li>
+              Architected and deployed the end-to-end infrastructure for a real-time talking avatar system, built on gRPC-based distributed inference.
+            </li>
+            <li>
+              Fine-tuned and productionized the models, reaching under 1.2 s time-to-first-frame on dual RTX 4090s with scalable 1080p-4K output.
+            </li>
+            <li>
+              Designed a multi-model batching pipeline that raised throughput and brought generation cost below $0.26 per minute.
+            </li>
+          </ul>
+
+          <div className="text-sm md:text-base font-bold mt-3">3D Reconstruction via Non-Markovian Process · 2025</div>
+          <ul className="list-disc pl-5 mt-1">
+            <li>
+              Engineered the core multi-view reconstruction system, with a differentiable rendering pipeline for faster, more stable camera estimation and single-pass joint geometry and texture generation.
+            </li>
+            <li>
+              Improved fidelity with a pretrained VAE and custom losses, reaching 0.3 px reprojection error and over 95% text recovery accuracy.
+            </li>
+          </ul>
+
+          <div className="text-sm md:text-base font-bold mt-3">Differentiable Keypoints &amp; 6-DoF Tracking (Patent Filed) · 2024-2025</div>
+          <ul className="list-disc pl-5 mt-1">
+            <li>
+              Co-developed (equal ownership) a production SDK for real-time 6-DoF pose estimation, with a differentiable keypoint pipeline that outperforms ORB, SIFT, and BRISK, plus ICP-based refinement.
+            </li>
+            <li>
+              Built the modular C++23 Visual SLAM and tracking engine behind it, with deterministic tracking states and low-latency execution.
+            </li>
+            <li>
+              Shipped it cross-platform from one C++ core: Web (WASM/WebGPU), Android, iOS, macOS, and Linux, optimized for edge deployment under 260 KB.
+            </li>
+          </ul>
 
           <ul className="list-disc pl-5 mt-2">
             <li>
-              Led the design and implementation of a modular real-time Visual SLAM and tracking engine in modern C++23, with deterministic state machines (IDLE / TRACKING / LOST), RAII-based resource management, and low-latency execution.
-            </li>
-            <li>
-              Built end-to-end multi-view 3D reconstruction pipelines, integrating feature matching, PnP pose estimation, homography refinement, and sparse/dense reconstruction to generate high-fidelity scene geometry.
-            </li>
-            <li>
-              Researched and prototyped Gaussian splatting pipelines for neural and implicit scene representations, optimizing memory layout, parameterization, and real-time rendering.
-            </li>
-            <li>
-              Designed and shipped a cross-platform visual SDK targeting Web (WASM/WebGPU), Android, iOS, macOS, and Linux, all powered by a single C++ core engine and packaged under 100 KB per platform for fast load times and minimal integration overhead.
-            </li>
-            <li>
-              Implemented platform bindings (JNI, iOS native, WebAssembly, desktop) enabling identical tracking, geometry, and optimization logic to run consistently across all devices.
-            </li>
-            <li>
-              Engineered GPU-accelerated image processing pipelines (BRISK/ORB keypoints, custom shaders, compute kernels) for real-time tracking and feature extraction on mobile, browser, and desktop.
-            </li>
-            <li>
-              Ported native research code to the browser using Emscripten, WebAssembly, WebGPU, and WebGL2, enabling interactive demos, reproducible experiments, and production-grade web deployments.
-            </li>
-            <li>
-              Built extensible tooling and experiment frameworks to ensure reproducibility, benchmarking, and easy transition from research to product.
-            </li>
-            <li>
-              Tech stack: C++23, OpenCV, PnP solvers, Gauss-Newton, Gaussian splatting, WebGPU, WebAssembly (WASM), Emscripten, WebGL2, TypeScript, BRISK/ORB, RAII, smart pointers.
+              Tech stack: C++23, Python, CUDA, gRPC, OpenCV, differentiable rendering, Gaussian splatting, NeRF, WebGPU, WebAssembly, Emscripten, TypeScript.
             </li>
           </ul>
         </li>
@@ -349,9 +352,9 @@ function Experience() {
           <div className="text-lg md:text-xl text-left font-bold leading-tight">
             Persistent Systems
           </div>
-          <div className="text-sm md:text-base">FullStack Developer</div>
+          <div className="text-sm md:text-base">Full Stack Developer</div>
           <div className="text-sm text-gray-400 mt-0.5">
-            2021 - current, Pune, India
+            Dec 2021 - Sep 2024, Pune, India
           </div>
           <div className="text-sm md:text-base font-bold mt-1">CCH-CPELink</div>
 
@@ -378,7 +381,7 @@ function Experience() {
             </li>
             <li>
               Improved angular routing and error log handling throughout the
-              application which reduced 150k bugs reported every week. This
+              application, cutting around 150k error logs every week. This
               involved optimizing the routing logic and implementing a robust
               error handling mechanism to reduce the load on db servers. Also,
               fixed code structure and introduced practice to improve the code
@@ -404,10 +407,10 @@ function Experience() {
               standards and guidelines.
             </li>
             <li>
-              Solved all the Checkmarks High and improved the security. This
-              involved addressing all high-priority issues identified by
-              Checkmarx, implementing necessary fixes, and enhancing the
-              overall security of the application.
+              Solved all the Checkmarx High issues and improved security,
+              replaced hardcoded configuration with an environment-driven
+              setup, and resolved multiple Severity-1 production incidents in
+              enterprise systems.
             </li>
           </ul>
         </li>
@@ -439,10 +442,19 @@ function Education() {
             CGPA &nbsp; 7.63/10.0
           </div>
           <div className="text-sm md:text-base">
-            Co-President: Technical Club RCOEM
+            President: Technical Club RCOEM (2020 - 2022)
           </div>
           <div className="text-sm md:text-base">
-            Member: Robotics Club RCOEM
+            Member: Robotics Club RCOEM (2019 - 2022)
+          </div>
+          <div className="text-sm md:text-base">
+            16th in India: ABU Robocon 2020 (national virtual ranking)
+          </div>
+          <div className="text-sm md:text-base">
+            Third place: Autobot Robotics Competition 2020
+          </div>
+          <div className="text-sm md:text-base">
+            Member: .NET Foundation (2021)
           </div>
         </li>
       </ul>
@@ -462,17 +474,17 @@ function Skills() {
 
       <ul className=" tracking-tight text-sm md:text-base w-10/12 emoji-list">
         <li className="list-arrow mt-4">
-          I build <strong className="text-ubt-gedit-orange">performance-critical systems</strong> 
-          across Web, AR, and real-time environments.
+          I build <strong className="text-ubt-gedit-orange">performance-critical systems</strong>{" "}
+          across generative AI, AR, and real-time environments.
         </li>
         <li className="list-arrow mt-4">
           My expertise lies in{" "}
           <strong className="text-ubt-gedit-orange">
-            Computer Vision, WebAR Infrastructure, and Full-Stack Architecture
+            Computer Vision, 3D Reconstruction &amp; SLAM, Generative AI Infrastructure, and Full-Stack Architecture
           </strong>
         </li>
         <li className="list-arrow mt-4">
-          Strong focus on scalability, memory efficiency, and production reliability.
+          Strong focus on GPU performance, scalability, memory efficiency, and production reliability.
         </li>
       </ul>
 
@@ -490,12 +502,15 @@ function Skills() {
           <div className="flex flex-wrap justify-center items-start w-full mt-2">
 
             {/* Core Languages */}
-            <img className="m-1" src="https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white" alt="c++" />
-            <img className="m-1" src="https://img.shields.io/badge/JavaScript-323330?style=for-the-badge&logo=javascript&logoColor=F7DF1E" alt="javascript" />
+            <img className="m-1" src="https://img.shields.io/badge/C++23-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white" alt="c++" />
+            <img className="m-1" src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="python" />
+            <img className="m-1" src="https://img.shields.io/badge/CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white" alt="cuda" />
             <img className="m-1" src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript" />
-            <img className="m-1" src="https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="php" />
+            <img className="m-1" src="https://img.shields.io/badge/JavaScript-323330?style=for-the-badge&logo=javascript&logoColor=F7DF1E" alt="javascript" />
             <img className="m-1" src="https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=c-sharp&logoColor=white" alt="c#" />
-            <img className="m-1" src="https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white" alt="mysql" />
+            <img className="m-1" src="https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="php" />
+            <img className="m-1" src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="docker" />
+            <img className="m-1" src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="linux" />
             <img className="m-1" src="https://img.shields.io/badge/Git-F05033?style=for-the-badge&logo=git&logoColor=white" alt="git" />
 
           </div>
@@ -505,14 +520,17 @@ function Skills() {
           <div className="flex flex-wrap justify-center items-start w-full mt-2">
 
             {/* Infra & Systems */}
-            <img className="m-1" src="https://img.shields.io/badge/WebAR-000000?style=for-the-badge" alt="webar" />
+            <img className="m-1" src="https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white" alt="opencv" />
             <img className="m-1" src="https://img.shields.io/badge/Computer%20Vision-8A2BE2?style=for-the-badge" alt="computer vision" />
+            <img className="m-1" src="https://img.shields.io/badge/SLAM%20%26%203D%20Reconstruction-0F766E?style=for-the-badge" alt="slam and 3d reconstruction" />
+            <img className="m-1" src="https://img.shields.io/badge/WebGPU-005A9C?style=for-the-badge" alt="webgpu" />
+            <img className="m-1" src="https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=webassembly&logoColor=white" alt="webassembly" />
+            <img className="m-1" src="https://img.shields.io/badge/gRPC-244C5A?style=for-the-badge" alt="grpc" />
+            <img className="m-1" src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="next.js" />
             <img className="m-1" src="https://img.shields.io/badge/Unity-000000?style=for-the-badge&logo=unity&logoColor=white" alt="unity" />
             <img className="m-1" src="https://img.shields.io/badge/.NET-5C2D91?style=for-the-badge&logo=.net&logoColor=white" alt=".net" />
             <img className="m-1" src="https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="angular" />
-            <img className="m-1" src="https://img.shields.io/badge/Symfony-000000?style=for-the-badge&logo=symfony&logoColor=white" alt="symfony" />
             <img className="m-1" src="https://img.shields.io/badge/Azure-0072C6?style=for-the-badge&logo=microsoftazure&logoColor=white" alt="azure" />
-            <img className="m-1" src="https://img.shields.io/badge/Performance%20Engineering-FF6F00?style=for-the-badge" alt="performance engineering" />
 
           </div>
         </div>
@@ -530,13 +548,43 @@ function Skills() {
 function Projects() {
   const project_list = [
     {
-      name: "Auction Duniya",
-      date: "2026 - Present",
-      link: "https://auction-duniya.vercel.app/",
+      name: "Nifty 50 Direction Predictor",
+      date: "Mar 2026 - Present",
+      link: "https://xlibraries.github.io/algo-trading/",
+      githubLink: "https://github.com/xlibraries/algo-trading",
       description: [
-        "Live deployment of Auction Duniya.",
+        "ML trading system that predicts whether each Nifty 50 stock closes up or down the next day, combining FinBERT news sentiment with technical indicators, with backtesting and a live dashboard.",
+      ],
+      domains: ["Python", "XGBoost", "FinBERT", "FastAPI", "React"],
+    },
+    {
+      name: "OpenPano Studio",
+      date: "Mar 2026 - Jun 2026",
+      link: "https://github.com/xlibraries/OpenPano",
+      description: [
+        "Video-to-panorama app built on the open-source OpenPano C++ stitching engine (feature matching, homography estimation, blending), with a Flask backend, Hugin support, and a web viewer.",
+      ],
+      domains: ["C++", "Computer Vision", "Flask"],
+    },
+    {
+      name: "Auction Duniya",
+      date: "Feb 2026 - Present",
+      link: "https://auction-duniya.vercel.app/",
+      githubLink: "https://github.com/xlibraries/auction-duniya",
+      description: [
+        "Marketplace for verified bank-auction (SARFAESI) properties across India, with immersive panoramic property views.",
       ],
       domains: ["Next.js", "TypeScript", "Marketplace"],
+    },
+    {
+      name: "Mundika",
+      date: "Apr 2026 - Present",
+      link: "https://xlibraries.github.io/Mundika/",
+      githubLink: "https://github.com/xlibraries/Mundika",
+      description: [
+        "Local-first inventory, billing, and ledger app inspired by the Mundi script traders have used for generations.",
+      ],
+      domains: ["Next.js", "TypeScript", "Supabase"],
     },
     {
       name: "Smart Onboarders",
@@ -598,6 +646,16 @@ function Projects() {
     "ar": "border-pink-400 text-pink-300",
     "azure": "border-blue-400 text-blue-200",
     ".net": "border-indigo-400 text-indigo-300",
+    "python": "border-yellow-400 text-yellow-200",
+    "xgboost": "border-emerald-400 text-emerald-300",
+    "finbert": "border-amber-400 text-amber-300",
+    "fastapi": "border-teal-400 text-teal-300",
+    "c++": "border-blue-400 text-blue-300",
+    "computer vision": "border-fuchsia-400 text-fuchsia-300",
+    "flask": "border-gray-300 text-gray-100",
+    "next.js": "border-gray-300 text-gray-100",
+    "typescript": "border-sky-500 text-sky-300",
+    "supabase": "border-green-400 text-green-300",
   };
 
   return (
