@@ -234,56 +234,10 @@ function loadTravel() {
     if (!travelPromise) {
         // GPS-tracked travel (last 12 months) + routed older road trips (scripts/side-quests/build_road_trips.mjs)
         const get = (url) => fetch(url).then(r => r.json()).catch(() => null);
-        travelPromise = Promise.all([get("./side-quests/travel.json"), get("./side-quests/road-trips.json"), get("./side-quests/basemap.json")])
-            .then(([travel, roadTrips, basemap]) => travel && { ...travel, roadTrips: roadTrips || [], basemap });
+        travelPromise = Promise.all([get("./side-quests/travel.json"), get("./side-quests/road-trips.json")])
+            .then(([travel, roadTrips]) => travel && { ...travel, roadTrips: roadTrips || [] });
     }
     return travelPromise;
-}
-
-// Base layer drawn from public/side-quests/basemap.json (scripts/side-quests/build_basemap.py):
-// countries per India's official boundaries, Indian states, and city labels that appear by zoom level.
-function drawBasemap(L, map, basemap, visitedPlaces) {
-    const canvas = L.canvas({ padding: 0.5 });
-    L.geoJSON(basemap.countries, {
-        renderer: canvas,
-        interactive: false,
-        style: f => f.properties.land
-            ? { stroke: false, fillColor: "#eeede8", fillOpacity: 1 }
-            : f.properties.india
-                ? { color: "#e2733b", weight: 1.8, fillColor: "#fff8e6", fillOpacity: 1 }
-                : { color: "#a9afc2", weight: 0.9, fillColor: "#eeede8", fillOpacity: 1 },
-    }).addTo(map);
-    L.geoJSON(basemap.states, {
-        renderer: canvas,
-        interactive: false,
-        style: { color: "#e9b28f", weight: 0.9, dashArray: "3 4", fill: false },
-    }).addTo(map);
-
-    const label = (name, at, className) => L.marker(at, {
-        interactive: false,
-        keyboard: false,
-        icon: L.divIcon({ className: "", html: `<div class="side-quests-label ${className}">${name}</div>`, iconSize: [0, 0] }),
-    });
-    const dot = (at, color) => L.circleMarker(at, { radius: 2.2, color, weight: 0, fillColor: color, fillOpacity: 0.9, interactive: false });
-
-    // [name, lat, lng, population, inIndia], largest first
-    const tiers = [
-        { minZoom: 4, cities: basemap.cities.filter(c => c[4]).slice(0, 8) },
-        { minZoom: 6, cities: basemap.cities.filter(c => c[4]).slice(8, 30) },
-        { minZoom: 7, cities: basemap.cities.filter(c => c[4]).slice(30) },
-    ].map(t => ({
-        minZoom: t.minZoom,
-        layer: L.layerGroup(t.cities.flatMap(c => [dot([c[1], c[2]], "#4a5272"), label(c[0], [c[1], c[2]], t.minZoom === 4 ? "big" : "")])),
-    }));
-    tiers.push({ minZoom: 5, layer: L.layerGroup(basemap.cities.filter(c => !c[4]).flatMap(c => [dot([c[1], c[2]], "#8b91a5"), label(c[0], [c[1], c[2]], "foreign")])) });
-    tiers.push({ minZoom: 8, layer: L.layerGroup((visitedPlaces || []).map(p => label(p.name, [p.lat, p.lng], "visited"))) });
-
-    const update = () => tiers.forEach(t => {
-        if (map.getZoom() >= t.minZoom) t.layer.addTo(map);
-        else map.removeLayer(t.layer);
-    });
-    map.on("zoomend", update);
-    update();
 }
 
 function WorldMap({ travel, focus }) {
@@ -296,18 +250,15 @@ function WorldMap({ travel, focus }) {
         let observer = null;
         loadLeaflet().then(L => {
             if (cancelled || !el.current) return;
-            const map = L.map(el.current, {
-                zoomControl: false,
-                attributionControl: true,
-                minZoom: 4,
-                maxZoom: 10,
-                maxBounds: [[-6, 50], [46, 110]],
-                maxBoundsViscosity: 0.8,
-            }).setView([21, 79], 5);
+            const map = L.map(el.current, { zoomControl: false, attributionControl: true, worldCopyJump: true }).setView([21, 79], 5);
             mapRef.current = map;
             L.control.zoom({ position: "bottomright" }).addTo(map);
-            map.attributionControl.addAttribution('Boundaries as per the official map of India · <a href="https://www.naturalearthdata.com/">Natural Earth</a>');
-            if (travel && travel.basemap) drawBasemap(L, map, travel.basemap, travel.places);
+            // Standard full-colour OSM tiles (no API key), slightly softened so routes and pins pop
+            L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                maxZoom: 12,
+                className: "side-quests-tiles",
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            }).addTo(map);
 
             const bounds = [];
             (travel ? travel.routes : []).forEach(route => {
@@ -360,14 +311,11 @@ function WorldMap({ travel, focus }) {
     return (
         <>
             <style>{`
-                .side-quests-label { white-space: nowrap; font-size: 11px; font-weight: 600; color: #4a5272; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; transform: translate(6px, -50%); pointer-events: none; }
-                .side-quests-label.big { font-size: 12px; color: ${THEME.ink}; }
-                .side-quests-label.foreign { color: #8b91a5; font-weight: 500; }
-                .side-quests-label.visited { color: #c2185b; font-size: 10.5px; }
+                .side-quests-tiles { filter: saturate(0.75) brightness(1.04); }
                 .side-quests-map .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 6px 20px rgba(29,35,64,.18); }
                 .side-quests-map .leaflet-popup-content { color: ${THEME.ink}; font-size: 13px; }
             `}</style>
-            <div ref={el} className="side-quests-map w-full h-full" style={{ background: "#bfe3ff" }} />
+            <div ref={el} className="side-quests-map w-full h-full" style={{ background: "#e8eef3" }} />
         </>
     );
 }
