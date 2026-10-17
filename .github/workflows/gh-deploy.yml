@@ -35,8 +35,6 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Installing Packages
         run: pnpm install --frozen-lockfile
-      - name: Refreshing Music Playlists
-        run: node scripts/update-music-snapshot.mjs || true
       - name: Building
         run: pnpm run build
       - name: Exporting Bundle Files
