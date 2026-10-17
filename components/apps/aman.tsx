@@ -2,6 +2,9 @@
 import { Component } from "react";
 import ReactGA from "react-ga4";
 import React from "react";
+import pdfjsPackage from "pdfjs-dist/package.json";
+
+const PDFJS_VERSION = pdfjsPackage.version;
 
 export class AboutAman extends Component {
   constructor() {
@@ -842,14 +845,18 @@ function Resume() {
 
     const loadPdf = async () => {
       try {
-        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+        // Load pdf.js as a native module (same CDN as its worker): bundling its prebuilt
+        // file through Next's dev webpack crashes with "defineProperty called on non-object"
+        const pdfjsBase = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}`;
+        const pdfjs = await import(/* webpackIgnore: true */ `${pdfjsBase}/legacy/build/pdf.min.mjs`);
+        pdfjs.GlobalWorkerOptions.workerSrc = `${pdfjsBase}/build/pdf.worker.min.mjs`;
         const task = pdfjs.getDocument("./files/Aman-Agrawal-Resume.pdf");
         const pdf = await task.promise;
         if (!mounted) return;
         pdfRef.current = pdf;
         setNumPages(pdf.numPages);
       } catch (error) {
+        console.error("Resume preview failed:", error);
         setLoadError(true);
       }
     };
