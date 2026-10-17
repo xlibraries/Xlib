@@ -3,7 +3,7 @@
 Only coarse, public-safe data leaves this script:
   * places at town level (10k+ people), using the town's GeoNames centre (never the actual visit location)
   * simplified road-trip routes (~1 km precision)
-  * total distance per travel mode
+  * total distance per travel mode, plus "road" = car + motorcycle + bus + unlabelled movement at road speeds
 Everything near private places is dropped: Bengaluru (home/work), Google's inferred home/work
 places, and any place with more than PRIVATE_DWELL_DAYS of total stays (e.g. family homes).
 
@@ -13,6 +13,7 @@ where the geonames folder holds cities1000.txt and admin1CodesASCII.txt from
 https://download.geonames.org/export/dump/ (matching is done offline).
 """
 import argparse
+import bisect
 import collections
 import json
 import math
@@ -164,12 +165,30 @@ def main():
 
     # ---- stats ----
     km = collections.Counter()
+    activity_windows = []
     for s in segments:
         activity = s.get("activity")
         if activity:
+            activity_windows.append((parse_time(s["startTime"]), parse_time(s["endTime"])))
             mode = STAT_MODES.get(activity["topCandidate"].get("type"))
             if mode:
                 km[mode] += activity.get("distanceMeters", 0) / 1000
+
+    # Google leaves some trips unlabelled (GPS track but no activity). Count the parts moving at road
+    # speeds (15-90 km/h); slower movement is mostly GPS jitter and walking, so it's left out.
+    activity_windows.sort()
+    window_starts = [a for a, _ in activity_windows]
+    unlabelled_road = 0
+    for (t1, p1), (t2, p2) in zip(path, path[1:]):
+        hours = (t2 - t1).total_seconds() / 3600
+        i = bisect.bisect_right(window_starts, t1) - 1
+        if hours <= 0 or hours >= 3 or (i >= 0 and activity_windows[i][0] <= t1 <= activity_windows[i][1]):
+            continue
+        d = distance_km(p1, p2)
+        if d > 0.3 and 15 <= d / hours < 90:
+            unlabelled_road += d
+    km["unlabelled_road"] = unlabelled_road
+    km["road"] = km["car"] + km["motorcycle"] + km["bus"] + unlabelled_road
     dates = sorted(s["startTime"][:10] for s in segments)
 
     place_list = sorted(places.values(), key=lambda p: min(p["months"]))
