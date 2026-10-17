@@ -8,6 +8,7 @@ import { displayGedit } from './components/apps/gedit';
 import { displayAboutAman } from './components/apps/aman';
 import { displayTerminalCalc } from './components/apps/calc';
 import { displayTodoist } from './components/apps/todoist';
+import { displaySideQuests } from './components/apps/side-quests';
 
 const apps = [
     {
@@ -36,6 +37,15 @@ const apps = [
         favourite: true,
         desktop_shortcut: true,
         screen: displayAboutAman,
+    },
+    {
+        id: "side-quests",
+        title: "Side Quests",
+        icon: './themes/Yaru/apps/side-quests.svg',
+        disabled: false,
+        favourite: true,
+        desktop_shortcut: true,
+        screen: displaySideQuests, // Life outside work: travel map, quests, hobbies
     },
     {
         id: "vscode",
