@@ -377,6 +377,10 @@ export class Terminal extends Component {
             "' not found, or not yet implemented.<br>Available Commands: [ cd, ls, pwd, echo, clear, exit, mkdir, code, music, brave, about-aman, todoist, trash, settings, sendmsg ]";
         }
         break;
+      case "upload": // hidden: opens the Photo Drop uploader
+        window.open("./drop/", "_blank", "noopener");
+        result = "Opening Photo Drop in a new tab…";
+        break;
       case "clear":
         this.reStartTerminal();
         return;
