@@ -58,7 +58,7 @@ const apps = [
     {
         id: "music",
         title: "Music",
-        icon: './themes/Yaru/apps/youtube-music.svg',
+        icon: './themes/Yaru/apps/music.svg',
         disabled: false,
         favourite: true,
         desktop_shortcut: false,
