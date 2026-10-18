@@ -113,13 +113,14 @@
         </div>
 
         <div class="tiles">
-            <a class="tile" href="https://github.com/xlibraries" target="_blank" rel="noopener"><span>🐙</span>GitHub</a>
-            <a class="tile" href="https://www.linkedin.com/in/xlib" target="_blank" rel="noopener"><span>💼</span>LinkedIn</a>
-            <a class="tile" href="https://www.youtube.com/@xlibraries" target="_blank" rel="noopener"><span>▶️</span>YouTube</a>
-            <a class="tile" href="https://en.wikipedia.org/wiki/Main_Page"><span>📚</span>Wikipedia</a>
+            <a class="tile" href="https://xlibraries.com/" data-go><span>🖥️</span>xlibraries</a>
+            <a class="tile" href="https://en.wikipedia.org/wiki/Main_Page" data-go><span>📚</span>Wikipedia</a>
+            <a class="tile" href="https://www.youtube.com/watch?v=aaHlegqIIik" data-go><span>🎵</span>Debugging Love</a>
+            <a class="tile" href="https://github.com/xlibraries" data-go><span>🐙</span>GitHub</a>
+            <a class="tile" href="https://www.linkedin.com/in/xlib" data-go><span>💼</span>LinkedIn</a>
         </div>
 
-        <p class="note">Results in this window come from Bing. Brave Search, DuckDuckGo and Google don't allow being shown inside another website, so they open in a new tab.</p>
+        <p class="note">Search results here come from Bing. Some sites (YouTube, GitHub, Google…) don't allow being shown inside other websites; they get an "open in a new tab" button instead.</p>
     </main>
 
     <script>
@@ -137,12 +138,22 @@
         const looksLikeUrl = (text) => /^(https?:\/\/)?(localhost|[\w-]+(\.[\w-]+)+)(:\d+)?(\/\S*)?$/i.test(text);
 
         const input = document.getElementById("q");
+        const insideBrowser = window.parent !== window;
+
+        // Inside the desktop's Brave app, let it navigate (tabs, history, framing checks); otherwise go directly
+        function go(target) {
+            if (insideBrowser) window.parent.postMessage({ type: "brave:navigate", input: target }, location.origin);
+            else location.href = looksLikeUrl(target) ? (/^https?:\/\//i.test(target) ? target : "https://" + target) : IN_WINDOW(target);
+        }
 
         document.getElementById("search").addEventListener("submit", (e) => {
             e.preventDefault();
             const q = input.value.trim();
-            if (!q) return;
-            location.href = looksLikeUrl(q) ? (/^https?:\/\//i.test(q) ? q : "https://" + q) : IN_WINDOW(q);
+            if (q) go(q);
+        });
+
+        document.querySelectorAll("[data-go]").forEach((tile) => {
+            tile.addEventListener("click", (e) => { e.preventDefault(); go(tile.getAttribute("href")); });
         });
 
         document.querySelectorAll("[data-engine]").forEach((button) => {
