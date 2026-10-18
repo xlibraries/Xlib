@@ -14,7 +14,7 @@ export function Settings(props) {
         "wall-8": "./images/wallpapers/wall-8.webp",
     };
 
-    let changeBackgroundImage = (e) => {
+    const changeBackgroundImage = (e) => {
         props.changeBackgroundImage($(e.target).data("path"));
     }
 

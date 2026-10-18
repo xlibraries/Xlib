@@ -29,12 +29,12 @@ export default class Ubuntu extends Component {
 
 	getLocalData = () => {
 		// Get Previously selected Background Image
-		let bg_image_name = localStorage.getItem('bg-image');
+		const bg_image_name = localStorage.getItem('bg-image');
 		if (bg_image_name !== null && bg_image_name !== undefined) {
 			this.setState({ bg_image_name });
 		}
 
-		let booting_screen = localStorage.getItem('booting_screen');
+		const booting_screen = localStorage.getItem('booting_screen');
 		if (booting_screen !== null && booting_screen !== undefined) {
 			// user has visited site before
 			this.setState({ booting_screen: false });
@@ -45,11 +45,11 @@ export default class Ubuntu extends Component {
 		}
 
 		// get shutdown state
-		let shut_down = localStorage.getItem('shut-down');
+		const shut_down = localStorage.getItem('shut-down');
 		if (shut_down !== null && shut_down !== undefined && shut_down === 'true') this.shutDown();
 		else {
 			// Get previous lock screen state
-			let screen_locked = localStorage.getItem('screen-locked');
+			const screen_locked = localStorage.getItem('screen-locked');
 			if (screen_locked !== null && screen_locked !== undefined) {
 				this.setState({ screen_locked: screen_locked === 'true' ? true : false });
 			}

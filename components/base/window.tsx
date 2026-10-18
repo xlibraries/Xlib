@@ -84,15 +84,15 @@ export class Window extends Component {
     }
 
     setWinowsPosition = () => {
-        var r = document.querySelector("#" + this.id);
-        var rect = r.getBoundingClientRect();
+        const r = document.querySelector("#" + this.id);
+        const rect = r.getBoundingClientRect();
         r.style.setProperty('--window-transform-x', rect.x.toFixed(1).toString() + "px");
         r.style.setProperty('--window-transform-y', (rect.y.toFixed(1) - 32).toString() + "px");
     }
 
     checkOverlap = () => {
-        var r = document.querySelector("#" + this.id);
-        var rect = r.getBoundingClientRect();
+        const r = document.querySelector("#" + this.id);
+        const rect = r.getBoundingClientRect();
         if (rect.x.toFixed(1) < 50) { // if this window overlapps with SideBar
             this.props.hideSideBar(this.id, true);
         }
@@ -112,8 +112,8 @@ export class Window extends Component {
         }
         this.setWinowsPosition();
         // get corrosponding sidebar app's position
-        var r = document.querySelector("#sidebar-" + this.id);
-        var sidebBarApp = r.getBoundingClientRect();
+        let r = document.querySelector("#sidebar-" + this.id);
+        const sidebBarApp = r.getBoundingClientRect();
 
         r = document.querySelector("#" + this.id);
         // translate window to that position
@@ -122,11 +122,11 @@ export class Window extends Component {
     }
 
     restoreWindow = () => {
-        var r = document.querySelector("#" + this.id);
+        const r = document.querySelector("#" + this.id);
         this.setDefaultWindowDimenstion();
         // get previous position
-        let posx = r.style.getPropertyValue("--window-transform-x");
-        let posy = r.style.getPropertyValue("--window-transform-y");
+        const posx = r.style.getPropertyValue("--window-transform-x");
+        const posy = r.style.getPropertyValue("--window-transform-y");
 
         r.style.transform = `translate(${posx},${posy})`;
         setTimeout(() => {
@@ -141,7 +141,7 @@ export class Window extends Component {
         }
         else {
             this.focusWindow();
-            var r = document.querySelector("#" + this.id);
+            const r = document.querySelector("#" + this.id);
             this.setWinowsPosition();
             // translate window to maximize position
             r.style.transform = `translate(-1pt,-2pt)`;

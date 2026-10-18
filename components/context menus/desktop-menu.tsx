@@ -5,6 +5,14 @@ function DesktopMenu(props) {
 
     const [isFullScreen, setIsFullScreen] = useState(false)
 
+    const checkFullScreen = () => {
+        if (document.fullscreenElement) {
+            setIsFullScreen(true)
+        } else {
+            setIsFullScreen(false)
+        }
+    }
+
     useEffect(() => {
         document.addEventListener('fullscreenchange', checkFullScreen);
         return () => {
@@ -21,13 +29,6 @@ function DesktopMenu(props) {
         props.openApp("settings");
     }
 
-    const checkFullScreen = () => {
-        if (document.fullscreenElement) {
-            setIsFullScreen(true)
-        } else {
-            setIsFullScreen(false)
-        }
-    }
 
     const goFullScreen = () => {
         // make website full screen

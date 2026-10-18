@@ -30,13 +30,13 @@ export class AllApplications extends React.Component {
 
     renderApps = () => {
 
-        let appsJsx = [];
-        let frequentAppsInfo = JSON.parse(localStorage.getItem("frequentApps"));
-        let getFrequentApps = () => {
-            let frequentApps = [];
+        const appsJsx = [];
+        const frequentAppsInfo = JSON.parse(localStorage.getItem("frequentApps"));
+        const getFrequentApps = () => {
+            const frequentApps = [];
             if (frequentAppsInfo) {
                 frequentAppsInfo.forEach((app_info) => {
-                    let app = this.props.apps.find(app => app.id === app_info.id);
+                    const app = this.props.apps.find(app => app.id === app_info.id);
                     if (app) {
                         frequentApps.push(app);
                     }
@@ -45,7 +45,7 @@ export class AllApplications extends React.Component {
             return frequentApps;
         }
 
-        let apps = this.state.category === 0 ? [...this.state.apps] : getFrequentApps();
+        const apps = this.state.category === 0 ? [...this.state.apps] : getFrequentApps();
         apps.forEach((app, index) => {
             const props = {
                 name: app.title,

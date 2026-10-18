@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { Component } from 'react'
 import $ from 'jquery';
-const Parser = require('expr-eval').Parser;
+import { Parser } from 'expr-eval';
 
 const parser = new Parser({
     operators: {
@@ -59,7 +59,7 @@ export class Calc extends Component {
     }
 
     appendTerminalRow = () => {
-        let terminal = this.state.terminal;
+        const terminal = this.state.terminal;
         terminal.push(this.terminalRow(this.terminal_rows));
         this.setState({ terminal });
         this.terminal_rows += 2;
@@ -125,8 +125,8 @@ export class Calc extends Component {
 
     checkKey = (e) => {
         if (e.key === "Enter") {
-            let terminal_row_id = $(e.target).data("row-id");
-            let command = $(`input#calculator-input-${terminal_row_id}`).val().trim();
+            const terminal_row_id = $(e.target).data("row-id");
+            const command = $(`input#calculator-input-${terminal_row_id}`).val().trim();
             if (command.length !== 0) {
                 this.removeCursor(terminal_row_id);
                 this.handleCommands(command, terminal_row_id);
@@ -144,7 +144,7 @@ export class Calc extends Component {
             if (this.commands_index <= -1) prev_command = "";
             else prev_command = this.prev_commands[this.commands_index];
 
-            let terminal_row_id = $(e.target).data("row-id");
+            const terminal_row_id = $(e.target).data("row-id");
 
             $(`input#calculator-input-${terminal_row_id}`).val(prev_command);
             $(`#show-calculator-${terminal_row_id}`).text(prev_command);
@@ -160,7 +160,7 @@ export class Calc extends Component {
             if (this.commands_index === this.prev_commands.length) prev_command = "";
             else prev_command = this.prev_commands[this.commands_index];
 
-            let terminal_row_id = $(e.target).data("row-id");
+            const terminal_row_id = $(e.target).data("row-id");
 
             $(`input#calculator-input-${terminal_row_id}`).val(prev_command);
             $(`#show-calculator-${terminal_row_id}`).text(prev_command);
@@ -174,8 +174,8 @@ export class Calc extends Component {
     }
 
     handleCommands = (command, rowId) => {
-        let words = command.split(' ').filter(Boolean);
-        let main = words[0];
+        const words = command.split(' ').filter(Boolean);
+        const main = words[0];
         // words.shift()
         let result = "";
         switch (main) {        
@@ -241,7 +241,7 @@ export class Calc extends Component {
             <div className="h-full w-full bg-ub-drk-abrgn text-ubt-grey opacity-100 p-1 float-left font-normal">
                 <div>C-style arbitary precision calculator (version 2.12.7.2)</div>
                 <div>Calc is open software.</div>
-                <div>[ type "exit" to exit, "clear" to clear, "help" for help.]</div>
+                <div>[ type &quot;exit&quot; to exit, &quot;clear&quot; to clear, &quot;help&quot; for help.]</div>
             <div className="text-white text-sm font-bold bg-ub-drk-abrgn" id="calculator-body">
                 {this.state.terminal}
             </div>
