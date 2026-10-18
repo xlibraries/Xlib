@@ -18,8 +18,8 @@ export class Brave extends Component {
     }
 
     componentDidMount() {
-        let lastVisitedUrl = localStorage.getItem("brave-url");
-        let lastDisplayedUrl = localStorage.getItem("brave-display-url");
+        const lastVisitedUrl = localStorage.getItem("brave-url");
+        const lastDisplayedUrl = localStorage.getItem("brave-display-url");
         // The old Google home page triggered captchas; start fresh for anyone who left it open
         if (lastVisitedUrl && !lastVisitedUrl.includes("google.com")) {
             this.setState({ url: lastVisitedUrl, display_url: lastDisplayedUrl || "" }, this.refreshBrave);

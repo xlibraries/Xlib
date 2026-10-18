@@ -321,7 +321,7 @@ function WorldMap({ travel, focus }) {
         if (focus && mapRef.current) mapRef.current.flyTo(focus, 9, { duration: 1.2 });
     }, [focus]);
 
-    if (failed) return <div className="w-full h-full flex items-center justify-center" style={{ color: THEME.muted }}>The map couldn't load. Check your connection.</div>;
+    if (failed) return <div className="w-full h-full flex items-center justify-center" style={{ color: THEME.muted }}>The map couldn&apos;t load. Check your connection.</div>;
     return (
         <>
             <style>{`
@@ -471,7 +471,7 @@ function LoreTab() {
                     </blockquote>
                 ))}
             </div>
-            <SectionTitle emoji="🎸" color={THEME.pink} className="mt-6">Bard's corner</SectionTitle>
+            <SectionTitle emoji="🎸" color={THEME.pink} className="mt-6">Bard&apos;s corner</SectionTitle>
             <div className="rounded-2xl overflow-hidden max-w-xl shadow-lg" style={{ background: THEME.card }}>
                 <div className="relative w-full" style={{ paddingTop: "56.25%" }}>
                     {playing ? (
@@ -530,6 +530,7 @@ export function SideQuests() {
     React.useEffect(() => {
         try {
             const saved = localStorage.getItem("side-quests-tab");
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR)
             if (TABS.some(t => t.id === saved)) setTab(saved);
         } catch (e) { }
         loadTravel().then(setTravel);

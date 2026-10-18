@@ -385,6 +385,7 @@ function FileExplorer({ onSimplify }) {
   const [path, setPath] = React.useState([]);
   const [history, setHistory] = React.useState({ back: [], forward: [] });
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR)
   React.useEffect(() => { setPath(loadExplorerPath()); }, []);
 
   const node = resolvePath(path) || getFileTree();
@@ -820,7 +821,7 @@ function Rcoem() {
       </div>
       <div className=" text-sm text-gray-400 mt-0.5">2018 - 2022</div>
       <div className=" text-sm md:text-base">
-        Bachelor's of Engineering in Electronics
+        Bachelor of Engineering in Electronics Engineering
       </div>
       <div className="text-sm text-gray-300 font-bold mt-1">
         CGPA &nbsp; 7.63/10.0

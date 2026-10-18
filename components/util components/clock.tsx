@@ -28,12 +28,12 @@ export default class Clock extends Component {
         const { current_time } = this.state;
         if (!current_time) return <span>&nbsp;</span>;
 
-        let day = this.day_list[current_time.getDay()];
+        const day = this.day_list[current_time.getDay()];
         let hour = current_time.getHours();
         let minute = current_time.getMinutes();
-        let month = this.month_list[current_time.getMonth()];
-        let date = current_time.getDate().toLocaleString();
-        let meridiem = (hour < 12 ? "AM" : "PM");
+        const month = this.month_list[current_time.getMonth()];
+        const date = current_time.getDate().toLocaleString();
+        const meridiem = (hour < 12 ? "AM" : "PM");
 
         if (minute.toLocaleString().length === 1) {
             minute = "0" + minute
