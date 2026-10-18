@@ -1,14 +1,25 @@
-import { displayMusic } from './components/apps/music';
-import { displayVsCode } from './components/apps/vscode';
+import dynamic from 'next/dynamic';
+import { createElement, type ComponentType } from 'react';
+// Settings and Terminal are rendered directly by the window component, so they load up front
 import { displayTerminal } from './components/apps/terminal';
 import { displaySettings } from './components/apps/settings';
-import { displayBrave } from './components/apps/brave';
-import { displayTrash } from './components/apps/trash';
-import { displayGedit } from './components/apps/gedit';
-import { displayAboutAman } from './components/apps/aman';
-import { displayTerminalCalc } from './components/apps/calc';
-import { displayTodoist } from './components/apps/todoist';
-import { displaySideQuests } from './components/apps/side-quests';
+
+// Every other app's code is downloaded the first time its window opens
+const AppLoading = () => createElement('div', { className: 'w-full h-full flex items-center justify-center text-gray-400 text-sm' }, 'Loading…');
+const lazyApp = (load: () => Promise<{ default: ComponentType }>) => {
+    const App = dynamic(load, { ssr: false, loading: AppLoading });
+    return () => createElement(App);
+};
+
+const displayBrave = lazyApp(() => import('./components/apps/brave'));
+const displayTerminalCalc = lazyApp(() => import('./components/apps/calc'));
+const displayAboutAman = lazyApp(() => import('./components/apps/aman'));
+const displaySideQuests = lazyApp(() => import('./components/apps/side-quests'));
+const displayVsCode = lazyApp(() => import('./components/apps/vscode'));
+const displayMusic = lazyApp(() => import('./components/apps/music'));
+const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
+const displayTrash = lazyApp(() => import('./components/apps/trash'));
+const displayGedit = lazyApp(() => import('./components/apps/gedit'));
 
 const apps = [
     {
