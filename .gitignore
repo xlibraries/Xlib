@@ -33,3 +33,7 @@ yarn-error.log*
 
 # vercel
 /.vercel/
+
+# pnpm is the package manager (see packageManager in package.json)
+package-lock.json
+yarn.lock
