@@ -3,7 +3,7 @@ import React from 'react';
 import Head from 'next/head';
 
 export default function Meta() {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://xlibraries.github.io/Xlib';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://xlibraries.com';
     const siteUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     const canonicalUrl = `${siteUrl}/`;
     const pageTitle = "Aman Agrawal | Visual Computing, AR, and Systems Engineering";
@@ -46,6 +46,7 @@ export default function Meta() {
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <meta name="theme-color" content="#E95420" />
             <link rel="canonical" href={canonicalUrl} />
+            <link rel="icon" type="image/svg+xml" href="/themes/Yaru/status/cof_orange_hex.svg" />
 
             <meta itemProp="name" content={pageTitle} />
             <meta itemProp="description" content={description} />

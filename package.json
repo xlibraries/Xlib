@@ -2,13 +2,12 @@
   "name": "amanagrawal-portfolio",
   "version": "2.0.0",
   "private": true,
-  "homepage": "https://xlibraries.github.io/Xlib/",
+  "homepage": "https://xlibraries.com/",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/update-music-snapshot.mjs; next build",
-    "start": "next start",
-    "export": "next export"
+    "start": "next start"
   },
   "engines": {
     "node": ">=18.18.0"
