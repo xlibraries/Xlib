@@ -1,11 +1,15 @@
-// @ts-nocheck
 import { Component } from 'react'
 
-export default class Clock extends Component {
-    constructor() {
-        super();
-        this.month_list = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        this.day_list = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+type ClockProps = { onlyTime?: boolean; onlyDay?: boolean };
+type ClockState = { hour_12: boolean; current_time: Date | null };
+
+export default class Clock extends Component<ClockProps, ClockState> {
+    month_list = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    day_list = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    update_time?: ReturnType<typeof setInterval>;
+
+    constructor(props: ClockProps) {
+        super(props);
         this.state = {
             hour_12: true,
             // set after mount: a time rendered on the server never matches the browser's (hydration error)
@@ -30,7 +34,7 @@ export default class Clock extends Component {
 
         const day = this.day_list[current_time.getDay()];
         let hour = current_time.getHours();
-        let minute = current_time.getMinutes();
+        let minute: number | string = current_time.getMinutes();
         const month = this.month_list[current_time.getMonth()];
         const date = current_time.getDate().toLocaleString();
         const meridiem = (hour < 12 ? "AM" : "PM");
