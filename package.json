@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/update-music-snapshot.mjs; next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "eslint ."
   },
   "engines": {
     "node": ">=20.9.0"
@@ -32,6 +33,7 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "18",
     "eslint": "^9.0.0",
+    "eslint-config-next": "16.4.2",
     "typescript": "^5.9.3"
   }
 }
