@@ -8,7 +8,8 @@ import { displaySettings } from './components/apps/settings';
 const AppLoading = () => createElement('div', { className: 'w-full h-full flex items-center justify-center text-gray-400 text-sm' }, 'Loading…');
 const lazyApp = (load: () => Promise<{ default: ComponentType }>) => {
     const App = dynamic(load, { ssr: false, loading: AppLoading });
-    return () => createElement(App);
+    const Screen = () => createElement(App);
+    return Screen;
 };
 
 const displayBrave = lazyApp(() => import('./components/apps/brave'));
