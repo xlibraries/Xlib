@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Ubuntu from "../components/ubuntu";
 import { useEffect } from "react";
 import ReactGA from 'react-ga4';
