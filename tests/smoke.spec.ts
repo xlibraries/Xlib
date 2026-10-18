@@ -87,12 +87,51 @@ test.describe('Brave browser', () => {
         await page.getByRole('button', { name: 'Back' }).click();
         await expect(page.locator('#brave-screen')).toHaveAttribute('src', './brave/newtab.html');
     });
+
+    test('opens GitHub repos in github1s', async ({ page }) => {
+        await openBrave(page);
+        await visit(page, 'github.com/xlibraries/Xlib');
+        await expect(page.locator('#brave-screen')).toHaveAttribute('src', 'https://github1s.com/xlibraries/Xlib');
+        await expect(page.locator('#brave-url-bar')).toHaveValue('https://github.com/xlibraries/Xlib');
+    });
+
+    test('shows GitHub profiles on a built-in page', async ({ page }) => {
+        await page.route('https://api.github.com/**', route => {
+            const repos = route.request().url().includes('/repos');
+            route.fulfill({
+                contentType: 'application/json',
+                headers: { 'access-control-allow-origin': '*' },
+                body: JSON.stringify(repos
+                    ? [{ name: 'demo-repo', description: 'A test repo', language: 'C++', stargazers_count: 3, forks_count: 0, fork: false, pushed_at: '2026-10-01T00:00:00Z', html_url: 'https://github.com/octo/demo-repo' }]
+                    : { login: 'octo', name: 'Octo Cat', avatar_url: '', bio: 'Testing', location: 'Earth', blog: null, followers: 1, following: 2, public_repos: 1, html_url: 'https://github.com/octo' }),
+            });
+        });
+        await openBrave(page);
+        await visit(page, 'github.com/octo');
+        await expect(page.getByText('Octo Cat')).toBeVisible();
+        await page.getByRole('button', { name: /demo-repo/ }).click();
+        await expect(page.locator('#brave-screen')).toHaveAttribute('src', 'https://github1s.com/octo/demo-repo');
+    });
+
+    test('falls back to reader view for sites that refuse framing', async ({ page }) => {
+        await page.route('**/api/frame-check?**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ embeddable: false, finalUrl: 'https://news.example/' }) }));
+        await page.route('**/api/reader?**', route => route.fulfill({
+            contentType: 'application/json',
+            body: JSON.stringify({ readable: true, url: 'https://news.example/', title: 'A Readable Story', byline: 'By Tester', siteName: 'news.example', content: '<p>Body text of the story.</p>' }),
+        }));
+        await openBrave(page);
+        await visit(page, 'news.example');
+        await expect(page.getByRole('heading', { name: 'A Readable Story' })).toBeVisible();
+        await expect(page.getByText('Body text of the story.')).toBeVisible();
+    });
 });
 
-test('frame check refuses private and non-web addresses', async ({ request }) => {
-    for (const url of ['http://localhost:3000/', 'http://127.0.0.1/', 'http://169.254.169.254/', 'file:///etc/passwd']) {
-        const res = await request.get('/api/frame-check?url=' + encodeURIComponent(url));
-        expect(res.status(), url).toBe(400);
+test('frame check and reader refuse private and non-web addresses', async ({ request }) => {
+    for (const api of ['frame-check', 'reader']) {
+        for (const url of ['http://localhost:3000/', 'http://127.0.0.1/', 'http://169.254.169.254/', 'file:///etc/passwd']) {
+            const res = await request.get(`/api/${api}?url=` + encodeURIComponent(url));
+            expect(res.status(), `${api} ${url}`).toBe(400);
+        }
     }
 });
 
