@@ -46,6 +46,7 @@ export default function Meta() {
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <meta name="theme-color" content="#E95420" />
             <link rel="canonical" href={canonicalUrl} />
+            <link rel="icon" type="image/svg+xml" href="/themes/Yaru/status/cof_orange_hex.svg" />
 
             <meta itemProp="name" content={pageTitle} />
             <meta itemProp="description" content={description} />
