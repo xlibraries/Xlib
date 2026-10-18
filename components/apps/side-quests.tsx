@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React from 'react';
-import ReactGA from 'react-ga4';
+import { trackPageview } from '../../lib/analytics';
 
 // Life outside work, as an RPG: a world map of travels, a quest log, a character sheet and some lore.
 // Travel data comes from public/side-quests/travel.json (built by scripts/side-quests/build_travel_data.py,
@@ -539,7 +539,7 @@ export function SideQuests() {
     const open = (id) => {
         setTab(id);
         try { localStorage.setItem("side-quests-tab", id); } catch (e) { }
-        ReactGA.send({ hitType: "pageview", page: "/side-quests/" + id, title: "Side Quests" });
+        trackPageview("/side-quests/" + id, "Side Quests");
     };
 
     const showOnMap = (at) => {

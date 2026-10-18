@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { Component } from "react";
-import ReactGA from "react-ga4";
 import React from "react";
 import pdfjsPackage from "pdfjs-dist/package.json";
+import { trackPageview } from '../../lib/analytics';
 
 const PDFJS_VERSION = pdfjsPackage.version;
 
@@ -52,11 +52,7 @@ export class AboutAman extends Component {
     localStorage.setItem("about-section", screen);
 
     // google analytics
-    ReactGA.send({
-      hitType: "pageview",
-      page: `/${screen}`,
-      title: "Custom Title",
-    });
+    trackPageview(`/${screen}`, "Custom Title",);
 
     this.setState({
       screen: this.screens[screen],
@@ -393,7 +389,7 @@ function FileExplorer({ onSimplify }) {
   const show = (next) => {
     setPath(next);
     try { localStorage.setItem("about-explorer-path", JSON.stringify(next)); } catch (e) { }
-    ReactGA.send({ hitType: "pageview", page: "/about/" + next.join("/"), title: "About Explorer" });
+    trackPageview("/about/" + next.join("/"), "About Explorer");
   };
 
   const navigate = (next) => {
