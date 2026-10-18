@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { Component } from "react";
 import $ from "jquery";
-import ReactGA from "react-ga4";
+import { trackEvent } from '../../lib/analytics';
 
 export class Terminal extends Component {
   constructor() {
@@ -388,7 +388,7 @@ export class Terminal extends Component {
         this.closeTerminal();
         return;
       case "sudo":
-        ReactGA.event({
+        trackEvent({
           category: "Sudo Access",
           action: "lol",
         });

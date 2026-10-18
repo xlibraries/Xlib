@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { Component } from 'react';
-import ReactGA from 'react-ga4';
 import emailjs from '@emailjs/browser';
+import { trackEvent } from '../../lib/analytics';
 
 const CONTACT_EMAIL = 'aman9893089064@gmail.com';
 
@@ -95,7 +95,7 @@ export class Gedit extends Component {
         const templateID = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
         const finalSubject = subject || 'Portfolio inquiry';
 
-        ReactGA.event({
+        trackEvent({
             category: "Send Message",
             action: this.state.emailjsReady ? "Submitted contact form" : "Opened email fallback"
         });
