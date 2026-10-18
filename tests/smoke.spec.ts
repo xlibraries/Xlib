@@ -51,6 +51,51 @@ test('Brave opens on the local start page', async ({ page }) => {
     await expect(frame.locator('#q')).toBeVisible();
 });
 
+test.describe('Brave browser', () => {
+    async function openBrave(page: Page) {
+        await openDesktop(page);
+        await page.locator('#sidebar-brave').click();
+        await expect(page.locator('#brave-url-bar')).toBeVisible();
+    }
+    async function visit(page: Page, text: string) {
+        await page.locator('#brave-url-bar').click();
+        await page.locator('#brave-url-bar').fill(text);
+        await page.locator('#brave-url-bar').press('Enter');
+    }
+
+    test('opens new tabs', async ({ page }) => {
+        await openBrave(page);
+        await page.getByRole('button', { name: 'New tab' }).click();
+        await expect(page.getByRole('button', { name: 'Close tab' })).toHaveCount(2);
+    });
+
+    test('plays YouTube links through the embeddable player', async ({ page }) => {
+        await openBrave(page);
+        await visit(page, 'https://www.youtube.com/watch?v=aaHlegqIIik');
+        await expect(page.locator('#brave-screen')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/aaHlegqIIik/);
+    });
+
+    test('shows a friendly page for sites that refuse framing', async ({ page }) => {
+        await page.route('**/api/frame-check?**', route => route.fulfill({
+            contentType: 'application/json',
+            body: JSON.stringify({ embeddable: false, finalUrl: 'https://example.org/' }),
+        }));
+        await openBrave(page);
+        await visit(page, 'example.org');
+        await expect(page.getByText("example.org can't be shown inside this window")).toBeVisible();
+        await expect(page.getByRole('link', { name: /Open example\.org in a new tab/ })).toHaveAttribute('href', 'https://example.org/');
+        await page.getByRole('button', { name: 'Back' }).click();
+        await expect(page.locator('#brave-screen')).toHaveAttribute('src', './brave/newtab.html');
+    });
+});
+
+test('frame check refuses private and non-web addresses', async ({ request }) => {
+    for (const url of ['http://localhost:3000/', 'http://127.0.0.1/', 'http://169.254.169.254/', 'file:///etc/passwd']) {
+        const res = await request.get('/api/frame-check?url=' + encodeURIComponent(url));
+        expect(res.status(), url).toBe(400);
+    }
+});
+
 test.describe('Photo Drop', () => {
     // Stand-in for the Apps Script backend: passcode "letmein" is correct
     test.beforeEach(async ({ page }) => {
