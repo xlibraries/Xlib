@@ -8,11 +8,11 @@ describe('contentSecurityPolicy', () => {
     const prod = contentSecurityPolicy();
 
     it('only runs scripts from this site and the known third parties', () => {
-        expect(directive(prod, 'script-src')).toEqual(["'self'", 'https://www.youtube.com', 'https://s.ytimg.com']);
+        expect(directive(prod, 'script-src')).toEqual(["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com', 'https://s.ytimg.com']);
     });
 
-    it('allows no inline scripts or eval in production', () => {
-        expect(directive(prod, 'script-src').join(' ')).not.toMatch(/unsafe/);
+    it('allows no inline scripts or JavaScript eval in production (WebAssembly only)', () => {
+        expect(directive(prod, 'script-src').filter(v => v !== "'wasm-unsafe-eval'").join(' ')).not.toMatch(/unsafe/);
     });
 
     it('no longer allows the old CDNs anywhere', () => {
