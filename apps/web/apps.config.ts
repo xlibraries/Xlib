@@ -22,7 +22,10 @@ const displayTerminalCalc = lazyApp(() => import('@xlibraries/terminal').then(m 
 const displayAboutAman = lazyApp(() => import('./components/apps/aman'));
 const displaySideQuests = lazyApp(() => import('./components/apps/side-quests'));
 const displayVsCode = lazyApp(() => import('./components/apps/vscode'));
-const displayMusic = lazyApp(() => import('./components/apps/music'));
+const displayMusic = lazyApp(async () => {
+    const [{ createMusic }, { default: playlists }] = await Promise.all([import('@xlibraries/music'), import('./data/music-playlists.json')]);
+    return { default: createMusic({ playlists, snapshotUrl: './music/snapshot.json' }) };
+});
 const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
 const displayTrash = lazyApp(() => import('./components/apps/trash'));
 const displayGedit = lazyApp(() => import('./components/apps/gedit'));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentLyricIndex, formatTime, lyricQueries, parseLrc, pickLyrics, toTrack } from '../../lib/music';
+import { currentLyricIndex, formatTime, lyricQueries, parseLrc, pickLyrics, toTrack } from '../src/tracks';
 
 describe('formatTime', () => {
     it.each([[0, '0:00'], [5, '0:05'], [65.9, '1:05'], [3600, '60:00'], [NaN, '0:00'], [null, '0:00']])('%s -> %s', (input, out) => {

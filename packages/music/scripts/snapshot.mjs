@@ -1,11 +1,12 @@
-// Saves the Music app's playlists to public/music/snapshot.json so the app can show
-// them instantly instead of waiting on the (slow, free) Invidious servers.
-// Runs before every build; playlists that fail to fetch keep their previous snapshot, and the whole
-// refresh gives up after TIME_BUDGET so a slow server can't stall deploys. Usage: node scripts/update-music-snapshot.mjs
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+#!/usr/bin/env node
+// Saves a site's playlists to a snapshot JSON file so the Music app can show them instantly instead of
+// waiting on the (slow, free) Invidious servers. Playlists that fail to fetch keep their previous tracks,
+// and the whole refresh gives up after TIME_BUDGET so a slow server can't stall a deploy.
+// Usage: xlib-music-snapshot --playlists data/music-playlists.json --out public/music/snapshot.json
+import { readFileSync, writeFileSync, existsSync, realpathSync } from "node:fs";
+import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 
-const OUT = "public/music/snapshot.json";
 const TIME_BUDGET = 90 * 1000;
 const DEFAULT_INSTANCES = ["https://invidious.f5.si"];
 
@@ -62,15 +63,18 @@ export async function buildSnapshot({ playlists, previous, fetchJson, now = new 
 }
 
 async function main() {
-    const playlists = JSON.parse(readFileSync("data/music-playlists.json", "utf8"));
-    const previous = existsSync(OUT) ? JSON.parse(readFileSync(OUT, "utf8")) : { playlists: {} };
+    const { values } = parseArgs({ options: { playlists: { type: "string" }, out: { type: "string" } } });
+    if (!values.playlists || !values.out) throw new Error("usage: xlib-music-snapshot --playlists <file.json> --out <snapshot.json>");
+    const playlists = JSON.parse(readFileSync(values.playlists, "utf8"));
+    const previous = existsSync(values.out) ? JSON.parse(readFileSync(values.out, "utf8")) : { playlists: {} };
     const { snapshot, fresh } = await buildSnapshot({ playlists, previous, fetchJson: budgetedFetchJson(TIME_BUDGET), log: console.log });
     if (fresh === 0) {
         console.log("No playlists could be fetched; snapshot left unchanged.");
     } else {
-        writeFileSync(OUT, JSON.stringify(snapshot));
-        console.log(`Updated ${fresh}/${playlists.length} playlists → ${OUT}`);
+        writeFileSync(values.out, JSON.stringify(snapshot));
+        console.log(`Updated ${fresh}/${playlists.length} playlists → ${values.out}`);
     }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) await main();
+// Run as a CLI (also through the node_modules/.bin symlink), not when imported
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
