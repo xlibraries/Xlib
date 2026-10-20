@@ -13,7 +13,9 @@
     "test:e2e": "playwright test",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:python": "python3 -m unittest discover -s tests/python"
+    "test:python": "python3 -m unittest discover -s tests/python",
+    "verify": "eslint . && next typegen && tsc --noEmit && vitest run && python3 -m unittest discover -s tests/python && next build && playwright test",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "engines": {
     "node": ">=20.9.0"
