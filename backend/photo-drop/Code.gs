@@ -5,8 +5,10 @@
  * Runs as a Google Apps Script web app ("Execute as: Me"), so uploads use the owner's
  * account and storage. Setup steps: see README.md next to this file.
  *
- * Files arrive in base64 chunks and are forwarded to the Photos Library API's resumable
- * upload, so large videos work despite Apps Script's request size limits.
+ * The script starts each upload with Google Photos and hands the browser that one file's upload
+ * URL, so the bytes go straight from the browser to Google; 'finish' then adds the file to the album.
+ * If the browser can't reach Google directly, it falls back to sending base64 chunks through this
+ * script ('chunk'), which forwards them to the same resumable upload.
  *
  * Chunks may arrive out of order or twice (Chrome's Background Fetch sends up to two requests
  * at once and may retry), so each chunk waits for the previous one and duplicates are ignored.
@@ -46,6 +48,8 @@ function doPost(e) {
         return reply(uploadChunk(req));
       case 'status':
         return reply(uploadStatus(req));
+      case 'finish':
+        return reply(finishUpload(req));
       default:
         return reply({ error: 'Unknown action', fatal: true });
     }
@@ -69,27 +73,42 @@ function startUpload(req) {
   if (!(size > 0)) throw fatal('The file is empty.');
   if (size > Number(prop('MAX_FILE_MB')) * 1024 * 1024) throw fatal('File is too large (max ' + prop('MAX_FILE_MB') + ' MB).');
 
-  const res = UrlFetchApp.fetch(PHOTOS_API + '/uploads', {
-    method: 'post',
-    payload: '',
-    headers: authHeaders({
-      'X-Goog-Upload-Command': 'start',
-      'X-Goog-Upload-Content-Type': mimeType,
-      'X-Goog-Upload-Protocol': 'resumable',
-      'X-Goog-Upload-Raw-Size': String(size),
-    }),
-    muteHttpExceptions: true,
-  });
+  const headers = {
+    'X-Goog-Upload-Command': 'start',
+    'X-Goog-Upload-Content-Type': mimeType,
+    'X-Goog-Upload-Protocol': 'resumable',
+    'X-Goog-Upload-Raw-Size': String(size),
+  };
+  // Google allows browser (CORS) requests to the upload URL from the origin that started it
+  const origin = /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(String(req.origin || '')) ? String(req.origin) : '';
+  const start = function (extra) {
+    return UrlFetchApp.fetch(PHOTOS_API + '/uploads', {
+      method: 'post',
+      payload: '',
+      headers: authHeaders(Object.assign({}, headers, extra)),
+      muteHttpExceptions: true,
+    });
+  };
+  let res;
+  try {
+    res = start(origin ? { Origin: origin } : {});
+  } catch (err) {
+    if (!origin) throw err;
+    res = start({}); // Origin header refused: the browser will use the relay instead
+  }
   if (res.getResponseCode() !== 200) throw new Error('Google Photos refused the upload (' + res.getResponseCode() + ').');
 
-  const headers = res.getAllHeaders();
-  const url = header(headers, 'X-Goog-Upload-URL');
+  const resHeaders = res.getAllHeaders();
+  const url = header(resHeaders, 'X-Goog-Upload-URL');
   if (!url) throw new Error('Google Photos did not return an upload URL.');
 
-  // The upload URL stays on the server; the browser only gets an opaque id.
+  // The upload URL only accepts bytes for this one file, so it's safe to give to a browser that
+  // knows the passcode. Adding the file to the album still goes through 'finish'.
   const uploadId = Utilities.getUuid();
   saveSession(uploadId, { url: url, fileName: cleanText(req.fileName, 200) || 'upload', size: size });
-  return { uploadId: uploadId, granularity: Number(header(headers, 'X-Goog-Upload-Chunk-Granularity')) || 262144 };
+  const result = { uploadId: uploadId, granularity: Number(header(resHeaders, 'X-Goog-Upload-Chunk-Granularity')) || 262144 };
+  if (req.direct) result.uploadUrl = url;
+  return result;
 }
 
 function uploadChunk(req) {
@@ -148,7 +167,32 @@ function uploadStatus(req) {
   const received = Number(header(headers, 'X-Goog-Upload-Size-Received')) || 0;
   const progress = getProgress(req.uploadId);
   if (!progress.done) setProgress(req.uploadId, { received: received });
-  return { received: received, done: progress.done, state: header(headers, 'X-Goog-Upload-Status') || 'unknown' };
+  return { received: received, done: !!progress.done, state: header(headers, 'X-Goog-Upload-Status') || 'unknown' };
+}
+
+/** After the browser uploaded the bytes itself: add the file to the album, once. */
+function finishUpload(req) {
+  const id = req.uploadId;
+  const uploadToken = String(req.uploadToken || '');
+  if (!id || !uploadToken || uploadToken.length > 4096) throw fatal('Missing upload token.');
+  if (getProgress(id).done) return { ok: true, done: true, duplicate: true };
+  if (!claim(id, 'finish')) throw new Error('Still saving the file…'); // another request is finishing it
+
+  // The session cache may have expired during a very long upload; the token alone is enough
+  let fileName;
+  try {
+    fileName = getSession(id).fileName;
+  } catch (err) {
+    fileName = cleanText(req.fileName, 200) || 'upload';
+  }
+  try {
+    createMediaItem(uploadToken, fileName, req.uploader);
+  } catch (err) {
+    release(id, 'finish');
+    throw err;
+  }
+  setProgress(id, { received: getProgress(id).received, done: true });
+  return { ok: true, done: true };
 }
 
 function createMediaItem(uploadToken, fileName, uploader) {
