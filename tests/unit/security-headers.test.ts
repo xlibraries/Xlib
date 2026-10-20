@@ -44,4 +44,9 @@ describe('securityHeaders', () => {
         expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin');
         expect(headers['Permissions-Policy']).toContain('camera=()');
     });
+
+    it('leaves nosniff out for the dev server only', () => {
+        expect(securityHeaders({ dev: true }).map(h => h.key)).not.toContain('X-Content-Type-Options');
+        expect(securityHeaders().map(h => h.key)).toContain('X-Content-Type-Options');
+    });
 });
