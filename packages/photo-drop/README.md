@@ -77,7 +77,9 @@ the repo root (the deployment id is read from `content/photo-drop.json`).
 
 The script can report its health to a site's admin panel: whether Google still accepts its authorization
 (checked by opening a throwaway upload session), when it was last renewed, and the last 50 uploads (time, file
-name, uploader's name). Ask for it with `{ "action": "admin", "adminKey": "…" }` from your server.
+name, uploader's name). Ask for it with `{ "action": "admin", "adminKey": "…" }` from your server; add `"open": false` (or `true`) to
+close or reopen Photo Drop. While closed, `check` and `start` answer "Photo Drop is closed right now", and
+uploads already under way can still finish.
 
 The key is never stored in the script: deploy with `--admin-key-hash <sha256 of the key>` and the deploy command
 writes the hash into a `config.gs` for that push only. Each `setup` run records the renewal time, so the panel can

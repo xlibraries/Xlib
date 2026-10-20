@@ -1,4 +1,4 @@
-// The few Redis operations analytics (and the admin login's rate limit) need, so the recorder works with
+// The few Redis operations analytics (and the admin login's rate limit and site settings) need, so the recorder works with
 // Upstash in production and an in-memory store in tests and local development.
 
 export interface Store {
@@ -8,6 +8,8 @@ export interface Store {
     pfcount(key: string): Promise<number>;
     incr(key: string): Promise<number>;
     expire(key: string, seconds: number): Promise<void>;
+    get(key: string): Promise<string | null>;
+    set(key: string, value: string): Promise<void>;
 }
 
 /** Upstash Redis over its REST API (no SDK): https://upstash.com/docs/redis/features/restapi */
@@ -34,6 +36,8 @@ export function upstashStore({ url, token, fetch: fetchImpl = (input, init) => f
         async pfcount(key) { return Number(await call('PFCOUNT', key)); },
         async incr(key) { return Number(await call('INCR', key)); },
         async expire(key, seconds) { await call('EXPIRE', key, seconds); },
+        async get(key) { const v = await call('GET', key); return v == null ? null : String(v); },
+        async set(key, value) { await call('SET', key, value); },
     };
 }
 
@@ -42,6 +46,7 @@ export function memoryStore(): Store {
     const hashes = new Map<string, Record<string, number>>();
     const sets = new Map<string, Set<string>>();
     const counters = new Map<string, number>();
+    const strings = new Map<string, string>();
     return {
         async hincrby(key, field, by) {
             const h = hashes.get(key) ?? {};
@@ -57,5 +62,7 @@ export function memoryStore(): Store {
             return n;
         },
         async expire() { /* no-op */ },
+        async get(key) { return strings.get(key) ?? null; },
+        async set(key, value) { strings.set(key, value); },
     };
 }
