@@ -1,32 +1,40 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { type Entry, type Article, hostOf, plan } from '../../lib/browser';
+import React, { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import type { AppProps } from '@xlibraries/app-sdk';
+import { type Entry, type Article, hostOf, plan } from './routing';
 
 // A tabbed browser inside the desktop. Pages render in iframes, so sites that forbid framing can't load
 // directly. Fallbacks, in order: YouTube videos -> embed player, GitHub repos -> github1s viewer,
 // GitHub profiles -> built-in profile page, anything else -> reader view (/api/reader), and only if that
-// fails a friendly page with an "open in a new tab" button. /api/frame-check decides what's framable.
+// fails a friendly page with an "open in a new tab" button. The frame-check endpoint decides what's framable
+// (see ./server for the server side).
 
 
 type Tab = { id: number; history: Entry[]; index: number; reloadKey: number };
 
-const NEWTAB_URL = './brave/newtab.html';
-const STORAGE_KEY = 'brave-tabs';
+export interface Bookmark { label: string; icon: string; input: string }
 
-const BOOKMARKS: { label: string; icon: string; input: string }[] = [
-    { label: 'xlibraries.com', icon: '🖥️', input: 'https://xlibraries.com/' },
-    { label: 'Wikipedia', icon: '📚', input: 'https://en.wikipedia.org/wiki/Main_Page' },
-    { label: 'Debugging Love', icon: '🎵', input: 'https://www.youtube.com/watch?v=aaHlegqIIik' },
-    { label: 'GitHub', icon: '🐙', input: 'https://github.com/xlibraries' },
-    { label: 'Bing', icon: '🔎', input: 'https://www.bing.com/' },
-];
+export interface BrowserConfig {
+    /** Page shown in new tabs. It can navigate with postMessage({ type: 'brave:navigate', input }). */
+    newTabUrl: string;
+    bookmarks?: Bookmark[];
+    /** Endpoints backed by checkFrame() and readArticle() from '@xlibraries/browser/server'. */
+    frameCheckUrl?: string;
+    readerUrl?: string;
+    /** Hosts known to allow framing (skip the frame check). */
+    trustedHosts?: string[];
+    /** localStorage key for open tabs. */
+    storageKey?: string;
+}
+
+type Config = Required<BrowserConfig>;
 
 
 
 
 
-async function checkFraming(url: string): Promise<{ embeddable: boolean; finalUrl: string }> {
+async function checkFraming(url: string, config: Config): Promise<{ embeddable: boolean; finalUrl: string }> {
     try {
-        const res = await fetch('/api/frame-check?url=' + encodeURIComponent(url));
+        const res = await fetch(config.frameCheckUrl + '?url=' + encodeURIComponent(url));
         if (!res.ok) return { embeddable: true, finalUrl: url };
         const data = await res.json();
         return { embeddable: data.embeddable !== false, finalUrl: data.finalUrl || url };
@@ -35,9 +43,9 @@ async function checkFraming(url: string): Promise<{ embeddable: boolean; finalUr
     }
 }
 
-async function fetchReader(url: string): Promise<Article | null> {
+async function fetchReader(url: string, config: Config): Promise<Article | null> {
     try {
-        const res = await fetch('/api/reader?url=' + encodeURIComponent(url));
+        const res = await fetch(config.readerUrl + '?url=' + encodeURIComponent(url));
         const data = await res.json();
         return data.readable ? { title: data.title, byline: data.byline, siteName: data.siteName, content: data.content } : null;
     } catch {
@@ -46,19 +54,19 @@ async function fetchReader(url: string): Promise<Article | null> {
 }
 
 // Framable -> page; otherwise reader view if the page has article content; otherwise the friendly blocked page
-async function resolveUrl(url: string, display: string): Promise<Entry> {
-    const { embeddable, finalUrl } = await checkFraming(url);
+async function resolveUrl(url: string, display: string, config: Config): Promise<Entry> {
+    const { embeddable, finalUrl } = await checkFraming(url, config);
     if (embeddable) return { kind: 'page', url: finalUrl, display: finalUrl };
-    const article = await fetchReader(finalUrl);
+    const article = await fetchReader(finalUrl, config);
     return article ? { kind: 'reader', url: finalUrl, display, article } : { kind: 'blocked', url: finalUrl, display: finalUrl };
 }
 
 let nextTabId = 1;
 const newTab = (entry: Entry = { kind: 'newtab' }): Tab => ({ id: nextTabId++, history: [entry], index: 0, reloadKey: 0 });
 
-function restoreTabs(): { tabs: Tab[]; active: number } {
+function restoreTabs(storageKey: string): { tabs: Tab[]; active: number } {
     try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
         if (saved && Array.isArray(saved.entries) && saved.entries.length) {
             const tabs = saved.entries.map((e: Entry) => newTab(e));
             return { tabs, active: tabs[Math.min(saved.active || 0, tabs.length - 1)].id };
@@ -78,8 +86,8 @@ const displayOf = (entry: Entry) => entry.kind === 'newtab' ? '' : entry.display
 // What "open in a new tab" opens: the original address, not our stand-in (embed, github1s, reader, profile)
 const realUrlOf = (entry: Entry) => entry.kind === 'newtab' ? null : entry.display;
 
-export function Brave() {
-    const [state, setState] = useState(restoreTabs);
+function Brave({ config }: { config: Config }) {
+    const [state, setState] = useState(() => restoreTabs(config.storageKey));
     const [address, setAddress] = useState('');
     const [editing, setEditing] = useState(false);
     const addressRef = useRef<HTMLInputElement>(null);
@@ -96,9 +104,9 @@ export function Brave() {
                 const e = t.history[t.index];
                 return e.kind === 'reader' ? { kind: 'checking', url: e.display, display: e.display } : e;
             });
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries: saved, active: tabs.findIndex(t => t.id === active) }));
+            localStorage.setItem(config.storageKey, JSON.stringify({ entries: saved, active: tabs.findIndex(t => t.id === active) }));
         } catch { /* storage unavailable */ }
-    }, [tabs, active]);
+    }, [tabs, active, config.storageKey]);
 
     const updateTab = useCallback((id: number, fn: (t: Tab) => Tab) => {
         setState(s => ({ ...s, tabs: s.tabs.map(t => t.id === id ? fn(t) : t) }));
@@ -106,14 +114,14 @@ export function Brave() {
 
     // Resolve a "checking" entry in place (if it's still in the tab's history)
     const settle = useCallback((id: number, checking: Extract<Entry, { kind: 'checking' }>) => {
-        resolveUrl(checking.url, checking.display).then(resolved => {
+        resolveUrl(checking.url, checking.display, config).then(resolved => {
             updateTab(id, t => ({ ...t, history: t.history.map(e => e === checking ? resolved : e) }));
         });
-    }, [updateTab]);
+    }, [updateTab, config]);
 
     const navigate = useCallback((input: string, tabId?: number) => {
         const id = tabId ?? active;
-        const planned = plan(input);
+        const planned = plan(input, config.trustedHosts);
         setEditing(false);
         if (planned.kind !== 'check') {
             updateTab(id, t => ({ ...t, history: [...t.history.slice(0, t.index + 1), planned], index: t.index + 1 }));
@@ -122,7 +130,7 @@ export function Brave() {
         const checking: Entry = { kind: 'checking', url: planned.url, display: planned.display };
         updateTab(id, t => ({ ...t, history: [...t.history.slice(0, t.index + 1), checking], index: t.index + 1 }));
         settle(id, checking);
-    }, [active, updateTab, settle]);
+    }, [active, updateTab, settle, config.trustedHosts]);
 
 
     // Tabs restored with an unresolved page (e.g. a reader view) get resolved once after opening
@@ -221,7 +229,7 @@ export function Brave() {
 
             {/* Bookmarks */}
             <div className="flex items-center gap-1 px-2 pb-1.5 overflow-x-auto windowMainScreen text-xs border-b border-black border-opacity-40">
-                {BOOKMARKS.map(b => (
+                {config.bookmarks.map(b => (
                     <button key={b.label} type="button" onClick={() => navigate(b.input)} className="flex items-center gap-1.5 px-2 py-1 rounded whitespace-nowrap text-gray-300 hover:bg-white hover:bg-opacity-10">
                         <span>{b.icon}</span>{b.label}
                     </button>
@@ -235,7 +243,7 @@ export function Brave() {
                     const visible = t.id === tab.id;
                     return (
                         <div key={t.id} className="absolute inset-0" style={{ display: visible ? 'block' : 'none' }}>
-                            {e.kind === 'newtab' && <iframe key={'n' + t.reloadKey} src={NEWTAB_URL} title="New Tab" id={visible ? 'brave-screen' : undefined} className="w-full h-full border-0" />}
+                            {e.kind === 'newtab' && <iframe key={'n' + t.reloadKey} src={config.newTabUrl} title="New Tab" id={visible ? 'brave-screen' : undefined} className="w-full h-full border-0" />}
                             {e.kind === 'page' && <iframe key={e.url + t.reloadKey} src={e.url} title={titleOf(e)} id={visible ? 'brave-screen' : undefined} className="w-full h-full border-0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" />}
                             {e.kind === 'checking' && <div className="w-full h-full flex items-center justify-center text-gray-500" style={{ background: '#f6f6f8' }}>Loading {hostOf(e.display)}…</div>}
                             {e.kind === 'blocked' && <BlockedPage entry={e} />}
@@ -379,8 +387,17 @@ function BlockedPage({ entry }: { entry: Extract<Entry, { kind: 'blocked' }> }) 
     );
 }
 
-export default Brave;
-
-export const displayBrave = () => {
-    return <Brave />;
-};
+/** Builds the browser app for a site: its new-tab page, bookmarks and server endpoints. */
+export function createBrowser(options: BrowserConfig): ComponentType<AppProps> {
+    const config: Config = {
+        bookmarks: [],
+        frameCheckUrl: '/api/frame-check',
+        readerUrl: '/api/reader',
+        trustedHosts: [],
+        storageKey: 'brave-tabs',
+        ...options,
+    };
+    return function Browser() {
+        return <Brave config={config} />;
+    };
+}

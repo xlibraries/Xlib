@@ -14,7 +14,10 @@ const displayTerminal = lazyApp(async () => {
 });
 const displaySettings = lazyApp(() => import('./components/apps/settings'));
 
-const displayBrave = lazyApp(() => import('./components/apps/brave'));
+const displayBrave = lazyApp(async () => {
+    const [{ createBrowser }, { browser }] = await Promise.all([import('@xlibraries/browser'), import('./content/browser')]);
+    return { default: createBrowser(browser) };
+});
 const displayTerminalCalc = lazyApp(() => import('@xlibraries/terminal').then(m => ({ default: m.Calc })));
 const displayAboutAman = lazyApp(() => import('./components/apps/aman'));
 const displaySideQuests = lazyApp(() => import('./components/apps/side-quests'));
