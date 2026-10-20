@@ -19,7 +19,7 @@ const displayBrave = lazyApp(async () => {
     return { default: createBrowser(browser) };
 });
 const displayTerminalCalc = lazyApp(() => import('@xlibraries/terminal').then(m => ({ default: m.Calc })));
-const displayAboutAman = lazyApp(() => import('./components/apps/aman'));
+const displayAboutAman = lazyApp(() => import('./components/apps/about'));
 const displaySideQuests = lazyApp(() => import('./components/apps/side-quests'));
 const displayVsCode = lazyApp(() => import('./components/apps/vscode'));
 const displayMusic = lazyApp(async () => {

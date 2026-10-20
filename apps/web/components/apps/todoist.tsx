@@ -11,7 +11,3 @@ export default function Todoist() {
         ></iframe>
     )
 }
-
-export const displayTodoist = () => {
-    return <Todoist />;
-}
