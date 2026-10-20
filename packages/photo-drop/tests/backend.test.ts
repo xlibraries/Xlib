@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { createHash } from 'node:crypto';
 
 // Runs backend/photo-drop/Code.gs (Google Apps Script) in a sandbox with fake Google services,
 // including a fake Google Photos resumable-upload server.
@@ -10,7 +11,7 @@ const CODE = readFileSync('backend/Code.gs', 'utf8');
 
 function makeBackend(props: Record<string, string> = { PASSCODE: 'letmein' }) {
     const store = { props: { ...props } as Record<string, string>, cache: new Map<string, string>() };
-    const photos = { sessions: new Map<string, { received: number; bytes: number[]; final: boolean; size: number }>(), albums: [] as string[], items: [] as any[], forwarded: [] as number[], origins: [] as (string | undefined)[], refuseOrigin: false };
+    const photos = { tokenRevoked: false, sessions: new Map<string, { received: number; bytes: number[]; final: boolean; size: number }>(), albums: [] as string[], items: [] as any[], forwarded: [] as number[], origins: [] as (string | undefined)[], refuseOrigin: false };
     const clock = { now: 1_000_000, onSleep: null as null | (() => void) };
     let uuid = 0;
 
@@ -22,6 +23,7 @@ function makeBackend(props: Record<string, string> = { PASSCODE: 'letmein' }) {
         fetch(url: string, opts: any) {
             const cmd = opts.headers?.['X-Goog-Upload-Command'];
             if (url.endsWith('/uploads') && cmd === 'start') {
+                if (photos.tokenRevoked) return response(401, 'Request had invalid authentication credentials.');
                 photos.origins.push(opts.headers.Origin);
                 if (opts.headers.Origin && photos.refuseOrigin) throw new Error('Attribute provided with invalid value: Header:Origin');
                 const id = 'sess' + photos.sessions.size;
@@ -56,6 +58,10 @@ function makeBackend(props: Record<string, string> = { PASSCODE: 'letmein' }) {
         LockService: { getScriptLock: () => ({ waitLock: () => { }, releaseLock: () => { } }) },
         Utilities: {
             getUuid: () => 'uuid-' + (++uuid),
+            DigestAlgorithm: { SHA_256: 'sha256' },
+            Charset: { UTF_8: 'utf8' },
+            // Apps Script returns signed bytes (-128..127)
+            computeDigest: (_alg: string, text: string) => Array.from(createHash('sha256').update(text).digest()).map((b) => (b > 127 ? b - 256 : b)),
             base64Decode: (s: string) => Array.from(Buffer.from(s, 'base64')),
             sleep: (ms: number) => { clock.now += ms; const hook = clock.onSleep; clock.onSleep = null; hook?.(); },
         },
@@ -194,4 +200,57 @@ describe('Photo Drop backend', () => {
         expect(backend.post({ action: 'status', passcode: 'letmein', uploadId })).toMatchObject({ received: CHUNK, done: false, state: 'active' });
         expect(backend.post({ action: 'status', passcode: 'letmein', uploadId: 'nope' })).toMatchObject({ fatal: true, error: expect.stringContaining('expired') });
     });
+
+    describe('admin status', () => {
+        const KEY = 'admin-key-for-tests';
+        const HASH = createHash('sha256').update(KEY).digest('hex');
+        const admin = (b: ReturnType<typeof makeBackend>, adminKey = KEY) => b.post({ action: 'admin', adminKey });
+
+        it('needs the admin key (not the passcode), and refuses when no key hash is deployed', () => {
+            const b = makeBackend({ PASSCODE: 'letmein', ADMIN_KEY_HASH: HASH });
+            expect(admin(b, 'wrong')).toEqual({ error: 'Forbidden', fatal: true });
+            expect(b.post({ action: 'admin', passcode: 'letmein' })).toEqual({ error: 'Forbidden', fatal: true });
+            expect(admin(makeBackend())).toEqual({ error: 'Forbidden', fatal: true });
+        });
+
+        it('takes the hash from config.gs (ADMIN_KEY_HASH constant) as well', () => {
+            const b = makeBackend({ PASSCODE: 'letmein' });
+            b.ctx.ADMIN_KEY_HASH = HASH;
+            expect(admin(b)).toMatchObject({ access: { ok: true } });
+        });
+
+        it('counts down 7 days from the last setup() and lists recent uploads, newest first', () => {
+            const b = makeBackend({ PASSCODE: 'letmein', ADMIN_KEY_HASH: HASH });
+            expect(admin(b)).toMatchObject({ authorizedAt: null, expiresAt: null, uploads: [] });
+            b.ctx.setup();
+            const start = (name: string) => b.post({ action: 'start', passcode: 'letmein', fileName: name, mimeType: 'image/jpeg', size: 10 });
+            const s1 = start('beach.jpg');
+            b.post({ action: 'chunk', passcode: 'letmein', uploadId: s1.uploadId, offset: 0, final: true, data: b64(fileBytes(10)), uploader: 'Asha' });
+            const s2 = start('hills.jpg');
+            b.post({ action: 'chunk', passcode: 'letmein', uploadId: s2.uploadId, offset: 0, final: true, data: b64(fileBytes(10)) });
+            const status = admin(b);
+            expect(status.access).toEqual({ ok: true, error: null });
+            expect(status.expiresAt - status.authorizedAt).toBe(7 * 24 * 3600 * 1000);
+            expect(status.uploads.map((u: { name: string; by: string }) => [u.name, u.by])).toEqual([['hills.jpg', ''], ['beach.jpg', 'Asha']]);
+        });
+
+        it('reports when Google access has stopped working', () => {
+            const b = makeBackend({ PASSCODE: 'letmein', ADMIN_KEY_HASH: HASH, ALBUM_ID: 'album0' });
+            const sessionsBefore = b.photos.sessions.size;
+            expect(admin(b).access).toEqual({ ok: true, error: null });
+            expect(b.photos.items).toEqual([]);   // the check adds nothing to the library
+            b.photos.tokenRevoked = true;
+            expect(admin(b).access).toEqual({ ok: false, error: 'Google Photos answered 401.' });
+            expect(b.photos.sessions.size).toBe(sessionsBefore + 1);
+        });
+
+        it('keeps only the last 50 uploads', () => {
+            const b = makeBackend({ PASSCODE: 'letmein', ADMIN_KEY_HASH: HASH });
+            for (let i = 0; i < 55; i++) b.ctx.logUpload('f' + i + '.jpg', '');
+            const uploads = admin(b).uploads;
+            expect(uploads).toHaveLength(50);
+            expect(uploads[0].name).toBe('f54.jpg');
+        });
+    });
 });
+

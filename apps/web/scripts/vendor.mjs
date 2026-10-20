@@ -1,9 +1,10 @@
 // Copies files the site serves but doesn't own into public/ (both folders are gitignored):
 // - public/vendor/: browser libraries from node_modules, so the site serves them itself (no CDN, and the
 //   security policy only has to allow 'self'). Versions come from package.json via the lockfile.
-// - public/drop/: the Photo Drop page from @xlibraries/photo-drop, plus this site's settings for it.
+// - public/drop/: the Photo Drop page from @xlibraries/photo-drop, plus config.js made from this site's settings
+//   (content/photo-drop.json).
 // Runs on install (prepare), before dev and before every build.
-import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,8 +35,12 @@ export function vendorFiles() {
         [join(pdfjs, 'legacy/build/pdf.worker.min.mjs'), 'vendor/pdfjs/pdf.worker.min.mjs'],
         [boundaryData(), 'vendor/india-boundary/india_boundary_corrections.pmtiles'],
         [drop, 'drop'],
-        [join(ROOT, 'content/photo-drop.config.js'), 'drop/config.js'],
     ];
+}
+
+/** The Photo Drop page's settings script. The endpoint isn't a secret: uploads need the passcode. */
+export function photoDropConfigJs(settings = JSON.parse(readFileSync(join(ROOT, 'content/photo-drop.json'), 'utf8'))) {
+    return `// Generated from content/photo-drop.json by scripts/vendor.mjs\nwindow.PHOTO_DROP = ${JSON.stringify(settings, null, 4)};\n`;
 }
 
 export function vendor(publicDir = join(ROOT, 'public')) {
@@ -44,6 +49,7 @@ export function vendor(publicDir = join(ROOT, 'public')) {
         mkdirSync(dirname(join(publicDir, to)), { recursive: true });
         cpSync(from, join(publicDir, to), { recursive: true });
     }
+    writeFileSync(join(publicDir, 'drop/config.js'), photoDropConfigJs());
     return publicDir;
 }
 

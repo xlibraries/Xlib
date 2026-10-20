@@ -14,7 +14,7 @@ so the site never calls these services at runtime. Each script exports its logic
 ## vendor.mjs
 
 Copies the Photo Drop page from `@xlibraries/photo-drop` into `public/drop/`, with this site's settings
-(`content/photo-drop.config.js`) as `config.js`. It also copies the browser libraries the apps load at runtime
+(`content/photo-drop.json`) as `config.js`. It also copies the browser libraries the apps load at runtime
 from `node_modules` into `public/vendor/`:
 Leaflet (Side Quests map), pdf.js (resume preview) and the India boundary data used by
 `@india-boundary-corrector/leaflet-layer`. The site serves them itself, so there are no CDN requests and the
