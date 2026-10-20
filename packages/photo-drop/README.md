@@ -73,6 +73,16 @@ instead of pasting files into the editor:
 On xlibraries.com: put `PHOTO_DROP_SCRIPT_ID=…` in `apps/web/.env.local` and run `pnpm deploy:photo-drop` from
 the repo root (the deployment id is read from `content/photo-drop.config.js`).
 
+## Admin status (optional)
+
+The script can report its health to a site's admin panel: whether Google still accepts its authorization
+(checked by opening a throwaway upload session), when it was last renewed, and the last 50 uploads (time, file
+name, uploader's name). Ask for it with `{ "action": "admin", "adminKey": "…" }` from your server.
+
+The key is never stored in the script: deploy with `--admin-key-hash <sha256 of the key>` and the deploy command
+writes the hash into a `config.gs` for that push only. Each `setup` run records the renewal time, so the panel can
+count down the 7 days Google allows while the consent screen is in Testing.
+
 ## Maintenance
 - **Change the passcode:** edit the `PASSCODE` script property. It takes effect immediately and old links stop working.
 - **Update the script:** `pnpm deploy:photo-drop` (above), or by hand: **Deploy → Manage deployments → ✏️ → Version: New version**. The URL stays the same.

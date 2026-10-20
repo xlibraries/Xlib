@@ -37,6 +37,12 @@ function doPost(e) {
   }
 
   try {
+    // The site's admin panel (server to server), authorized by a key whose hash is deployed with the script
+    if (req.action === 'admin') {
+      if (!checkAdminKey(req.adminKey)) return reply({ error: 'Forbidden', fatal: true });
+      return reply(adminStatus());
+    }
+
     if (!checkPasscode(req.passcode)) return reply({ error: 'Wrong passcode', code: 'passcode', fatal: true });
 
     switch (req.action) {
@@ -58,10 +64,90 @@ function doPost(e) {
   }
 }
 
-/** Run once from the editor: grants permissions and creates the album. */
+/**
+ * Run from the editor: grants permissions and creates the album. Run it again whenever Google's authorization
+ * expires (every 7 days while the consent screen is in Testing); the admin panel counts down from the last run.
+ */
 function setup() {
   if (!prop('PASSCODE')) throw new Error('Add a PASSCODE script property first (Project Settings → Script properties).');
   Logger.log('Album ready: ' + prop('ALBUM_TITLE') + ' (' + getAlbumId() + ')');
+  PropertiesService.getScriptProperties().setProperty('AUTHORIZED_AT', String(Date.now()));
+  Logger.log('Authorization recorded; Google access lasts 7 days from now.');
+}
+
+// ---------- Admin ----------
+
+const AUTH_DAYS = 7;
+const UPLOAD_LOG_SIZE = 50;
+
+/** SHA-256 hex of the admin key: from config.gs (written by the deploy command) or a script property. */
+function adminKeyHash() {
+  return (typeof ADMIN_KEY_HASH !== 'undefined' && ADMIN_KEY_HASH) || prop('ADMIN_KEY_HASH');
+}
+
+function checkAdminKey(key) {
+  const expected = adminKeyHash();
+  if (!expected || !key) {
+    Utilities.sleep(1500);
+    return false;
+  }
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(key), Utilities.Charset.UTF_8);
+  const hex = digest.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+  if (hex === expected) return true;
+  Utilities.sleep(1500);
+  return false;
+}
+
+/** For the admin panel: is Google access still working, when does it expire, and the latest uploads. */
+function adminStatus() {
+  const authorizedAt = Number(prop('AUTHORIZED_AT')) || null;
+  return {
+    album: prop('ALBUM_TITLE'),
+    access: checkAccess(),
+    authorizedAt: authorizedAt,
+    expiresAt: authorizedAt ? authorizedAt + AUTH_DAYS * 24 * 3600 * 1000 : null,
+    uploads: readUploadLog(),
+  };
+}
+
+/**
+ * Does Google still accept our authorization? Opens (and abandons) a 1-byte upload session: it needs only the
+ * upload permission the script already has, and adds nothing to the library.
+ */
+function checkAccess() {
+  try {
+    const res = UrlFetchApp.fetch(PHOTOS_API + '/uploads', {
+      method: 'post',
+      payload: '',
+      headers: authHeaders({ 'X-Goog-Upload-Command': 'start', 'X-Goog-Upload-Protocol': 'resumable', 'X-Goog-Upload-Content-Type': 'image/jpeg', 'X-Goog-Upload-Raw-Size': '1' }),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() === 200) return { ok: true, error: null };
+    return { ok: false, error: 'Google Photos answered ' + res.getResponseCode() + '.' };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+
+function readUploadLog() {
+  try {
+    return JSON.parse(prop('UPLOAD_LOG') || '[]');
+  } catch (err) {
+    return [];
+  }
+}
+
+function logUpload(fileName, uploader) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const log = readUploadLog();
+    log.unshift({ at: Date.now(), name: cleanText(fileName, 80), by: cleanText(uploader, 40) });
+    PropertiesService.getScriptProperties().setProperty('UPLOAD_LOG', JSON.stringify(log.slice(0, UPLOAD_LOG_SIZE)));
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------- Upload flow ----------
@@ -210,6 +296,11 @@ function createMediaItem(uploadToken, fileName, uploader) {
   if (!item || (status && status.code)) {
     throw new Error('Google Photos could not save the file' + (status && status.message ? ': ' + status.message : '.'));
   }
+  try {
+    logUpload(fileName, name);
+  } catch (err) {
+    // the file is saved; a missed log entry isn't worth failing the upload
+  }
 }
 
 // ---------- Helpers ----------
@@ -234,13 +325,12 @@ function getAlbumId() {
 }
 
 function api(method, path, body) {
-  const res = UrlFetchApp.fetch(PHOTOS_API + path, {
-    method: method,
-    contentType: 'application/json',
-    payload: JSON.stringify(body),
-    headers: authHeaders({}),
-    muteHttpExceptions: true,
-  });
+  const options = { method: method, headers: authHeaders({}), muteHttpExceptions: true };
+  if (body !== undefined) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(body);
+  }
+  const res = UrlFetchApp.fetch(PHOTOS_API + path, options);
   const data = JSON.parse(res.getContentText() || '{}');
   if (res.getResponseCode() >= 300) {
     throw new Error('Google Photos API error (' + res.getResponseCode() + ')' + (data.error && data.error.message ? ': ' + data.error.message : ''));

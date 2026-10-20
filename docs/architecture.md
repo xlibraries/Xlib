@@ -93,7 +93,7 @@ pdf.js from `public/vendor/`, loaded as a native module (bundling pdf.js through
 A standalone page (served at `/drop/`, copied from the package's `web/` folder by `scripts/vendor.mjs`) for friends to upload photos and videos into Aman's Google Photos.
 There is no server of our own: the page talks to a Google Apps Script web app
 ([`packages/photo-drop/backend/`](../packages/photo-drop/README.md)) that runs as Aman. The site's settings
-(the script URL and album name) are in `content/photo-drop.config.js`, served as `/drop/config.js`.
+(the script URL and album name) are in `content/photo-drop.json`; `scripts/vendor.mjs` turns them into `/drop/config.js`.
 
 ```
 browser                         Apps Script                        Google Photos

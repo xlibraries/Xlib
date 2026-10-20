@@ -5,7 +5,9 @@
 // One-time setup: enable the Apps Script API at https://script.google.com/home/usersettings, then run
 // `pnpm exec clasp login` (opens a browser to authorize clasp for your Google account).
 //
-// Usage: photo-drop-deploy --script-id <id> --deployment-id <id> [--description "..."]
+// Usage: photo-drop-deploy --script-id <id> --deployment-id <id> [--admin-key-hash <sha256 hex>] [--description "..."]
+//   admin key hash: SHA-256 of the key your site's admin panel sends (optional; enables the 'admin' action).
+//                   It's written to backend/config.gs only for the push, so it never lands in the repo.
 //   script id:     Apps Script editor → Project Settings → IDs → Script ID
 //   deployment id: the part of the /exec URL between /s/ and /exec
 import { spawnSync } from 'node:child_process';
@@ -23,11 +25,13 @@ function claspBin() {
 }
 
 /** The .clasp.json and the clasp commands for one deploy. */
-export function deployPlan({ scriptId, deploymentId, description = 'Deployed from the Xlib repo' }) {
+export function deployPlan({ scriptId, deploymentId, adminKeyHash, description = 'Deployed from the Xlib repo' }) {
     if (!scriptId) throw new Error('missing --script-id (Apps Script editor → Project Settings → Script ID)');
     if (!deploymentId) throw new Error('missing --deployment-id (the part of the /exec URL between /s/ and /exec)');
+    if (adminKeyHash && !/^[0-9a-f]{64}$/.test(adminKeyHash)) throw new Error('--admin-key-hash must be a SHA-256 hex digest');
     return {
         claspJson: { scriptId, rootDir: '.' },
+        configGs: adminKeyHash ? `// Written by photo-drop-deploy for this push only\nconst ADMIN_KEY_HASH = '${adminKeyHash}';\n` : null,
         commands: [
             ['push', '--force'],
             ['redeploy', deploymentId, '--description', description],
@@ -36,10 +40,12 @@ export function deployPlan({ scriptId, deploymentId, description = 'Deployed fro
 }
 
 function main() {
-    const { values } = parseArgs({ options: { 'script-id': { type: 'string' }, 'deployment-id': { type: 'string' }, description: { type: 'string' } } });
-    const plan = deployPlan({ scriptId: values['script-id'], deploymentId: values['deployment-id'], description: values.description });
+    const { values } = parseArgs({ options: { 'script-id': { type: 'string' }, 'deployment-id': { type: 'string' }, 'admin-key-hash': { type: 'string' }, description: { type: 'string' } } });
+    const plan = deployPlan({ scriptId: values['script-id'], deploymentId: values['deployment-id'], adminKeyHash: values['admin-key-hash'], description: values.description });
     const claspFile = join(BACKEND, '.clasp.json');
+    const configFile = join(BACKEND, 'config.gs');
     writeFileSync(claspFile, JSON.stringify(plan.claspJson));
+    if (plan.configGs) writeFileSync(configFile, plan.configGs);
     try {
         for (const args of plan.commands) {
             console.log('▶ clasp ' + args.join(' '));
@@ -49,6 +55,7 @@ function main() {
         console.log('✓ Photo Drop backend deployed; the /exec URL is unchanged.');
     } finally {
         rmSync(claspFile, { force: true });
+        rmSync(configFile, { force: true });
     }
 }
 
