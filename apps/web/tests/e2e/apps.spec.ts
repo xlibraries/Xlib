@@ -48,6 +48,17 @@ test.describe('Terminal', () => {
         await expect(page.locator('#terminal')).toHaveCount(0);
     });
 
+    test('passcode shows the Photo Drop passcode only on a device that unlocked it', async ({ page }) => {
+        await openDesktop(page);
+        const terminal = await openApp(page, 'terminal');
+        await runCommand(page, 'terminal', 'passcode');
+        await expect(terminal).toContainText("This device hasn't unlocked Photo Drop yet");
+        await page.evaluate(() => localStorage.setItem('drop-passcode', 'letmein'));
+        await runCommand(page, 'terminal', 'passcode');
+        await expect(terminal).toContainText('Photo Drop passcode: letmein');
+        await expect(terminal).toContainText('/drop#k=letmein');
+    });
+
     test('escapes HTML in echo', async ({ page }) => {
         await openDesktop(page);
         const terminal = await openApp(page, 'terminal');

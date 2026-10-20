@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildSnapshot, discoverInstances, fetchPlaylist } from '../scripts/snapshot.mjs';
+import { buildSnapshot, discoverInstances, fetchPlaylist, sameTracks } from '../scripts/snapshot.mjs';
 
 const video = (id) => ({ videoId: id, title: 'Song ' + id, author: 'A', lengthSeconds: 200 });
 
@@ -38,5 +38,12 @@ describe('update-music-snapshot', () => {
         expect(snapshot.updated).toBe('2026-10-20T00:00:00.000Z');
         expect(snapshot.playlists.good[0].id).toBe('g');
         expect(snapshot.playlists.bad).toEqual([{ id: 'old' }]);
+    });
+
+    it('only counts track changes, not the timestamp', () => {
+        const tracks = { PL1: [{ id: 'a' }] };
+        expect(sameTracks({ updated: 'old', playlists: tracks }, { updated: 'new', playlists: { PL1: [{ id: 'a' }] } })).toBe(true);
+        expect(sameTracks({ playlists: tracks }, { playlists: { PL1: [{ id: 'b' }] } })).toBe(false);
+        expect(sameTracks({}, { playlists: tracks })).toBe(false);
     });
 });

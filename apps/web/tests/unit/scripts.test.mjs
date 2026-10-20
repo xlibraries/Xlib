@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { vendor, vendorFiles } from '../../scripts/vendor.mjs';
+import { deploymentIdFrom } from '../../scripts/deploy-photo-drop.mjs';
 
 describe('music snapshot', () => {
     it('matches the committed playlist list', () => {
@@ -68,5 +69,12 @@ describe('vendor', () => {
         } finally {
             rmSync(out, { recursive: true, force: true });
         }
+    });
+});
+
+describe('deploy-photo-drop', () => {
+    it("reads the deployment id from the site's Photo Drop config", () => {
+        expect(deploymentIdFrom(readFileSync('content/photo-drop.config.js', 'utf8'))).toMatch(/^AKfycb[\w-]+$/);
+        expect(() => deploymentIdFrom('window.PHOTO_DROP = {}')).toThrow(/exec URL/);
     });
 });

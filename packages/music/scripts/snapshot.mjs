@@ -62,6 +62,9 @@ export async function buildSnapshot({ playlists, previous, fetchJson, now = new 
     return { snapshot, fresh };
 }
 
+// Same track lists as before? (the timestamp alone isn't worth a commit and a redeploy)
+export const sameTracks = (previous, snapshot) => JSON.stringify(previous.playlists ?? {}) === JSON.stringify(snapshot.playlists);
+
 async function main() {
     const { values } = parseArgs({ options: { playlists: { type: "string" }, out: { type: "string" } } });
     if (!values.playlists || !values.out) throw new Error("usage: xlib-music-snapshot --playlists <file.json> --out <snapshot.json>");
@@ -70,6 +73,8 @@ async function main() {
     const { snapshot, fresh } = await buildSnapshot({ playlists, previous, fetchJson: budgetedFetchJson(TIME_BUDGET), log: console.log });
     if (fresh === 0) {
         console.log("No playlists could be fetched; snapshot left unchanged.");
+    } else if (sameTracks(previous, snapshot)) {
+        console.log(`Fetched ${fresh}/${playlists.length} playlists; no track changes, snapshot left unchanged.`);
     } else {
         writeFileSync(values.out, JSON.stringify(snapshot));
         console.log(`Updated ${fresh}/${playlists.length} playlists → ${values.out}`);

@@ -7,15 +7,21 @@
   "type": "module",
   "files": [
     "web",
-    "backend"
+    "backend",
+    "scripts"
   ],
   "scripts": {
     "test": "vitest run",
     "verify": "eslint . && vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "deploy": "node scripts/deploy.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
-    "vitest": "3.2.4"
+    "vitest": "3.2.4",
+    "@google/clasp": "3.4.1"
+  },
+  "bin": {
+    "photo-drop-deploy": "./scripts/deploy.mjs"
   }
 }
