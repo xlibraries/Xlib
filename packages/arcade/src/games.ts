@@ -8,6 +8,8 @@ export interface PanelProps {
     /** The running WebAssembly module (game-specific exports). */
     instance: object;
     backend: Backend;
+    /** Where dist/ is served, for a game's own files (e.g. "/arcade"). */
+    baseUrl: string;
 }
 
 export interface GameInfo {
@@ -22,8 +24,17 @@ export interface GameInfo {
 }
 
 const PlaygroundEditor = lazy(() => import('./playground/Editor').then(m => ({ default: m.PlaygroundEditor })));
+const TurboTrailsPanel = lazy(() => import('./turbo-trails/Panel').then(m => ({ default: m.TurboTrailsPanel })));
 
 export const GAMES: GameInfo[] = [
+    {
+        id: 'turbo-trails',
+        title: 'Turbo Trails',
+        description: 'Drive the history of transport: ten eras from an Indus Valley chariot to a Tokyo hover car. Hills, fuel, flips, coins and a shop.',
+        controls: '→/D or right half: gas · ←/A or left half: brake · gamepad triggers',
+        art: 'linear-gradient(180deg, #ffc46b 0%, #ff8a3d 45%, #b4652e 46%, #6b3a1c 100%)',
+        Panel: TurboTrailsPanel,
+    },
     {
         id: 'breakout',
         title: 'Neon Breakout',

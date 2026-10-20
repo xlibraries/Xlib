@@ -140,7 +140,7 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
             <div className="flex-grow min-h-0 md:min-w-0 h-1/2 md:h-full">{view}</div>
             <div className="h-1/2 md:h-full md:w-2/5 md:max-w-md border-t md:border-t-0 md:border-l border-black">
                 {running && status.kind === 'running'
-                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} /></Suspense>
+                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} baseUrl={baseUrl} /></Suspense>
                     : <div className="h-full" style={{ background: '#16121f' }} />}
             </div>
         </div>

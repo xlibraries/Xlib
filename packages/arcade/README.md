@@ -54,6 +54,16 @@ Rules that don't need a GPU live in `native/games/<id>/logic.cpp` and are unit-t
 [doctest](https://github.com/doctest/doctest) (`tests/native/`): `pnpm --filter @xlibraries/arcade test:native`
 compiles them with the system C++ compiler (also part of `test`/`verify`).
 
+## Turbo Trails
+
+A Hill Climb Racing–style drive through ten eras of transport (`native/games/turbo-trails`, plan in
+`docs/turbo-trails-plan.md`). The physics is [Box2D v3.1.1](https://box2d.org) (vendored, scalar build) behind
+`physics.h`, a small interface that issue #37 will reimplement with our own engine; `terrain.cpp` generates each
+era's road from a seed; `rules.cpp` holds fuel, coins, flips, unlocks and the shop; `eras.cpp` is the data for
+the ten eras. The page panel (`src/turbo-trails/Panel.tsx`) shows the story, the shop and the era list, and plays
+the era's music (your own Chariots recordings, served from `dist/turbo-trails/`). Progress is saved on the device
+(`arcade:turbo-trails:progress`).
+
 ## Side panels
 
 A game can show a React panel beside its canvas (`Panel` in `src/games.ts`), which gets the running module and the
@@ -77,3 +87,4 @@ valid shaders reach the game (`pg_set_shader`).
 | sokol-shdc (sokol-tools-bin) | `11d0cf678105d614d675e6d9bd2aaf3eeff12f8c` |
 | HandmadeMath | v2.0.0 |
 | doctest | v2.5.3 |
+| Box2D | v3.1.1 |

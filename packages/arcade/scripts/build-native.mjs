@@ -10,7 +10,7 @@
 //
 // Usage: node scripts/build-native.mjs [game ...]
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +25,15 @@ export const GAMES = {
     showcase: { sources: ['games/showcase/main.cpp', 'games/showcase/scene.cpp'], shaders: ['shaders/showcase.glsl'] },
     // the page passes shader source in, so it needs string helpers
     playground: { sources: ['games/playground/main.cpp'], shaders: [], flags: ['-sEXPORTED_RUNTIME_METHODS=stringToNewUTF8', '-sEXPORTED_FUNCTIONS=_main,_free'] },
+    'turbo-trails': {
+        sources: ['games/turbo-trails/main.cpp', 'games/turbo-trails/physics_box2d.cpp', 'games/turbo-trails/terrain.cpp', 'games/turbo-trails/rules.cpp', 'games/turbo-trails/eras.cpp'],
+        // Box2D v3 (C), compiled separately with emcc; scalar maths (its SIMD paths need SSE emulation)
+        cSources: 'third_party/box2d/src',
+        cFlags: ['-std=gnu17', '-DBOX2D_DISABLE_SIMD', '-Ithird_party/box2d/include', '-Ithird_party/box2d/src'],
+        shaders: [],
+        flags: ['-Ithird_party/box2d/include', '-sEXPORTED_RUNTIME_METHODS=UTF8ToString', '-sEXPORTED_FUNCTIONS=_main,_free'],
+        assets: 'games/turbo-trails/assets',
+    },
 };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,12 +53,26 @@ const BACKEND_FLAGS = {
     webgpu: ['-DSOKOL_WGPU', '--use-port=emdawnwebgpu'],
 };
 
-/** The em++ arguments for one game and backend (exported for tests). */
-export function emArgs(game, backend) {
+/** The em++ arguments for one game and backend (exported for tests); `objects` are precompiled C sources. */
+export function emArgs(game, backend, objects = []) {
     const spec = GAMES[game];
     if (!spec) throw new Error(`unknown game: ${game}`);
     if (!BACKEND_FLAGS[backend]) throw new Error(`unknown backend: ${backend}`);
-    return [...COMMON, ...BACKEND_FLAGS[backend], ...(spec.flags ?? []), ...spec.sources.map(s => `native/${s}`), '-o', `dist/${game}/${backend}.js`];
+    return [...COMMON, ...BACKEND_FLAGS[backend], ...(spec.flags ?? []), ...spec.sources.map(s => `native/${s}`), ...objects, '-o', `dist/${game}/${backend}.js`];
+}
+
+/** Compiles a game's C sources (e.g. Box2D) once into build/obj/<name>/, returning the object paths. */
+function compileC(spec, run) {
+    if (!spec.cSources) return [];
+    const outDir = `build/obj/${spec.cSources.replace(/[\\/]/g, '_')}`;
+    mkdirSync(join(ROOT, outDir), { recursive: true });
+    const objects = [];
+    for (const file of readdirSync(join(ROOT, spec.cSources)).filter(f => f.endsWith('.c')).sort()) {
+        const obj = `${outDir}/${file.replace(/\.c$/, '.o')}`;
+        run('emcc', ['-O2', '-fno-exceptions', `-ffile-prefix-map=${ROOT}=.`, ...(spec.cFlags ?? []), '-c', `${spec.cSources}/${file}`, '-o', obj]);
+        objects.push(obj);
+    }
+    return objects;
 }
 
 export function shdcBinaryPath(platform = process.platform, arch = process.arch) {
@@ -99,10 +122,13 @@ async function main() {
         }
         rmSync(join(ROOT, 'dist', game), { recursive: true, force: true });
         mkdirSync(join(ROOT, 'dist', game), { recursive: true });
+        const objects = compileC(GAMES[game], run);
         for (const backend of BACKENDS) {
             console.log(`▶ em++ ${game} (${backend})`);
-            run('em++', emArgs(game, backend));
+            run('em++', emArgs(game, backend, objects));
         }
+        // sounds and images the page serves next to the build
+        if (GAMES[game].assets) cpSync(join(ROOT, 'native', GAMES[game].assets), join(ROOT, 'dist', game), { recursive: true });
     }
     console.log('✓ built', games.join(', '));
 }
