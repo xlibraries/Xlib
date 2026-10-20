@@ -32,6 +32,13 @@ export const GAMES: GameInfo[] = [
         art: 'linear-gradient(135deg, #ff3d7f, #ff8a00 45%, #00b8a9)',
     },
     {
+        id: 'showcase',
+        title: '3D Showcase',
+        description: 'A procedurally generated low-poly island: a car loops its road through day and night, headlights on after dusk.',
+        controls: 'Drag to orbit · scroll to zoom · C follow car · N skip ahead',
+        art: 'linear-gradient(180deg, #55c3ff 0%, #ffb36b 55%, #2f8f5b 56%, #1d5c3b 100%)',
+    },
+    {
         id: 'playground',
         title: 'Shader Playground',
         description: 'Full-window fragment shaders: start from plasma, a neon tunnel or raymarched spheres, then edit live.',
