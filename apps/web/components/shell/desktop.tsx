@@ -252,7 +252,7 @@ export class Desktop extends Component {
         return appsJsx;
     }
 
-    // What every app gets from the desktop (packages/app-sdk's Host)
+    // What every app gets from the desktop (packages/app-sdk's Host); the window adds close()
     host = () => ({
         openApp: this.openApp,
         addFolder: this.addToDesktop,

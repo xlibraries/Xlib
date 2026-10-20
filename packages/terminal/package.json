@@ -1,0 +1,30 @@
+{
+  "name": "@xlibraries/terminal",
+  "version": "0.1.0",
+  "description": "An Ubuntu-style terminal and calculator for the Xlib desktop",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "@xlibraries/app-sdk": "workspace:^",
+    "expr-eval": "^2.0.2"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "react": "^19.2.9",
+    "react-dom": "^19.2.9",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  }
+}

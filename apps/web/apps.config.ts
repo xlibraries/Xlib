@@ -8,11 +8,14 @@ const AppLoading = () => createElement('div', { className: 'w-full h-full flex i
 const lazyApp = (load: () => Promise<{ default: ComponentType<AppProps> }>): ComponentType<AppProps> =>
     dynamic(load, { ssr: false, loading: AppLoading });
 
-const displayTerminal = lazyApp(() => import('./components/apps/terminal'));
+const displayTerminal = lazyApp(async () => {
+    const [{ createTerminal }, { terminal }] = await Promise.all([import('@xlibraries/terminal'), import('./content/terminal')]);
+    return { default: createTerminal(terminal) };
+});
 const displaySettings = lazyApp(() => import('./components/apps/settings'));
 
 const displayBrave = lazyApp(() => import('./components/apps/brave'));
-const displayTerminalCalc = lazyApp(() => import('./components/apps/calc'));
+const displayTerminalCalc = lazyApp(() => import('@xlibraries/terminal').then(m => ({ default: m.Calc })));
 const displayAboutAman = lazyApp(() => import('./components/apps/aman'));
 const displaySideQuests = lazyApp(() => import('./components/apps/side-quests'));
 const displayVsCode = lazyApp(() => import('./components/apps/vscode'));
