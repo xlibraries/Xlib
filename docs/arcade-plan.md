@@ -4,7 +4,8 @@ An **Arcade** app on the desktop that runs real-time graphics written in C++ wit
 [sokol](https://github.com/floooh/sokol), compiled to WebAssembly. Every experience is built twice, for
 **WebGPU** and **WebGL2**, and the app picks the best one the visitor's browser supports.
 
-First three experiences: a **neon arcade game**, a **shader playground** and a **3D showcase**.
+First three experiences: a **neon arcade game**, a **shader playground** and a **3D showcase**; then
+**Turbo Trails**, a full game ([turbo-trails-plan.md](turbo-trails-plan.md)).
 
 ## How it fits together
 
