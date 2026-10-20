@@ -72,14 +72,18 @@ size limits. The reader's HTML is sanitized to plain article markup before it re
 
 ### Side Quests
 
-Reads two generated files, `public/side-quests/travel.json` (from a Google Maps Timeline export, reduced to
+Hand-written content (quests, earlier adventures, hobbies, lore, home base) is `content/side-quests.ts`; the
+app is `components/apps/side-quests/` (one file per tab, plus the map and its loaders in `data.ts`). It reads
+two generated files, `public/side-quests/travel.json` (from a Google Maps Timeline export, reduced to
 town-level places) and `road-trips.json` (older trips routed with OSRM). The map is Leaflet with OpenStreetMap
 tiles, and `@india-boundary-corrector/leaflet-layer` redraws India's official boundaries over the tiles using
 a PMTiles file. Leaflet and that file are served from `public/vendor/`.
 
 ### About Aman
 
-All content is in the component. The resume preview renders `public/files/Aman-Agrawal-Resume.pdf` with
+The write-ups are in `content/about/` (`sections.tsx`, `projects.ts`), and `tree.tsx` arranges them into the
+folders the explorer shows (`lib/file-tree.ts` resolves paths). The UI is `components/apps/about/`: the Files-style
+`Explorer`, the `SimplifiedView` and the `Resume` viewer. The resume preview renders `public/files/Aman-Agrawal-Resume.pdf` with
 pdf.js from `public/vendor/`, loaded as a native module (bundling pdf.js through Next's dev server crashes).
 
 ## Photo Drop (`packages/photo-drop`)
