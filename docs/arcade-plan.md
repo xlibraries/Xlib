@@ -90,7 +90,7 @@ flowchart LR
 | --- | --- |
 | **1. Foundation** ✅ | Package, pinned sokol and toolchain, build script, CI rebuild check, the runtime bridge, the Arcade app with one tiny animated scene running on both backends, CSP update, e2e tests for both backends |
 | **2. Neon Breakout** ✅ | The game, sound, high scores, native unit tests for its logic |
-| **3. Shader Playground** | Presets, live editor, error reporting |
+| **3. Shader Playground** ✅ | Presets, live editor, error reporting |
 | **4. 3D Showcase** | The diorama, orbit camera, day/night |
 
 ## Setup
