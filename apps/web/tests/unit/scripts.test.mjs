@@ -59,7 +59,8 @@ describe('vendor', () => {
                 expect(existsSync(join(out, file)), file).toBe(true);
             }
             // the app references these exact paths
-            const app = readFileSync('components/apps/side-quests.tsx', 'utf8') + readFileSync('components/apps/aman.tsx', 'utf8');
+            const app = ['components/apps/side-quests/data.ts', 'components/apps/side-quests/WorldMap.tsx', 'components/apps/about/Resume.tsx']
+                .map((f) => readFileSync(f, 'utf8')).join('\n');
             for (const ref of app.match(/\/vendor\/[\w./-]+/g)) expect(existsSync(join(out, ref.slice(1))), ref).toBe(true);
             // the page loads the site's settings
             expect(readFileSync(join(out, 'drop/index.html'), 'utf8')).toContain('src="./config.js"');
