@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
+import { BACKENDS, GAMES, emArgs, shdcBinaryPath } from '../scripts/build-native.mjs';
+import { GAMES as REGISTERED } from '../src/games';
+
+describe('build-native', () => {
+    it('builds every registered game, and only those', () => {
+        expect(Object.keys(GAMES).sort()).toEqual(REGISTERED.map(g => g.id).sort());
+    });
+
+    it('compiles each backend with the right sokol define and no eval', () => {
+        const gl = emArgs('hello', 'webgl2');
+        const gpu = emArgs('hello', 'webgpu');
+        expect(gl).toContain('-DSOKOL_GLES3');
+        expect(gl).toContain('-sUSE_WEBGL2=1');
+        expect(gpu).toContain('-DSOKOL_WGPU');
+        expect(gpu).toContain('--use-port=emdawnwebgpu');
+        for (const args of [gl, gpu]) {
+            expect(args).toContain('-sDYNAMIC_EXECUTION=0');
+            expect(args.slice(-2)).toEqual(['-o', `dist/hello/${args.includes('-DSOKOL_WGPU') ? 'webgpu' : 'webgl2'}.js`]);
+        }
+        expect(() => emArgs('nope', 'webgl2')).toThrow(/unknown game/);
+    });
+
+    it('has committed builds for every game and backend', () => {
+        for (const game of Object.keys(GAMES)) {
+            for (const backend of BACKENDS) {
+                expect(existsSync(new URL(`../dist/${game}/${backend}.js`, import.meta.url)), `${game}/${backend}.js`).toBe(true);
+                expect(existsSync(new URL(`../dist/${game}/${backend}.wasm`, import.meta.url)), `${game}/${backend}.wasm`).toBe(true);
+            }
+        }
+    });
+
+    it('knows where sokol-shdc lives for each platform', () => {
+        expect(shdcBinaryPath('darwin', 'arm64')).toBe('bin/osx_arm64/sokol-shdc');
+        expect(shdcBinaryPath('linux', 'x64')).toBe('bin/linux/sokol-shdc');
+        expect(() => shdcBinaryPath('aix', 'ppc')).toThrow();
+    });
+});

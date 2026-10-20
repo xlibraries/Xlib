@@ -1,6 +1,7 @@
 // Security headers for every response (applied in next.config.ts).
 //
-// Scripts are locked to our own origin plus the YouTube player API (Music). Analytics are our own
+// Scripts are locked to our own origin plus the YouTube player API (Music). 'wasm-unsafe-eval' lets the Arcade's
+// WebAssembly games run (it allows compiling WebAssembly, not JavaScript eval). Analytics are our own
 // (@xlibraries/analytics → /api/track), so no analytics scripts load from elsewhere. Libraries that
 // used to come from CDNs (Leaflet, pdf.js, the India boundary data, the Ubuntu font) are served from this
 // site, see scripts/vendor.mjs and pages/_app.tsx. There are no inline scripts: the static pages in public/
@@ -20,7 +21,7 @@ export function contentSecurityPolicy({ dev = false } = {}): string {
     const directives: Record<string, string[]> = {
         'default-src': ["'self'"],
         // Next's dev server needs eval (fast refresh) and inline scripts; production needs neither
-        'script-src': ["'self'", ...SCRIPT_HOSTS, ...(dev ? ["'unsafe-eval'", "'unsafe-inline'"] : [])],
+        'script-src': ["'self'", "'wasm-unsafe-eval'", ...SCRIPT_HOSTS, ...(dev ? ["'unsafe-eval'", "'unsafe-inline'"] : [])],
         // React style={…} props and styled-jsx are inline styles
         'style-src': ["'self'", "'unsafe-inline'"],
         'img-src': ["'self'", 'data:', 'blob:', 'https:'],

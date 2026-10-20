@@ -16,6 +16,7 @@ Next.js 16 (pages router) · React 19 · Tailwind CSS · deployed on Vercel.
 | **Terminal** | A small shell: `ls`, `cd`, `pwd`, `echo`, `mkdir` and commands that open the other apps (`code`, `music`, …). |
 | **Calc** | A terminal-style calculator with variables. |
 | **VS Code** | This repo in an embedded VS Code (github1s). |
+| **Arcade** | Real-time graphics in C++ with sokol, compiled to WebAssembly and run on WebGPU (or WebGL2 where WebGPU isn't available). |
 | **Settings, Trash, Todoist, Contact Me** | Wallpapers, a trash can, a to-do embed and a contact form (EmailJS). |
 
 Also on the site:
@@ -87,6 +88,8 @@ packages/
   browser/            @xlibraries/browser: the Brave app, plus framework-free frame-check and reader endpoints
   music/              @xlibraries/music: the Music app and the playlist snapshot CLI
   photo-drop/         @xlibraries/photo-drop: the upload page and its Google Apps Script backend
+  analytics/          @xlibraries/analytics: cookie-free analytics (tracker, Redis recorder, dashboard)
+  arcade/             @xlibraries/arcade: C++/sokol games compiled to WebAssembly (WebGPU + WebGL2)
 docs/                 architecture notes and the restructuring plan
 ```
 

@@ -41,3 +41,24 @@ jobs:
           name: playwright-report
           path: apps/web/test-results/
           retention-days: 7
+
+  # The Arcade's compiled games are committed; rebuild them with the pinned toolchain and fail if they differ
+  arcade-native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: pnpm
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 6.0.11
+          actions-cache-folder: emsdk-cache
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build games (WebGPU + WebGL2)
+        run: pnpm --filter @xlibraries/arcade build:native
+      - name: Committed dist/ matches the sources
+        run: git diff --exit-code --stat -- packages/arcade/dist
