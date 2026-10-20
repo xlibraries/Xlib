@@ -379,3 +379,39 @@ test.describe('Photo Drop upload', () => {
         expect(calls).toEqual(['check', 'start', 'status', 'chunk']);
     });
 });
+
+test.describe('Admin (/xlib)', () => {
+    const PASSCODE = 'e2e-admin-passcode';   // set for the test server in playwright.config.ts
+
+    test('visitors see no admin apps, and /xlib asks for the passcode', async ({ page }) => {
+        await openDesktop(page);
+        await expect(page.locator('#app-admin-analytics')).toHaveCount(0);
+        await page.goto('/xlib');
+        await expect(page.locator('#admin-passcode')).toBeVisible();
+        await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
+    });
+
+    test('logs in, shows analytics, stays logged in and logs out', async ({ page }) => {
+        await openDesktop(page);   // also records a visit
+        await page.goto('/xlib');
+        await page.locator('#admin-passcode').fill('wrong passcode');
+        await page.getByRole('button', { name: 'Unlock' }).click();
+        await expect(page.locator('#ubuntu-lock-screen').getByRole('alert')).toHaveText("That passcode isn't right.");
+
+        await page.locator('#admin-passcode').fill(PASSCODE);
+        await page.getByRole('button', { name: 'Unlock' }).click();
+        await expect(page.locator('#admin-passcode')).toBeHidden();
+        await page.locator('#app-admin-analytics').dblclick();
+        const app = page.locator('#admin-analytics');
+        await expect(app.getByText('Visits', { exact: true })).toBeVisible();
+        await expect(app.getByText('Apps opened')).toBeVisible();
+
+        await page.reload();
+        await expect(page.locator('#app-admin-analytics')).toBeVisible();   // the session cookie survives a reload
+
+        await page.locator('#app-admin-analytics').dblclick();
+        await page.getByRole('button', { name: 'Log out of admin' }).click();
+        await expect(page.locator('#admin-passcode')).toBeVisible();
+    });
+});
+

@@ -1,7 +1,8 @@
 import React from 'react';
 import Head from 'next/head';
 
-export default function Meta() {
+/** `noindex`: keep the page out of search engines (the /xlib admin page). */
+export default function Meta({ noindex = false }: { noindex?: boolean }) {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://xlibraries.com';
     const siteUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     const canonicalUrl = `${siteUrl}/`;
@@ -40,8 +41,8 @@ export default function Meta() {
                 name="keywords"
                 content="xlibraries portfolio, aman agrawal portfolio, ubuntu portfolio, nextjs portfolio, xlib"
             />
-            <meta name="robots" content="index, follow" />
-            <meta name="googlebot" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
+            <meta name="robots" content={noindex ? "noindex, nofollow" : "index, follow"} />
+            {!noindex && <meta name="googlebot" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />}
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <meta name="theme-color" content="#E95420" />
             <link rel="canonical" href={canonicalUrl} />

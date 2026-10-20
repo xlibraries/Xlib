@@ -110,12 +110,23 @@ browser                         Apps Script                        Google Photos
   the visitor switches apps.
 - The passcode travels in the URL fragment (`#k=…`), which browsers never send to servers.
 
+## Admin mode and analytics
+
+`/xlib` renders the same desktop with `admin` set: the lock screen asks for a passcode, `/api/admin/login`
+checks it against `ADMIN_PASSCODE` (5 attempts per 15 minutes per IP) and sets a signed, HttpOnly,
+`SameSite=Strict` cookie that expires after 7 days. With a valid session the desktop adds `adminApps` from
+`apps.config.ts`. Admin endpoints check the cookie, and state-changing ones also check the `Origin`.
+
+Analytics are the site's own (`packages/analytics`): pages send beacons to `/api/track`, which keeps daily
+counters in Upstash Redis (no cookies, no IPs stored; bots and the admin aren't counted); the admin Analytics
+app reads `/api/admin/analytics`. Details and the next phases: [admin-plan.md](admin-plan.md).
+
 ## Security headers
 
 `lib/security-headers.ts` builds the headers that `next.config.ts` sends with every response: a Content
 Security Policy plus HSTS, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and COOP.
 
-- **Scripts** may only come from this site, the YouTube player and Google Analytics. Production allows no
+- **Scripts** may only come from this site and the YouTube player. Production allows no
   inline scripts or `eval`. That's why production builds use webpack (`next build --webpack`; Turbopack's
   build adds an inline bootstrap script to each page) and why the static pages in `public/` load their
   JavaScript from files.

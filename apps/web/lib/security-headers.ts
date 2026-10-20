@@ -1,7 +1,7 @@
 // Security headers for every response (applied in next.config.ts).
 //
-// Scripts are locked to our own origin plus the few third parties that load code: the YouTube player API
-// (Music), Google Analytics (react-ga4, only with a tracking ID) and Vercel Analytics in dev. Libraries that
+// Scripts are locked to our own origin plus the YouTube player API (Music). Analytics are our own
+// (@xlibraries/analytics → /api/track), so no analytics scripts load from elsewhere. Libraries that
 // used to come from CDNs (Leaflet, pdf.js, the India boundary data, the Ubuntu font) are served from this
 // site, see scripts/vendor.mjs and pages/_app.tsx. There are no inline scripts: the static pages in public/
 // load theirs from files.
@@ -14,14 +14,13 @@
 const SCRIPT_HOSTS = [
     'https://www.youtube.com',
     'https://s.ytimg.com',
-    'https://www.googletagmanager.com',
 ];
 
 export function contentSecurityPolicy({ dev = false } = {}): string {
     const directives: Record<string, string[]> = {
         'default-src': ["'self'"],
         // Next's dev server needs eval (fast refresh) and inline scripts; production needs neither
-        'script-src': ["'self'", ...SCRIPT_HOSTS, ...(dev ? ["'unsafe-eval'", "'unsafe-inline'", 'https://va.vercel-scripts.com'] : [])],
+        'script-src': ["'self'", ...SCRIPT_HOSTS, ...(dev ? ["'unsafe-eval'", "'unsafe-inline'"] : [])],
         // React style={…} props and styled-jsx are inline styles
         'style-src': ["'self'", "'unsafe-inline'"],
         'img-src': ["'self'", 'data:', 'blob:', 'https:'],
