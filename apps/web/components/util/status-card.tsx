@@ -1,0 +1,193 @@
+import React, { Component } from 'react';
+import SmallArrow from './small-arrow';
+import { screenBrightness } from '../../lib/display';
+
+type SliderProps = {
+	onChange: React.ChangeEventHandler<HTMLInputElement>;
+	className: string;
+	name: string;
+	value: number;
+};
+
+class Slider extends Component<SliderProps> {
+	render() {
+		return (
+			<input
+				type="range"
+				onChange={this.props.onChange}
+				className={this.props.className}
+				name={this.props.name}
+				min="0"
+				max="100"
+				value={this.props.value}
+				step="1"
+			/>
+		);
+	}
+}
+
+type StatusCardProps = {
+	visible: boolean;
+	toggleVisible: () => void;
+	lockScreen: () => void;
+	shutDown: () => void;
+};
+type StatusCardState = { sound_level: number; brightness_level: number };
+
+const setScreenBrightness = (level: number) => {
+	const screen = document.getElementById('monitor-screen');
+	if (screen) screen.style.filter = screenBrightness(level);
+};
+
+export class StatusCard extends Component<StatusCardProps, StatusCardState> {
+	wrapperRef = React.createRef<HTMLDivElement>();
+
+	constructor(props: StatusCardProps) {
+		super(props);
+		this.state = {
+			sound_level: 75, // better of setting default values from localStorage
+			brightness_level: 100 // setting default value to 100 so that by default its always full.
+		};
+	}
+
+	componentDidMount() {
+		document.addEventListener('mousedown', this.handleOutsideClick);
+		document.addEventListener('touchstart', this.handleOutsideClick);
+		this.setState({
+			sound_level: Number(localStorage.getItem('sound-level') ?? 75),
+			brightness_level: Number(localStorage.getItem('brightness-level') ?? 100)
+		}, () => setScreenBrightness(this.state.brightness_level));
+	}
+
+	componentWillUnmount() {
+		document.removeEventListener('mousedown', this.handleOutsideClick);
+		document.removeEventListener('touchstart', this.handleOutsideClick);
+	}
+
+	handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+		if (!this.props.visible) return;
+		if (!this.wrapperRef.current) return;
+		if (this.wrapperRef.current.contains(event.target as Node)) return;
+		this.props.toggleVisible();
+	};
+
+	handleBrightness = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const level = Number(e.target.value);
+		this.setState({ brightness_level: level });
+		localStorage.setItem('brightness-level', String(level));
+		setScreenBrightness(level);
+	};
+
+	handleSound = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const level = Number(e.target.value);
+		this.setState({ sound_level: level });
+		localStorage.setItem('sound-level', String(level));
+	};
+
+	render() {
+		return (
+			<div
+				ref={this.wrapperRef}
+				className={
+					'absolute bg-ub-cool-grey rounded-md py-4 top-9 right-3 shadow border-black border border-opacity-20 status-card' +
+					(this.props.visible ? ' visible animateShow' : ' invisible')
+				}
+			>
+				{' '}
+				{/* Status Card */}
+				<div className="absolute w-0 h-0 -top-1 right-6 top-arrow-up" />
+				<div className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20">
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/audio-headphones-symbolic.svg" alt="ubuntu headphone" />
+					</div>
+					<Slider
+						onChange={this.handleSound}
+						className="ubuntu-slider w-2/3"
+						value={this.state.sound_level}
+						name="headphone_range"
+					/>
+				</div>
+				<div className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20">
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/display-brightness-symbolic.svg" alt="ubuntu brightness" />
+					</div>
+					<Slider
+						onChange={this.handleBrightness}
+						className="ubuntu-slider w-2/3"
+						name="brightness_range"
+						value={this.state.brightness_level}
+					/>
+				</div>
+				<div className="w-64 flex content-center justify-center">
+					<div className="w-2/4 border-black border-opacity-50 border-b my-2 border-solid" />
+				</div>
+				<div className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20">
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/network-wireless-signal-good-symbolic.svg" alt="ubuntu wifi" />
+					</div>
+					<div className="w-2/3 flex items-center justify-between text-gray-400">
+						<span>Product X.0</span>
+						<SmallArrow angle="right" />
+					</div>
+				</div>
+				<div className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20">
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/bluetooth-symbolic.svg" alt="ubuntu bluetooth" />
+					</div>
+					<div className="w-2/3 flex items-center justify-between text-gray-400">
+						<span>Off</span>
+						<SmallArrow angle="right" />
+					</div>
+				</div>
+				<div className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20">
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/battery-good-symbolic.svg" alt="ubuntu battery" />
+					</div>
+					<div className="w-2/3 flex items-center justify-between text-gray-400">
+						<span>2:40 Remaining (75%)</span>
+						<SmallArrow angle="right" />
+					</div>
+				</div>
+				<div className="w-64 flex content-center justify-center">
+					<div className="w-2/4 border-black border-opacity-50 border-b my-2 border-solid" />
+				</div>
+				<div
+					id="open-settings"
+					className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20"
+				>
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/emblem-system-symbolic.svg" alt="ubuntu settings" />
+					</div>
+					<div className="w-2/3 flex items-center justify-between">
+						<span>Settings</span>
+					</div>
+				</div>
+				<div
+					onClick={this.props.lockScreen}
+					className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20"
+				>
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/changes-prevent-symbolic.svg" alt="ubuntu lock" />
+					</div>
+					<div className="w-2/3 flex items-center justify-between">
+						<span>Lock</span>
+					</div>
+				</div>
+				<div
+					onClick={this.props.shutDown}
+					className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20"
+				>
+					<div className="w-8">
+						<img width="16px" height="16px" src="./themes/Yaru/status/system-shutdown-symbolic.svg" alt="ubuntu power" />
+					</div>
+					<div className="w-2/3 flex items-center justify-between">
+						<span>Power Off / Log Out</span>
+						<SmallArrow angle="right" />
+					</div>
+				</div>
+			</div>
+		);
+	}
+}
+
+export default StatusCard;

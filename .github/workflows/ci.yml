@@ -23,21 +23,21 @@ jobs:
         run: pnpm lint
       - name: Type-check
         run: pnpm typecheck
-      - name: Unit tests
-        run: pnpm test:coverage
+      - name: Unit tests (site and packages)
+        run: pnpm test
       - name: Python tests
-        run: pnpm test:python
+        run: pnpm --filter @xlibraries/web test:python
       # next build directly: skips the playlist refresh, which needs the network and isn't under test
       - name: Build
-        run: pnpm exec next build --webpack
-      - name: Install browser for smoke tests
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Smoke tests
-        run: pnpm test:e2e
+        run: pnpm --filter @xlibraries/web exec next build --webpack
+      - name: Install browser for e2e tests
+        run: pnpm --filter @xlibraries/web exec playwright install --with-deps chromium
+      - name: E2E tests
+        run: pnpm --filter @xlibraries/web test:e2e
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: test-results/
+          path: apps/web/test-results/
           retention-days: 7

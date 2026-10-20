@@ -28,31 +28,33 @@ Also on the site:
 ## Run it locally
 
 You need Node 20.9+ and pnpm 9 (`corepack enable` gives you the right version from `package.json`).
+The repo is a pnpm workspace; run commands from the root.
 
 ```sh
-pnpm install          # also installs the git hook and copies browser libraries into public/vendor/
-cp .env.example .env.local   # optional: analytics and the contact form
+pnpm install          # also installs the git hook and copies browser libraries into apps/web/public/vendor/
+cp apps/web/.env.example apps/web/.env.local   # optional: analytics and the contact form
 pnpm dev              # http://localhost:3000
 ```
 
 Use pnpm only. `npm install` would create a second lockfile.
 
 Environment variables are all optional and public (they're sent to the browser); see
-[`.env.example`](.env.example). Without them, analytics are off and the contact form opens the visitor's
+[`apps/web/.env.example`](apps/web/.env.example). Without them, analytics are off and the contact form opens the visitor's
 email app instead.
 
 ## Commands
 
+From the repo root:
+
 | Command | |
 | --- | --- |
-| `pnpm dev` | Dev server (Turbopack). Next 16 allows one dev server per folder. |
+| `pnpm dev` | The site's dev server (Turbopack). Next 16 allows one dev server per folder. |
 | `pnpm build` | Production build: refreshes the music snapshot, then `next build --webpack`. |
-| `pnpm start` | Serve the production build. |
-| `pnpm lint` / `pnpm typecheck` | ESLint / TypeScript. |
-| `pnpm test` / `pnpm test:coverage` | Unit tests (Vitest). |
-| `pnpm test:python` | Python tests for the travel-data script. |
-| `pnpm test:e2e` | Browser tests (Playwright) against a production build; run `pnpm exec next build --webpack` first. |
-| `pnpm verify` | Everything above, in order. |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint / TypeScript / unit tests, across every workspace package. |
+| `pnpm verify` | Everything: each package's checks, plus the site's Python tests, build and e2e tests. |
+
+Site-only commands run with `pnpm --filter @xlibraries/web <script>` (for example `test:e2e`, `test:python`,
+`start`).
 
 ## Tests
 
@@ -69,29 +71,37 @@ pull request.
 ## Project layout
 
 ```
-pages/              Next.js pages: the desktop (index) and two API routes for the Brave app
-components/
-  apps/             one file per desktop app
-  screen/, base/    desktop, windows, dock, top bar, boot and lock screens
-lib/                pure logic, unit-tested (browser routing, lyrics, distances, security headers, …)
-apps.config.ts      the list of apps: titles, icons, dock and desktop placement
-public/             static files, plus standalone pages: drop/, privacy/, brave/newtab.html
-backend/photo-drop/ Google Apps Script for Photo Drop (deployed by hand)
-scripts/, data/     generators for the music snapshot and the Side Quests map data
-tests/              unit, Python and e2e tests
+apps/web/             the Next.js site
+  pages/              the desktop (index) and two API routes for the Brave app
+  components/shell/   desktop, windows, dock, top bar, boot and lock screens
+  components/apps/    the apps that aren't packages yet
+  lib/                pure logic, unit-tested (browser routing, lyrics, distances, security headers, …)
+  apps.config.ts      the list of apps: titles, icons, dock and desktop placement
+  public/             static files, plus standalone pages: drop/, privacy/, brave/newtab.html
+  scripts/, data/     generators for the music snapshot and the Side Quests map data
+  tests/              unit, Python and e2e tests
+packages/
+  app-sdk/            @xlibraries/app-sdk: the contract between the desktop and its apps
+backend/photo-drop/   Google Apps Script for Photo Drop (deployed by hand)
+docs/                 architecture notes and the restructuring plan
 ```
+
+Self-contained apps live in `packages/` and may import only their own code, their dependencies and
+`@xlibraries/app-sdk`, so each can later move to its own repo and come back as a git submodule or a
+published package. A unit test enforces the rule.
 
 ## More docs
 
 - [Architecture](docs/architecture.md): how the desktop, the apps, the server routes and the security policy fit together.
-- [Data scripts](scripts/README.md): what each script generates, when to run it and the privacy rules for travel data.
+- [Data scripts](apps/web/scripts/README.md): what each script generates, when to run it and the privacy rules for travel data.
 - [Photo Drop backend](backend/photo-drop/README.md): setting up and deploying the Apps Script.
 
 ## Deployment
 
-Vercel builds and deploys `master` on every push; pull requests get preview deployments.
+Vercel builds and deploys `master` on every push from `apps/web` (the project's root directory);
+pull requests get preview deployments.
 `xlibraries.com` is the main domain, and `www.xlibraries.com` and `xlibraries.club` redirect to it
-(see `next.config.ts`). The old GitHub Pages site (`gh-pages` branch) only redirects to xlibraries.com.
+(see `apps/web/next.config.ts`). The old GitHub Pages site (`gh-pages` branch) only redirects to xlibraries.com.
 
 The Photo Drop Apps Script isn't deployed by Vercel: after changing
 [`backend/photo-drop/Code.gs`](backend/photo-drop/Code.gs), paste it into Apps Script and publish a new

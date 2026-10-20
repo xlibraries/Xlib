@@ -31,7 +31,7 @@ uploads use your storage, not your visitors'. Visitors need the passcode to uplo
 ### 3. Deploy
 1. **Deploy → New deployment** → type **Web app** → *Execute as*: **Me**, *Who has access*: **Anyone** → **Deploy**.
 2. Copy the **Web app URL** (ends in `/exec`).
-3. Paste it into [`public/drop/config.js`](../../public/drop/config.js) as `endpoint`, and make `albumName` match `ALBUM_TITLE`. Commit and push; Vercel deploys it.
+3. Paste it into [`apps/web/public/drop/config.js`](../../apps/web/public/drop/config.js) as `endpoint`, and make `albumName` match `ALBUM_TITLE`. Commit and push; Vercel deploys it.
 
 ## Sharing it
 - Easiest for friends: `https://xlibraries.com/drop#k=YOUR_PASSCODE`. The passcode is in the part after `#`, which browsers never send to any server. The page removes it from the address bar and remembers it on that device.
