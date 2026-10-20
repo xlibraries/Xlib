@@ -12,7 +12,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:python": "python3 -m unittest discover -s tests/python"
   },
   "engines": {
     "node": ">=20.9.0"
