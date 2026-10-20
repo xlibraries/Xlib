@@ -61,6 +61,8 @@ things work.
 - `packages/arcade` – C++/sokol games compiled to WebAssembly for WebGPU and WebGL2 (`docs/arcade-plan.md`). Build
   with `pnpm --filter @xlibraries/arcade build:native` (needs `source ~/emsdk/emsdk_env.sh`, Emscripten 6.0.11);
   **commit `dist/`**, CI rebuilds it and fails on any difference. Games only react to keys while focused (`xl.h`).
+  Turbo Trails (`docs/turbo-trails-plan.md`) uses vendored Box2D v3.1.1 behind `physics.h`; its rules and terrain are
+  graphics-free and tested natively (`tests/native/turbo_trails_test.cpp`).
 - Packages: `terminal` (Terminal + Calc), `browser` (Brave + server endpoints), `music` (+ the
   `xlib-music-snapshot` CLI), `photo-drop` (upload page + Apps Script backend, deployed with `pnpm deploy:photo-drop`, see its README).
 - `.github/workflows/refresh-playlists.yml` refreshes the Music snapshot every Monday and commits it if tracks changed.
