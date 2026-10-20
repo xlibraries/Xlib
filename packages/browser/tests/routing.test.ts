@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { githubRoute, hostOf, looksLikeUrl, plan, searchUrl, youtubeEmbed } from '../../lib/browser';
+import { githubRoute, hostOf, looksLikeUrl, plan, searchUrl, youtubeEmbed } from '../src/routing';
 
 describe('looksLikeUrl', () => {
     it.each(['xlibraries.com', 'https://github.com/x', 'en.wikipedia.org/wiki/Kedarnath', 'localhost:3000', 'a.b.co/path?q=1'])('treats %s as a URL', s => {
@@ -55,7 +55,10 @@ describe('plan', () => {
     it('adds https:// and checks unknown sites', () => expect(plan('example.org/a')).toEqual({ kind: 'check', url: 'https://example.org/a', display: 'https://example.org/a' }));
     it('skips the check for sites known to allow framing', () => {
         expect(plan('en.wikipedia.org/wiki/X')).toMatchObject({ kind: 'page' });
-        expect(plan('xlibraries.com')).toMatchObject({ kind: 'page', url: 'https://xlibraries.com/' });
+    });
+    it('trusts the hosts the site passes in', () => {
+        expect(plan('xlibraries.com')).toMatchObject({ kind: 'check' });
+        expect(plan('xlibraries.com', ['xlibraries.com'])).toMatchObject({ kind: 'page', url: 'https://xlibraries.com/' });
     });
     it('explains why YouTube home and Google can\'t load', () => {
         expect(plan('youtube.com')).toMatchObject({ kind: 'blocked', note: expect.stringContaining('video') });

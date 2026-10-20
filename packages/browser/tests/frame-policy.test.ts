@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { framePolicy } from '../../lib/frame-policy';
+import { framePolicy } from '../src/server/frame-policy';
 
 const headers = (h: Record<string, string>) => new Headers(h);
 const ORIGIN = 'https://xlibraries.com';

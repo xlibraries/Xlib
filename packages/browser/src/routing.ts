@@ -37,7 +37,8 @@ export function githubRoute(url: URL): Entry | null {
 }
 
 // Turn what the user typed into the entry to show (without the network check)
-export function plan(input: string): Entry | { kind: 'check'; url: string; display: string } {
+/** `trustedHosts`: extra hosts known to allow framing, shown without asking the frame check. */
+export function plan(input: string, trustedHosts: string[] = []): Entry | { kind: 'check'; url: string; display: string } {
     const text = input.trim();
     if (!text || text === 'about:newtab' || text === 'newtab') return { kind: 'newtab' };
     if (!looksLikeUrl(text)) {
@@ -61,7 +62,7 @@ export function plan(input: string): Entry | { kind: 'check'; url: string; displ
         if (github) return github;
     }
     // Known to allow framing: skip the check
-    if (host === 'github1s.com' || host === 'bing.com' || host.endsWith('wikipedia.org') || host === 'xlibraries.com' || host === 'youtube-nocookie.com') {
+    if (host === 'github1s.com' || host === 'bing.com' || host.endsWith('wikipedia.org') || host === 'youtube-nocookie.com' || trustedHosts.includes(host)) {
         return { kind: 'page', url: url.href, display: url.href };
     }
     return { kind: 'check', url: url.href, display: url.href };

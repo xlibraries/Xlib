@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const lookup = vi.fn();
 vi.mock('node:dns/promises', () => ({ lookup: (...args: unknown[]) => lookup(...args) }));
-const { assertPublicHttpUrl, safeFetch } = await import('../../lib/safe-fetch');
+const { assertPublicHttpUrl, safeFetch } = await import('../src/server/safe-fetch');
 
 const resolvesTo = (address: string) => lookup.mockResolvedValue([{ address, family: address.includes(':') ? 6 : 4 }]);
 
