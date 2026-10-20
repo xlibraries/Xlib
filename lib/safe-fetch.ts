@@ -12,8 +12,15 @@ function isPrivateAddress(address: string): boolean {
     if (isIP(address) === 6) {
         const a = address.toLowerCase();
         if (a === '::1' || a === '::' || a.startsWith('fc') || a.startsWith('fd') || a.startsWith('fe80')) return true;
-        const mapped = a.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-        return mapped ? isPrivateAddress(mapped[1]) : false;
+        // IPv4-mapped addresses: ::ffff:127.0.0.1, which URL parsing normalises to hex (::ffff:7f00:1)
+        const dotted = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+        if (dotted) return isPrivateAddress(dotted[1]);
+        const hex = a.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+        if (hex) {
+            const [hi, lo] = [parseInt(hex[1], 16), parseInt(hex[2], 16)];
+            return isPrivateAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+        }
+        return false;
     }
     const [a, b] = address.split('.').map(Number);
     return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||

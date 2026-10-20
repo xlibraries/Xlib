@@ -1,20 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openDesktop } from './helpers';
 
 // Dock apps and the id of the element that opens them
 const DOCK_APPS = ['brave', 'calc', 'about-aman', 'side-quests', 'vscode', 'terminal', 'music', 'settings'];
 
-// Skip the boot animation and lock screen, and collect uncaught errors from our own page
-async function openDesktop(page: Page) {
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-    await page.addInitScript(() => {
-        localStorage.setItem('booting_screen', 'false');
-        localStorage.setItem('screen-locked', 'false');
-    });
-    await page.goto('/');
-    await expect(page.locator('#sidebar-terminal')).toBeVisible();
-    return errors;
-}
 
 test('desktop loads without errors', async ({ page }) => {
     const errors = await openDesktop(page);
@@ -80,6 +69,7 @@ test.describe('Brave browser', () => {
             contentType: 'application/json',
             body: JSON.stringify({ embeddable: false, finalUrl: 'https://example.org/' }),
         }));
+        await page.route('**/api/reader?**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ readable: false }) }));
         await openBrave(page);
         await visit(page, 'example.org');
         await expect(page.getByText("example.org can't be shown inside this window")).toBeVisible();
