@@ -1,10 +1,7 @@
 // @ts-nocheck
 import { Component } from "react";
 import React from "react";
-import pdfjsPackage from "pdfjs-dist/package.json";
 import { trackPageview } from '../../lib/analytics';
-
-const PDFJS_VERSION = pdfjsPackage.version;
 
 export class AboutAman extends Component {
   constructor() {
@@ -1231,12 +1228,12 @@ function Resume() {
 
     const loadPdf = async () => {
       try {
-        // Load pdf.js as a native module (same CDN as its worker): bundling its prebuilt
-        // file through Next's dev webpack crashes with "defineProperty called on non-object"
-        const pdfjsBase = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}`;
-        const pdfjs = await import(/* webpackIgnore: true */ `${pdfjsBase}/legacy/build/pdf.min.mjs`);
-        pdfjs.GlobalWorkerOptions.workerSrc = `${pdfjsBase}/build/pdf.worker.min.mjs`;
-        const task = pdfjs.getDocument("./files/Aman-Agrawal-Resume.pdf");
+        // Load pdf.js as a native module from /vendor (scripts/vendor.mjs copies it there): bundling its
+        // prebuilt file through Next's dev webpack crashes with "defineProperty called on non-object"
+        const pdfjs = await import(/* webpackIgnore: true */ "/vendor/pdfjs/pdf.min.mjs");
+        pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.mjs";
+        // isEvalSupported: false keeps pdf.js from compiling fonts with new Function(), which the CSP blocks
+        const task = pdfjs.getDocument({ url: "./files/Aman-Agrawal-Resume.pdf", isEvalSupported: false });
         const pdf = await task.promise;
         if (!mounted) return;
         pdfRef.current = pdf;

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildSnapshot, discoverInstances, fetchPlaylist } from '../../scripts/update-music-snapshot.mjs';
 import { buildRoadTrips, distanceKm, osrmUrl, simplifyRoute } from '../../scripts/side-quests/build_road_trips.mjs';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { vendor, vendorFiles } from '../../scripts/vendor.mjs';
 
 const video = (id) => ({ videoId: id, title: 'Song ' + id, author: 'A', lengthSeconds: 200 });
 
@@ -77,5 +80,27 @@ describe('build_road_trips', () => {
         const trips = JSON.parse(readFileSync('public/side-quests/road-trips.json', 'utf8'));
         expect(trips.length).toBeGreaterThan(0);
         for (const t of trips) { expect(t.points.length, t.name).toBeGreaterThan(1); expect(t.km, t.name).toBeGreaterThan(0); }
+    });
+});
+
+describe('vendor', () => {
+    it('finds every library file in node_modules', () => {
+        for (const [from] of vendorFiles()) expect(existsSync(from), from).toBe(true);
+    });
+
+    it('copies the libraries the app loads from /vendor', () => {
+        const out = join(mkdtempSync(join(tmpdir(), 'vendor-')), 'vendor');
+        try {
+            vendor(out);
+            for (const file of ['leaflet/leaflet.js', 'leaflet/leaflet.css', 'leaflet/images/marker-icon.png',
+                'pdfjs/pdf.min.mjs', 'pdfjs/pdf.worker.min.mjs', 'india-boundary/india_boundary_corrections.pmtiles']) {
+                expect(existsSync(join(out, file)), file).toBe(true);
+            }
+            // the app references these exact paths
+            const app = readFileSync('components/apps/side-quests.tsx', 'utf8') + readFileSync('components/apps/aman.tsx', 'utf8');
+            for (const ref of app.match(/\/vendor\/[\w./-]+/g)) expect(existsSync(join(out, ref.slice('/vendor/'.length))), ref).toBe(true);
+        } finally {
+            rmSync(join(out, '..'), { recursive: true, force: true });
+        }
     });
 });

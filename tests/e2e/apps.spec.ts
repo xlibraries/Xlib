@@ -1,5 +1,13 @@
-import { test, expect } from '@playwright/test';
-import { openApp, openDesktop, runCommand } from './helpers';
+import { type Page } from '@playwright/test';
+import { expect, openApp, openDesktop, runCommand, test } from './helpers';
+
+// Libraries and fonts are served from this site now (scripts/vendor.mjs, next/font), never from a CDN
+const CDN = /unpkg\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com/;
+function watchCdnRequests(page: Page) {
+    const hits: string[] = [];
+    page.on('request', (req) => { if (CDN.test(req.url())) hits.push(req.url()); });
+    return hits;
+}
 
 test.describe('Terminal', () => {
     test('runs commands', async ({ page }) => {
@@ -59,6 +67,16 @@ test.describe('About Aman', () => {
         await expect(about.getByTitle('Resume.pdf')).toBeVisible();
     });
 
+    test('renders the resume with the bundled pdf.js', async ({ page }) => {
+        const cdn = watchCdnRequests(page);
+        await openDesktop(page);
+        const about = await openApp(page, 'about-aman');
+        await about.getByTitle('Resume.pdf').click();
+        await expect(about.getByLabel('Resume page 1')).toBeVisible({ timeout: 15_000 });
+        await expect(about).not.toContainText('Unable to render resume preview');
+        expect(cdn).toEqual([]);
+    });
+
     test('switches to the simplified view and back', async ({ page }) => {
         await openDesktop(page);
         const about = await openApp(page, 'about-aman');
@@ -84,6 +102,23 @@ test.describe('Side Quests', () => {
         await app.getByRole('button', { name: /Lore/ }).click();
         await app.getByRole('button', { name: 'Play Debugging Love' }).click();
         await expect(app.locator('iframe[title="Debugging Love"]')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/aaHlegqIIik/);
+    });
+});
+
+test.describe('Side Quests map', () => {
+    test('draws the map with the bundled Leaflet and boundary data', async ({ page }) => {
+        const cdn = watchCdnRequests(page);
+        const pmtiles: string[] = [];
+        page.on('request', (req) => { if (req.url().endsWith('.pmtiles')) pmtiles.push(new URL(req.url()).pathname); });
+        // 1x1 transparent PNG for every map tile, so the test doesn't depend on OpenStreetMap
+        const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({ contentType: 'image/png', body: tile, headers: { 'access-control-allow-origin': '*' } }));
+        await openDesktop(page);
+        const app = await openApp(page, 'side-quests');
+        await expect(app.locator('.leaflet-container')).toBeVisible({ timeout: 15_000 });
+        await expect(app.locator('.leaflet-tile-loaded').first()).toBeAttached({ timeout: 15_000 });
+        await expect.poll(() => pmtiles).toContain('/vendor/india-boundary/india_boundary_corrections.pmtiles');
+        expect(cdn).toEqual([]);
     });
 });
 

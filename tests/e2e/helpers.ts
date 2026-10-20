@@ -1,4 +1,19 @@
-import { expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+
+export { expect };
+
+// Every test fails if the page (or any frame in it) trips the Content-Security-Policy, so a new script,
+// font or frame source can't slip in without updating lib/security-headers.ts
+export const test = base.extend({
+    page: async ({ page }, provide) => {
+        const violations: string[] = [];
+        page.on('console', (msg) => {
+            if (msg.type() === 'error' && msg.text().includes('Content Security Policy')) violations.push(msg.text());
+        });
+        await provide(page);
+        expect(violations, 'Content-Security-Policy violations').toEqual([]);
+    },
+});
 
 // Skip the boot animation and lock screen, and collect uncaught errors from our own page
 export async function openDesktop(page: Page, storage: Record<string, string> = {}) {

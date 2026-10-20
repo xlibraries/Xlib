@@ -1,9 +1,14 @@
-/** @type {import('next').NextConfig} */
+import type { NextConfig } from 'next';
+import { securityHeaders } from './lib/security-headers';
+
 const PRIMARY_HOST = 'xlibraries.com';
 const ALIAS_HOSTS = ['www.xlibraries.com', 'xlibraries.club', 'www.xlibraries.club'];
 
-module.exports = {
+const config: NextConfig = {
     poweredByHeader: false,
+    async headers() {
+        return [{ source: '/:path*', headers: securityHeaders({ dev: process.env.NODE_ENV !== 'production' }) }];
+    },
     async redirects() {
         return [
             // One canonical domain: every alias permanently redirects to xlibraries.com, keeping the path
@@ -21,3 +26,5 @@ module.exports = {
         ];
     },
 };
+
+export default config;
