@@ -416,5 +416,34 @@ test.describe('Admin (/xlib)', () => {
         await page.getByRole('button', { name: 'Log out of admin' }).click();
         await expect(page.locator('#admin-passcode')).toBeVisible();
     });
+
+    test('site switches: hide an app and show a banner for visitors, then undo', async ({ page, browser }) => {
+        await page.goto('/xlib');
+        await page.locator('#admin-passcode').fill(PASSCODE);
+        await page.getByRole('button', { name: 'Unlock' }).click();
+        await page.locator('#app-admin-settings').dblclick();
+        const app = page.locator('#admin-settings');
+        await expect(app.getByText('PHOTO_DROP_ADMIN_KEY is not set')).toBeVisible();   // no script in tests
+
+        const todoist = app.locator('label', { hasText: 'Todoist' }).getByRole('checkbox');
+        await expect(todoist).toBeChecked();
+        await todoist.click();   // saves, then the box updates
+        await expect(app.getByRole('status')).toHaveText('Todoist hidden.');
+        await app.getByLabel('Banner text').fill('Back from the mountains on Monday');
+        await app.getByRole('button', { name: 'Save banner' }).click();
+        await expect(app.getByRole('status')).toHaveText('Banner saved.');
+
+        const visitor = await (await browser.newContext()).newPage();
+        await openDesktop(visitor);
+        await expect(visitor.locator('#site-banner')).toContainText('Back from the mountains on Monday');
+        await expect(visitor.locator('#sidebar-todoist, #app-todoist')).toHaveCount(0);
+        await expect(visitor.locator('#app-brave')).toBeVisible();
+
+        await todoist.click();
+        await expect(app.getByRole('status')).toHaveText('Todoist shown.');
+        await expect(todoist).toBeChecked();
+        await app.getByRole('button', { name: 'Remove' }).click();
+        await expect(app.getByRole('status')).toHaveText('Banner removed.');
+    });
 });
 

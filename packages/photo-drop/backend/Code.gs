@@ -40,10 +40,15 @@ function doPost(e) {
     // The site's admin panel (server to server), authorized by a key whose hash is deployed with the script
     if (req.action === 'admin') {
       if (!checkAdminKey(req.adminKey)) return reply({ error: 'Forbidden', fatal: true });
+      if (typeof req.open === 'boolean') setOpen(req.open);
       return reply(adminStatus());
     }
 
     if (!checkPasscode(req.passcode)) return reply({ error: 'Wrong passcode', code: 'passcode', fatal: true });
+    // Closed from the admin panel: no new uploads, but uploads already under way can finish
+    if (!isOpen() && (req.action === 'check' || req.action === 'start')) {
+      return reply({ error: 'Photo Drop is closed right now. Check back later!', code: 'closed', fatal: true });
+    }
 
     switch (req.action) {
       case 'check':
@@ -103,6 +108,7 @@ function adminStatus() {
   const authorizedAt = Number(prop('AUTHORIZED_AT')) || null;
   return {
     album: prop('ALBUM_TITLE'),
+    open: isOpen(),
     access: checkAccess(),
     authorizedAt: authorizedAt,
     expiresAt: authorizedAt ? authorizedAt + AUTH_DAYS * 24 * 3600 * 1000 : null,
@@ -129,6 +135,16 @@ function checkAccess() {
   }
 }
 
+
+function isOpen() {
+  return prop('CLOSED') !== '1';
+}
+
+function setOpen(open) {
+  const props = PropertiesService.getScriptProperties();
+  if (open) props.deleteProperty('CLOSED');
+  else props.setProperty('CLOSED', '1');
+}
 
 function readUploadLog() {
   try {

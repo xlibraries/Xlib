@@ -53,7 +53,7 @@ function makeBackend(props: Record<string, string> = { PASSCODE: 'letmein' }) {
     const ctx: Ctx = {
         console,
         Date: { now: () => clock.now },
-        PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => store.props[k] ?? null, setProperty: (k: string, v: string) => { store.props[k] = v; } }) },
+        PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => store.props[k] ?? null, setProperty: (k: string, v: string) => { store.props[k] = v; }, deleteProperty: (k: string) => { delete store.props[k]; } }) },
         CacheService: { getScriptCache: () => ({ get: (k: string) => store.cache.get(k) ?? null, put: (k: string, v: string) => { store.cache.set(k, v); }, remove: (k: string) => { store.cache.delete(k); } }) },
         LockService: { getScriptLock: () => ({ waitLock: () => { }, releaseLock: () => { } }) },
         Utilities: {
@@ -250,6 +250,18 @@ describe('Photo Drop backend', () => {
             const uploads = admin(b).uploads;
             expect(uploads).toHaveLength(50);
             expect(uploads[0].name).toBe('f54.jpg');
+        });
+    
+        it('closes and reopens Photo Drop: new uploads are refused, ones under way can finish', () => {
+            const b = makeBackend({ PASSCODE: 'letmein', ADMIN_KEY_HASH: HASH });
+            const started = b.post({ action: 'start', passcode: 'letmein', fileName: 'a.jpg', mimeType: 'image/jpeg', size: 10 });
+            expect(b.post({ action: 'admin', adminKey: KEY, open: false })).toMatchObject({ open: false });
+            expect(b.post({ action: 'check', passcode: 'letmein' })).toEqual({ error: 'Photo Drop is closed right now. Check back later!', code: 'closed', fatal: true });
+            expect(b.post({ action: 'start', passcode: 'letmein', fileName: 'b.jpg', mimeType: 'image/jpeg', size: 10 })).toMatchObject({ code: 'closed' });
+            expect(b.post({ action: 'chunk', passcode: 'letmein', uploadId: started.uploadId, offset: 0, final: true, data: b64(fileBytes(10)) })).toMatchObject({ done: true });
+            expect(b.post({ action: 'check', passcode: 'wrong' })).toMatchObject({ code: 'passcode' });   // passcode still checked first
+            expect(b.post({ action: 'admin', adminKey: KEY, open: true })).toMatchObject({ open: true });
+            expect(b.post({ action: 'check', passcode: 'letmein' })).toMatchObject({ ok: true });
         });
     });
 });

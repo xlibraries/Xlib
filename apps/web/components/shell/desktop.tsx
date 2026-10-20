@@ -3,6 +3,8 @@ import type { Host } from '@xlibraries/app-sdk';
 import apps, { type AppConfig } from '../../apps.config';
 import { trackEvent } from '../../lib/analytics';
 import { emptyWindows, folderId, recordOpen, windowReducer } from '../../lib/window-manager';
+import { DEFAULT_SETTINGS, type SiteSettings } from '../../lib/site-settings';
+import Banner from '../util/banner';
 import DefaultMenu from '../context-menus/default';
 import DesktopMenu from '../context-menus/desktop-menu';
 import BackgroundImage from '../util/background-image';
@@ -47,7 +49,10 @@ function saveFrequent(id: string) {
 
 export default function Desktop({ wallpaper, setWallpaper, extraApps, ref }: DesktopProps) {
     const [folders, setFolders] = useState<Folder[]>([]);
-    const allApps = useMemo(() => [...apps, ...(extraApps ?? []), ...folders.map(folderApp)], [folders, extraApps]);
+    const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+    // Apps hidden from the admin panel stay visible to the admin (extraApps is set only on /xlib after login)
+    const allApps = useMemo(() => [...apps, ...(extraApps ?? []), ...folders.map(folderApp)]
+        .filter(app => extraApps || !settings.hiddenApps.includes(app.id)), [folders, extraApps, settings.hiddenApps]);
     const [windows, dispatch] = useReducer(windowReducer, emptyWindows);
     const [menus, setMenus] = useState({ desktop: false, default: false });
     const [naming, setNaming] = useState(false);
@@ -60,6 +65,7 @@ export default function Desktop({ wallpaper, setWallpaper, extraApps, ref }: Des
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR)
         setFolders(loadFolders());
+        fetch('/api/settings').then(r => r.json()).then(setSettings).catch(() => { });
     }, []);
 
     useEffect(() => { dispatch({ type: 'sync', apps: allApps }); }, [allApps]);
@@ -143,6 +149,8 @@ export default function Desktop({ wallpaper, setWallpaper, extraApps, ref }: Des
             </div>
 
             <BackgroundImage img={wallpaper} />
+
+            {settings.banner && <Banner banner={settings.banner} />}
 
             <Dock apps={allApps} windows={windows} openApp={openApp} onOverlap={onOverlap} showAllApps={() => dispatch({ type: 'toggleAllApps' })} />
 
