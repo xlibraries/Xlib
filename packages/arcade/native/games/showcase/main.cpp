@@ -82,6 +82,21 @@ void frame() {
     st.day = std::fmod(st.day + dt / DAY_SECONDS, 1.0f);
     st.car_s += dt * 4.2f;
     st.idle += dt;
+    // gamepad: either stick orbits, triggers zoom, Y follows the car, X skips ahead
+    const xl::Gamepad& pad = xl::gamepad();
+    if (pad.connected) {
+        const float ox = pad.rx != 0 ? pad.rx : pad.lx, oy = pad.ry != 0 ? pad.ry : pad.ly;
+        if (ox != 0 || oy != 0) {
+            st.yaw += ox * dt * 2.2f;
+            st.pitch = std::max(0.08f, std::min(1.45f, st.pitch + oy * dt * 1.5f));
+            st.idle = 0;
+        }
+        const float zoom = (pad.down(xl::PAD_RT) ? 1.0f : 0.0f) - (pad.down(xl::PAD_LT) ? 1.0f : 0.0f);
+        if (zoom != 0) { st.distance = std::max(6.0f, std::min(60.0f, st.distance * (1.0f - zoom * dt * 1.2f))); st.idle = 0; }
+        if (pad.pressed(xl::PAD_Y)) st.follow = !st.follow;
+        if (pad.pressed(xl::PAD_X)) st.day = std::fmod(st.day + 0.25f, 1.0f);
+    }
+    xl::end_frame();
     if (!st.dragging && st.idle > 4.0f) st.yaw += dt * 0.08f;
 
     // Sun and sky across the day
