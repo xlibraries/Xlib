@@ -1,5 +1,14 @@
 // The Arcade's games. Each is built for both backends into dist/<id>/{webgpu,webgl2}.{js,wasm}
 // (scripts/build-native.mjs).
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import type { Backend } from './backend';
+
+/** Props for a game's optional side panel (e.g. the Shader Playground's editor). */
+export interface PanelProps {
+    /** The running WebAssembly module (game-specific exports). */
+    instance: object;
+    backend: Backend;
+}
 
 export interface GameInfo {
     id: string;
@@ -8,7 +17,11 @@ export interface GameInfo {
     controls: string;
     /** CSS background for its card */
     art: string;
+    /** Shown beside the canvas while the game runs */
+    Panel?: ComponentType<PanelProps> | LazyExoticComponent<ComponentType<PanelProps>>;
 }
+
+const PlaygroundEditor = lazy(() => import('./playground/Editor').then(m => ({ default: m.PlaygroundEditor })));
 
 export const GAMES: GameInfo[] = [
     {
@@ -17,6 +30,14 @@ export const GAMES: GameInfo[] = [
         description: 'Glowing bricks, particles and synth sound effects across four levels. Catch power-ups for a wide paddle or extra balls.',
         controls: 'Mouse, touch or ←/→ to move · Space or click to launch',
         art: 'linear-gradient(135deg, #ff3d7f, #ff8a00 45%, #00b8a9)',
+    },
+    {
+        id: 'playground',
+        title: 'Shader Playground',
+        description: 'Full-window fragment shaders: start from plasma, a neon tunnel or raymarched spheres, then edit live.',
+        controls: 'Edit on the right · GLSL on WebGL2, WGSL on WebGPU',
+        art: 'conic-gradient(from 200deg, #0a9bff, #8b5cf6, #ff3d7f, #ffc93c, #0a9bff)',
+        Panel: PlaygroundEditor,
     },
     {
         id: 'hello',

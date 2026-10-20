@@ -51,6 +51,13 @@ Rules that don't need a GPU live in `native/games/<id>/logic.cpp` and are unit-t
 [doctest](https://github.com/doctest/doctest) (`tests/native/`): `pnpm --filter @xlibraries/arcade test:native`
 compiles them with the system C++ compiler (also part of `test`/`verify`).
 
+## Side panels
+
+A game can show a React panel beside its canvas (`Panel` in `src/games.ts`), which gets the running module and the
+backend. The Shader Playground uses one for its editor: it validates your code in the page first (GLSL in a hidden
+WebGL2 context, WGSL via WebGPU compilation info), so errors appear immediately with your line numbers, and only
+valid shaders reach the game (`pg_set_shader`).
+
 ## Adding a game
 
 1. `native/games/<id>/main.cpp` with a `sokol_main` that returns `xl::app_desc(argc, argv, desc)`; include `xl.h`
