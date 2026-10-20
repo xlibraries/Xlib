@@ -148,7 +148,7 @@ function uploadStatus(req) {
   const received = Number(header(headers, 'X-Goog-Upload-Size-Received')) || 0;
   const progress = getProgress(req.uploadId);
   if (!progress.done) setProgress(req.uploadId, { received: received });
-  return { received: received, done: progress.done, state: header(headers, 'X-Goog-Upload-Status') || 'unknown' };
+  return { received: received, done: !!progress.done, state: header(headers, 'X-Goog-Upload-Status') || 'unknown' };
 }
 
 function createMediaItem(uploadToken, fileName, uploader) {
