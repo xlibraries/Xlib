@@ -1,0 +1,19 @@
+{
+  "name": "@xlibraries/app-sdk",
+  "version": "0.1.0",
+  "description": "The contract between the Xlib desktop and the apps that run in its windows",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "verify": "eslint . && tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
