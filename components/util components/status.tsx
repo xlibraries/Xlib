@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from "react";
 import SmallArrow from "./small_arrow";
 

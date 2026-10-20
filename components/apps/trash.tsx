@@ -44,7 +44,7 @@ export class Trash extends Component {
 
     componentDidMount() {
         // get user preference from local-storage
-        let wasEmpty = localStorage.getItem("trash-empty");
+        const wasEmpty = localStorage.getItem("trash-empty");
         if (wasEmpty !== null && wasEmpty !== undefined) {
             if (wasEmpty === "true") this.setState({ empty: true });
         }

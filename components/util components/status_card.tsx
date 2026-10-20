@@ -1,8 +1,14 @@
-// @ts-nocheck
 import React, { Component } from 'react';
 import SmallArrow from './small_arrow';
 
-class Slider extends Component {
+type SliderProps = {
+	onChange: React.ChangeEventHandler<HTMLInputElement>;
+	className: string;
+	name: string;
+	value: number;
+};
+
+class Slider extends Component<SliderProps> {
 	render() {
 		return (
 			<input
@@ -19,10 +25,26 @@ class Slider extends Component {
 	}
 }
 
-export class StatusCard extends Component {
-	constructor() {
-		super();
-		this.wrapperRef = React.createRef();
+type StatusCardProps = {
+	visible: boolean;
+	toggleVisible: () => void;
+	lockScreen: () => void;
+	shutDown: () => void;
+};
+type StatusCardState = { sound_level: number; brightness_level: number };
+
+// Slider 0-100 -> CSS brightness 0.25-1, so the screen never goes fully black
+const screenBrightness = (level: number) => `brightness(${3 / 400 * level + 0.25})`;
+const setScreenBrightness = (level: number) => {
+	const screen = document.getElementById('monitor-screen');
+	if (screen) screen.style.filter = screenBrightness(level);
+};
+
+export class StatusCard extends Component<StatusCardProps, StatusCardState> {
+	wrapperRef = React.createRef<HTMLDivElement>();
+
+	constructor(props: StatusCardProps) {
+		super(props);
 		this.state = {
 			sound_level: 75, // better of setting default values from localStorage
 			brightness_level: 100 // setting default value to 100 so that by default its always full.
@@ -33,12 +55,9 @@ export class StatusCard extends Component {
 		document.addEventListener('mousedown', this.handleOutsideClick);
 		document.addEventListener('touchstart', this.handleOutsideClick);
 		this.setState({
-			sound_level: localStorage.getItem('sound-level') || 75,
-			brightness_level: localStorage.getItem('brightness-level') || 100
-		}, () => {
-			document.getElementById('monitor-screen').style.filter = `brightness(${3 / 400 * this.state.brightness_level +
-				0.25})`;
-		})
+			sound_level: Number(localStorage.getItem('sound-level') ?? 75),
+			brightness_level: Number(localStorage.getItem('brightness-level') ?? 100)
+		}, () => setScreenBrightness(this.state.brightness_level));
 	}
 
 	componentWillUnmount() {
@@ -46,23 +65,24 @@ export class StatusCard extends Component {
 		document.removeEventListener('touchstart', this.handleOutsideClick);
 	}
 
-	handleOutsideClick = (event) => {
+	handleOutsideClick = (event: MouseEvent | TouchEvent) => {
 		if (!this.props.visible) return;
 		if (!this.wrapperRef.current) return;
-		if (this.wrapperRef.current.contains(event.target)) return;
+		if (this.wrapperRef.current.contains(event.target as Node)) return;
 		this.props.toggleVisible();
 	};
 
-	handleBrightness = (e) => {
-		this.setState({ brightness_level: e.target.value });
-		localStorage.setItem('brightness-level', e.target.value);
-		// the function below inside brightness() is derived from a linear equation such that at 0 value of slider brightness still remains 0.25 so that it doesn't turn black.
-		document.getElementById('monitor-screen').style.filter = `brightness(${3 / 400 * e.target.value + 0.25})`; // Using css filter to adjust the brightness in the root div.
+	handleBrightness = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const level = Number(e.target.value);
+		this.setState({ brightness_level: level });
+		localStorage.setItem('brightness-level', String(level));
+		setScreenBrightness(level);
 	};
 
-	handleSound = (e) => {
-		this.setState({ sound_level: e.target.value });
-		localStorage.setItem('sound-level', e.target.value);
+	handleSound = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const level = Number(e.target.value);
+		this.setState({ sound_level: level });
+		localStorage.setItem('sound-level', String(level));
 	};
 
 	render() {

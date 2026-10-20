@@ -2,12 +2,14 @@
 import React, { Component } from 'react';
 import Draggable from 'react-draggable';
 import Settings from '../apps/settings';
-import ReactGA from 'react-ga4';
 import { displayTerminal } from '../apps/terminal'
+import { trackPageview } from '../../lib/analytics';
 
 export class Window extends Component {
     constructor() {
         super();
+        // Direct ref for react-draggable, so it doesn't fall back to the deprecated findDOMNode
+        this.nodeRef = React.createRef();
         this.id = null;
         this.startX = 60;
         this.startY = 10;
@@ -29,14 +31,14 @@ export class Window extends Component {
         this.setDefaultWindowDimenstion();
 
         // google analytics
-        ReactGA.send({ hitType: "pageview", page: `/${this.id}`, title: "Custom Title" });
+        trackPageview(`/${this.id}`);
 
         // on window resize, resize boundary
         window.addEventListener('resize', this.resizeBoundries);
     }
 
     componentWillUnmount() {
-        ReactGA.send({ hitType: "pageview", page: "/desktop", title: "Custom Title" });
+        trackPageview("/desktop");
 
         window.removeEventListener('resize', this.resizeBoundries);
     }
@@ -84,15 +86,15 @@ export class Window extends Component {
     }
 
     setWinowsPosition = () => {
-        var r = document.querySelector("#" + this.id);
-        var rect = r.getBoundingClientRect();
+        const r = document.querySelector("#" + this.id);
+        const rect = r.getBoundingClientRect();
         r.style.setProperty('--window-transform-x', rect.x.toFixed(1).toString() + "px");
         r.style.setProperty('--window-transform-y', (rect.y.toFixed(1) - 32).toString() + "px");
     }
 
     checkOverlap = () => {
-        var r = document.querySelector("#" + this.id);
-        var rect = r.getBoundingClientRect();
+        const r = document.querySelector("#" + this.id);
+        const rect = r.getBoundingClientRect();
         if (rect.x.toFixed(1) < 50) { // if this window overlapps with SideBar
             this.props.hideSideBar(this.id, true);
         }
@@ -112,8 +114,8 @@ export class Window extends Component {
         }
         this.setWinowsPosition();
         // get corrosponding sidebar app's position
-        var r = document.querySelector("#sidebar-" + this.id);
-        var sidebBarApp = r.getBoundingClientRect();
+        let r = document.querySelector("#sidebar-" + this.id);
+        const sidebBarApp = r.getBoundingClientRect();
 
         r = document.querySelector("#" + this.id);
         // translate window to that position
@@ -122,11 +124,11 @@ export class Window extends Component {
     }
 
     restoreWindow = () => {
-        var r = document.querySelector("#" + this.id);
+        const r = document.querySelector("#" + this.id);
         this.setDefaultWindowDimenstion();
         // get previous position
-        let posx = r.style.getPropertyValue("--window-transform-x");
-        let posy = r.style.getPropertyValue("--window-transform-y");
+        const posx = r.style.getPropertyValue("--window-transform-x");
+        const posy = r.style.getPropertyValue("--window-transform-y");
 
         r.style.transform = `translate(${posx},${posy})`;
         setTimeout(() => {
@@ -141,7 +143,7 @@ export class Window extends Component {
         }
         else {
             this.focusWindow();
-            var r = document.querySelector("#" + this.id);
+            const r = document.querySelector("#" + this.id);
             this.setWinowsPosition();
             // translate window to maximize position
             r.style.transform = `translate(-1pt,-2pt)`;
@@ -163,6 +165,7 @@ export class Window extends Component {
     render() {
         return (
             <Draggable
+                nodeRef={this.nodeRef}
                 axis="both"
                 handle=".bg-ub-window-title"
                 grid={[1, 1]}
@@ -174,7 +177,7 @@ export class Window extends Component {
                 defaultPosition={{ x: this.startX, y: this.startY }}
                 bounds={{ left: 0, top: 0, right: this.state.parentSize.width, bottom: this.state.parentSize.height }}
             >
-                <div style={{ width: `${this.state.width}%`, height: `${this.state.height}%` }}
+                <div ref={this.nodeRef} style={{ width: `${this.state.width}%`, height: `${this.state.height}%` }}
                     className={this.state.cursorType + " " + (this.state.closed ? " closed-window " : "") + (this.state.maximized ? " duration-300 rounded-none" : " rounded-lg rounded-b-none") + (this.props.minimized ? " opacity-0 invisible duration-200 " : "") + (this.props.isFocused ? " z-30 " : " z-20 notFocused") + " opened-window overflow-hidden min-w-1/4 min-h-1/4 main-window absolute window-shadow border-black border-opacity-40 border border-t-0 flex flex-col"}
                     id={this.id}
                 >

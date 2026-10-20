@@ -1,7 +1,13 @@
-// @ts-nocheck
 import React, { Component } from 'react'
 
-export class UbuntuApp extends Component {
+type UbuntuAppProps = {
+    id: string;
+    name: string;
+    icon: string;
+    openApp: (id: string) => void;
+};
+
+export class UbuntuApp extends Component<UbuntuAppProps> {
 
     openApp = () => {
         this.props.openApp(this.props.id);

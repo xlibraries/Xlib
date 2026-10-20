@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { Component } from "react";
 import $ from "jquery";
-import ReactGA from "react-ga4";
+import { trackEvent } from '../../lib/analytics';
 
 export class Terminal extends Component {
   constructor() {
@@ -77,7 +77,7 @@ export class Terminal extends Component {
   };
 
   appendTerminalRow = () => {
-    let terminal = this.state.terminal;
+    const terminal = this.state.terminal;
     terminal.push(this.terminalRow(this.terminal_rows));
     this.setState({ terminal });
     this.terminal_rows += 2;
@@ -165,8 +165,8 @@ export class Terminal extends Component {
 
   checkKey = (e) => {
     if (e.key === "Enter") {
-      let terminal_row_id = $(e.target).data("row-id");
-      let command = $(`input#terminal-input-${terminal_row_id}`).val().trim();
+      const terminal_row_id = $(e.target).data("row-id");
+      const command = $(`input#terminal-input-${terminal_row_id}`).val().trim();
       if (command.length !== 0) {
         this.removeCursor(terminal_row_id);
         this.handleCommands(command, terminal_row_id);
@@ -182,7 +182,7 @@ export class Terminal extends Component {
       if (this.commands_index <= -1) prev_command = "";
       else prev_command = this.prev_commands[this.commands_index];
 
-      let terminal_row_id = $(e.target).data("row-id");
+      const terminal_row_id = $(e.target).data("row-id");
 
       $(`input#terminal-input-${terminal_row_id}`).val(prev_command);
       $(`#show-${terminal_row_id}`).text(prev_command);
@@ -197,7 +197,7 @@ export class Terminal extends Component {
       if (this.commands_index === this.prev_commands.length) prev_command = "";
       else prev_command = this.prev_commands[this.commands_index];
 
-      let terminal_row_id = $(e.target).data("row-id");
+      const terminal_row_id = $(e.target).data("row-id");
 
       $(`input#terminal-input-${terminal_row_id}`).val(prev_command);
       $(`#show-${terminal_row_id}`).text(prev_command);
@@ -207,7 +207,7 @@ export class Terminal extends Component {
   };
 
   childDirectories = (parent) => {
-    let files = [];
+    const files = [];
     files.push(`<div class="flex justify-start flex-wrap">`);
     this.child_directories[parent].forEach((file) => {
       files.push(`<span class="font-bold mr-2 text-ubt-blue">'${file}'</span>`);
@@ -221,8 +221,8 @@ export class Terminal extends Component {
   };
 
   handleCommands = (command, rowId) => {
-    let words = command.split(" ").filter(Boolean);
-    let main = words[0];
+    const words = command.split(" ").filter(Boolean);
+    const main = words[0];
     words.shift();
     let result = "";
     let rest = words.join(" ");
@@ -281,7 +281,7 @@ export class Terminal extends Component {
         }
         break;
       case "pwd":
-        let str = this.current_directory;
+        const str = this.current_directory;
         result = str.replace("~", "/home/aman");
         break;
       case "code":
@@ -388,7 +388,7 @@ export class Terminal extends Component {
         this.closeTerminal();
         return;
       case "sudo":
-        ReactGA.event({
+        trackEvent({
           category: "Sudo Access",
           action: "lol",
         });

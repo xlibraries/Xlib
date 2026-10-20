@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { Component } from "react";
-import ReactGA from "react-ga4";
 import React from "react";
 import pdfjsPackage from "pdfjs-dist/package.json";
+import { trackPageview } from '../../lib/analytics';
 
 const PDFJS_VERSION = pdfjsPackage.version;
 
@@ -52,11 +52,7 @@ export class AboutAman extends Component {
     localStorage.setItem("about-section", screen);
 
     // google analytics
-    ReactGA.send({
-      hitType: "pageview",
-      page: `/${screen}`,
-      title: "Custom Title",
-    });
+    trackPageview(`/${screen}`, "Custom Title",);
 
     this.setState({
       screen: this.screens[screen],
@@ -385,6 +381,7 @@ function FileExplorer({ onSimplify }) {
   const [path, setPath] = React.useState([]);
   const [history, setHistory] = React.useState({ back: [], forward: [] });
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR)
   React.useEffect(() => { setPath(loadExplorerPath()); }, []);
 
   const node = resolvePath(path) || getFileTree();
@@ -392,7 +389,7 @@ function FileExplorer({ onSimplify }) {
   const show = (next) => {
     setPath(next);
     try { localStorage.setItem("about-explorer-path", JSON.stringify(next)); } catch (e) { }
-    ReactGA.send({ hitType: "pageview", page: "/about/" + next.join("/"), title: "About Explorer" });
+    trackPageview("/about/" + next.join("/"), "About Explorer");
   };
 
   const navigate = (next) => {
@@ -820,7 +817,7 @@ function Rcoem() {
       </div>
       <div className=" text-sm text-gray-400 mt-0.5">2018 - 2022</div>
       <div className=" text-sm md:text-base">
-        Bachelor's of Engineering in Electronics
+        Bachelor of Engineering in Electronics Engineering
       </div>
       <div className="text-sm text-gray-300 font-bold mt-1">
         CGPA &nbsp; 7.63/10.0

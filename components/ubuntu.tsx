@@ -4,7 +4,7 @@ import BootingScreen from './screen/booting_screen';
 import Desktop from './screen/desktop';
 import LockScreen from './screen/lock_screen';
 import Navbar from './screen/navbar';
-import ReactGA from 'react-ga4';
+import { trackPageview, trackEvent } from '../lib/analytics';
 
 export default class Ubuntu extends Component {
 	constructor() {
@@ -29,12 +29,12 @@ export default class Ubuntu extends Component {
 
 	getLocalData = () => {
 		// Get Previously selected Background Image
-		let bg_image_name = localStorage.getItem('bg-image');
+		const bg_image_name = localStorage.getItem('bg-image');
 		if (bg_image_name !== null && bg_image_name !== undefined) {
 			this.setState({ bg_image_name });
 		}
 
-		let booting_screen = localStorage.getItem('booting_screen');
+		const booting_screen = localStorage.getItem('booting_screen');
 		if (booting_screen !== null && booting_screen !== undefined) {
 			// user has visited site before
 			this.setState({ booting_screen: false });
@@ -45,11 +45,11 @@ export default class Ubuntu extends Component {
 		}
 
 		// get shutdown state
-		let shut_down = localStorage.getItem('shut-down');
+		const shut_down = localStorage.getItem('shut-down');
 		if (shut_down !== null && shut_down !== undefined && shut_down === 'true') this.shutDown();
 		else {
 			// Get previous lock screen state
-			let screen_locked = localStorage.getItem('screen-locked');
+			const screen_locked = localStorage.getItem('screen-locked');
 			if (screen_locked !== null && screen_locked !== undefined) {
 				this.setState({ screen_locked: screen_locked === 'true' ? true : false });
 			}
@@ -58,8 +58,8 @@ export default class Ubuntu extends Component {
 
 	lockScreen = () => {
 		// google analytics
-		ReactGA.send({ hitType: "pageview", page: "/lock-screen", title: "Lock Screen" });
-		ReactGA.event({
+		trackPageview("/lock-screen", "Lock Screen");
+		trackEvent({
 			category: `Screen Change`,
 			action: `Set Screen to Locked`
 		});
@@ -72,7 +72,7 @@ export default class Ubuntu extends Component {
 	};
 
 	unLockScreen = () => {
-		ReactGA.send({ hitType: "pageview", page: "/desktop", title: "Custom Title" });
+		trackPageview("/desktop");
 
 		window.removeEventListener('pointerdown', this.unLockScreen);
 		window.removeEventListener('keydown', this.unLockScreen);
@@ -87,9 +87,9 @@ export default class Ubuntu extends Component {
 	};
 
 	shutDown = () => {
-		ReactGA.send({ hitType: "pageview", page: "/switch-off", title: "Custom Title" });
+		trackPageview("/switch-off");
 
-		ReactGA.event({
+		trackEvent({
 			category: `Screen Change`,
 			action: `Switched off the Ubuntu`
 		});
@@ -100,7 +100,7 @@ export default class Ubuntu extends Component {
 	};
 
 	turnOn = () => {
-		ReactGA.send({ hitType: "pageview", page: "/desktop", title: "Custom Title" });
+		trackPageview("/desktop");
 
 		this.setState({ shutDownScreen: false, booting_screen: true });
 		this.setTimeOutBootScreen();

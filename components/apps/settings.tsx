@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react';
 import $ from 'jquery';
 
@@ -14,7 +13,7 @@ export function Settings(props) {
         "wall-8": "./images/wallpapers/wall-8.webp",
     };
 
-    let changeBackgroundImage = (e) => {
+    const changeBackgroundImage = (e) => {
         props.changeBackgroundImage($(e.target).data("path"));
     }
 
@@ -26,7 +25,7 @@ export function Settings(props) {
                 {
                     Object.keys(wallpapers).map((name, index) => {
                         return (
-                            <div key={index} tabIndex="1" onFocus={changeBackgroundImage} data-path={name} className={((name === props.currBgImgName) ? " border-yellow-700 " : " border-transparent ") + " md:px-28 md:py-20 md:m-4 m-2 px-14 py-10 outline-none border-4 border-opacity-80"} style={{ backgroundImage: `url(${wallpapers[name]})`, backgroundSize: "cover", backgroundRepeat: "no-repeat", backgroundPosition: "center center" }}></div>
+                            <div key={index} tabIndex={1} onFocus={changeBackgroundImage} data-path={name} className={((name === props.currBgImgName) ? " border-yellow-700 " : " border-transparent ") + " md:px-28 md:py-20 md:m-4 m-2 px-14 py-10 outline-none border-4 border-opacity-80"} style={{ backgroundImage: `url(${wallpapers[name]})`, backgroundSize: "cover", backgroundRepeat: "no-repeat", backgroundPosition: "center center" }}></div>
                         );
                     })
                 }
