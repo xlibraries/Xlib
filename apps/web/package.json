@@ -27,6 +27,7 @@
     "@xlibraries/app-sdk": "workspace:^",
     "@xlibraries/browser": "workspace:^",
     "@xlibraries/music": "workspace:^",
+    "@xlibraries/photo-drop": "workspace:^",
     "@xlibraries/terminal": "workspace:^",
     "autoprefixer": "^10.4.13",
     "jquery": "^3.6.3",

@@ -3,7 +3,8 @@
 The site (`apps/web/`) is one Next.js page (`pages/index.tsx`) that renders a fake Ubuntu desktop entirely in the
 browser, plus a few standalone static pages and two small API routes. This doc explains how the pieces fit
 together; the [README](../README.md) covers setup and commands. Paths below are relative to `apps/web/`
-unless they start with `packages/`.
+unless they start with `packages/`. Terminal, Calc, Brave, Music and Photo Drop are self-contained packages in
+`packages/` (each with its own README); the site passes them its content and wires up their endpoints.
 
 ## The desktop
 
@@ -28,38 +29,41 @@ pages/index.tsx
   view and path, the Side Quests tab, Brave's tabs, cached Invidious responses and so on.
 - **Logic vs UI.** Anything that can be tested without a browser lives in `lib/` as plain functions:
   Brave's URL routing (`browser.ts`), lyrics parsing (`music.ts`), distances (`side-quests.ts`), the clock
-  (`clock.ts`), frame-header rules (`frame-policy.ts`), the URL guard for server fetches (`safe-fetch.ts`) and
+  (`clock.ts`) and
   the security headers. Components import them; unit tests cover them.
 
 ## The apps that talk to the outside world
 
-### Brave
+### Brave (`packages/browser`)
 
-A browser built on iframes. Each tab keeps its own history of entries, saved under `brave-tabs`.
-`lib/browser.ts` (`plan`) decides what to do with what the visitor typed:
+A browser built on iframes; the site gives it a new-tab page, bookmarks and trusted hosts
+(`content/browser.ts`). Each tab keeps its own history of entries, saved under `brave-tabs`.
+`src/routing.ts` (`plan`) decides what to do with what the visitor typed:
 
 1. **Not a URL** → Bing search (Bing is one of the few search engines that allow framing; Google answers
    framed searches with a captcha).
 2. **YouTube video** → the `youtube-nocookie.com` embed. **GitHub** → a built-in profile page (GitHub API) or
    github1s for repos.
 3. **Sites known to allow framing** → shown directly.
-4. **Anything else** → `/api/frame-check` fetches the page's headers on the server and reports whether
-   `X-Frame-Options` / `frame-ancestors` allow framing. If not, `/api/reader` fetches the page, extracts the
+4. **Anything else** → the frame-check endpoint fetches the page's headers on the server and reports whether
+   `X-Frame-Options` / `frame-ancestors` allow framing. If not, the reader endpoint fetches the page, extracts the
    article with Mozilla Readability and sanitizes it, and Brave shows that as a reader view. If even that
    fails, a friendly page offers to open the site in a real tab.
 
 The new-tab page (`public/brave/newtab.html`) is a static page inside the frame; it asks the app to navigate
 with `postMessage({ type: 'brave:navigate' })`.
 
-**Server routes and SSRF.** Both API routes fetch URLs that visitors choose, so every fetch goes through
-`lib/safe-fetch.ts`: http(s) only, the hostname is resolved and private, loopback and link-local addresses
+**Server endpoints and SSRF.** The logic lives in `@xlibraries/browser/server` (`checkFrame`, `readArticle`)
+without depending on Next.js; `pages/api/frame-check.ts` and `reader.ts` are five-line adapters. Both fetch
+URLs that visitors choose, so every fetch goes through the package's `safeFetch`: http(s) only, the hostname is resolved and private, loopback and link-local addresses
 are refused (including IPv4 written inside IPv6), every redirect is checked again, and there are time and
 size limits. The reader's HTML is sanitized to plain article markup before it reaches the page.
 
-### Music
+### Music (`packages/music`)
 
-- **Playlists** come from `public/music/snapshot.json` (built before each deploy, see
-  [scripts](../apps/web/scripts/README.md)) so they show instantly, then refresh from Invidious in the background.
+- **Playlists** are listed in `data/music-playlists.json`. Their track lists come from
+  `public/music/snapshot.json` (built before each deploy by the package's `xlib-music-snapshot` CLI) so they
+  show instantly, then refresh from Invidious in the background.
 - **Search and playlist updates** call Invidious directly from the browser. The app starts with one known
   server, discovers more from `api.invidious.io` and moves to the next when one fails; responses are cached in
   `localStorage`.
@@ -78,11 +82,12 @@ a PMTiles file. Leaflet and that file are served from `public/vendor/`.
 All content is in the component. The resume preview renders `public/files/Aman-Agrawal-Resume.pdf` with
 pdf.js from `public/vendor/`, loaded as a native module (bundling pdf.js through Next's dev server crashes).
 
-## Photo Drop
+## Photo Drop (`packages/photo-drop`)
 
-A standalone page (`public/drop/`) for friends to upload photos and videos into Aman's Google Photos.
+A standalone page (served at `/drop/`, copied from the package's `web/` folder by `scripts/vendor.mjs`) for friends to upload photos and videos into Aman's Google Photos.
 There is no server of our own: the page talks to a Google Apps Script web app
-([`backend/photo-drop/`](../backend/photo-drop/README.md)) that runs as Aman.
+([`packages/photo-drop/backend/`](../packages/photo-drop/README.md)) that runs as Aman. The site's settings
+(the script URL and album name) are in `content/photo-drop.config.js`, served as `/drop/config.js`.
 
 ```
 browser                         Apps Script                        Google Photos
@@ -95,7 +100,7 @@ browser                         Apps Script                        Google Photos
 
 - If the browser can't reach Google directly, the page falls back to sending 8 MB pieces through the script
   (`chunk` / `status`).
-- On Android Chrome, uploads are handed to Background Fetch (`public/drop/sw.js`), so they keep going when
+- On Android Chrome, uploads are handed to Background Fetch (the package's `web/sw.js`), so they keep going when
   the visitor switches apps.
 - The passcode travels in the URL fragment (`#k=…`), which browsers never send to servers.
 

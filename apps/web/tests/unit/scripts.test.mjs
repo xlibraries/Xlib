@@ -49,19 +49,23 @@ describe('vendor', () => {
         for (const [from] of vendorFiles()) expect(existsSync(from), from).toBe(true);
     });
 
-    it('copies the libraries the app loads from /vendor', () => {
-        const out = join(mkdtempSync(join(tmpdir(), 'vendor-')), 'vendor');
+    it('copies the libraries the app loads from /vendor and assembles /drop', () => {
+        const out = mkdtempSync(join(tmpdir(), 'public-'));
         try {
             vendor(out);
-            for (const file of ['leaflet/leaflet.js', 'leaflet/leaflet.css', 'leaflet/images/marker-icon.png',
-                'pdfjs/pdf.min.mjs', 'pdfjs/pdf.worker.min.mjs', 'india-boundary/india_boundary_corrections.pmtiles']) {
+            for (const file of ['vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/leaflet/images/marker-icon.png',
+                'vendor/pdfjs/pdf.min.mjs', 'vendor/pdfjs/pdf.worker.min.mjs', 'vendor/india-boundary/india_boundary_corrections.pmtiles',
+                'drop/index.html', 'drop/app.js', 'drop/sw.js', 'drop/config.js']) {
                 expect(existsSync(join(out, file)), file).toBe(true);
             }
             // the app references these exact paths
             const app = readFileSync('components/apps/side-quests.tsx', 'utf8') + readFileSync('components/apps/aman.tsx', 'utf8');
-            for (const ref of app.match(/\/vendor\/[\w./-]+/g)) expect(existsSync(join(out, ref.slice('/vendor/'.length))), ref).toBe(true);
+            for (const ref of app.match(/\/vendor\/[\w./-]+/g)) expect(existsSync(join(out, ref.slice(1))), ref).toBe(true);
+            // the page loads the site's settings
+            expect(readFileSync(join(out, 'drop/index.html'), 'utf8')).toContain('src="./config.js"');
+            expect(readFileSync(join(out, 'drop/config.js'), 'utf8')).toContain('window.PHOTO_DROP');
         } finally {
-            rmSync(join(out, '..'), { recursive: true, force: true });
+            rmSync(out, { recursive: true, force: true });
         }
     });
 });

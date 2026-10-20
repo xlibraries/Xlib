@@ -13,5 +13,10 @@
     "test": "pnpm -r test",
     "verify": "pnpm -r --workspace-concurrency=1 verify",
     "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.3",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "typescript-eslint": "8.71.2"
   }
 }
