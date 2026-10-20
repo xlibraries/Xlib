@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { openDesktop } from './helpers';
+import { type Page } from '@playwright/test';
+import { expect, openDesktop, test } from './helpers';
 
 // Dock apps and the id of the element that opens them
 const DOCK_APPS = ['brave', 'calc', 'about-aman', 'side-quests', 'vscode', 'terminal', 'music', 'settings'];
@@ -29,6 +29,25 @@ test('short URLs redirect to static pages', async ({ request }) => {
         const res = await request.get(`/${page}`, { maxRedirects: 0 });
         expect(res.status()).toBe(307);
         expect(res.headers()['location']).toBe(`/${page}/index.html`);
+    }
+});
+
+test('every page carries the security headers', async ({ request }) => {
+    for (const path of ['/', '/drop/index.html', '/brave/newtab.html', '/api/frame-check']) {
+        const res = await request.get(path, { maxRedirects: 0 });
+        const headers = res.headers();
+        const scriptSrc = headers['content-security-policy']?.split('; ').find(d => d.startsWith('script-src ')) ?? '';
+        expect(scriptSrc, path).toContain("'self'");
+        expect(scriptSrc, path).not.toMatch(/unsafe-inline|unsafe-eval/);   // the production policy allows neither
+        expect(headers['x-content-type-options'], path).toBe('nosniff');
+        expect(headers['x-frame-options'], path).toBe('SAMEORIGIN');
+        expect(headers['strict-transport-security'], path).toContain('max-age=');
+    }
+});
+
+test('bundled libraries are served from /vendor', async ({ request }) => {
+    for (const path of ['/vendor/leaflet/leaflet.js', '/vendor/leaflet/leaflet.css', '/vendor/pdfjs/pdf.min.mjs', '/vendor/pdfjs/pdf.worker.min.mjs', '/vendor/india-boundary/india_boundary_corrections.pmtiles']) {
+        expect((await request.head(path)).status(), path).toBe(200);
     }
 });
 

@@ -29,7 +29,7 @@ jobs:
         run: pnpm test:python
       # next build directly: skips the playlist refresh, which needs the network and isn't under test
       - name: Build
-        run: pnpm exec next build
+        run: pnpm exec next build --webpack
       - name: Install browser for smoke tests
         run: pnpm exec playwright install --with-deps chromium
       - name: Smoke tests

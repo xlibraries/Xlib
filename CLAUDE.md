@@ -22,7 +22,7 @@ Vercel from `master`. Package manager: **pnpm** only (`pnpm install`, never `npm
 | `pnpm lint` / `pnpm typecheck` | ESLint / tsc |
 | `pnpm test` / `pnpm test:coverage` | unit tests (Vitest) |
 | `pnpm test:python` | Python tests |
-| `pnpm exec next build && pnpm test:e2e` | e2e tests (Playwright, against a production build) |
+| `pnpm exec next build --webpack && pnpm test:e2e` | e2e tests (Playwright, against a production build) |
 | `pnpm verify` | everything above |
 
 ## Layout
@@ -31,4 +31,10 @@ Vercel from `master`. Package manager: **pnpm** only (`pnpm install`, never `npm
 - `pages/api/*` – `frame-check` and `reader` for the Brave app (server-side fetches go through `lib/safe-fetch.ts`).
 - `public/drop/`, `public/privacy/`, `public/brave/newtab.html` – standalone static pages.
 - `backend/photo-drop/` – Google Apps Script for Photo Drop (deployed manually, see its README).
+- `lib/security-headers.ts` – Content-Security-Policy and other headers (wired up in `next.config.ts`). Production
+  allows no inline scripts, so production builds use webpack (Turbopack's build inlines a bootstrap script) and
+  static pages in `public/` load their JS from files. A new script, font or frame source must be added there;
+  every e2e test fails on a CSP violation.
+- `scripts/vendor.mjs` – copies Leaflet, pdf.js and the India boundary data from node_modules into
+  `public/vendor/` (gitignored; runs on install, dev and build). Don't load libraries from CDNs.
 - `scripts/` + `data/` – generators for `public/music/snapshot.json` and `public/side-quests/*.json`.

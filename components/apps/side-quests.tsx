@@ -207,7 +207,7 @@ const MODE_STYLE = {
 };
 
 
-// ---------- Leaflet (loaded from CDN on first use) ----------
+// ---------- Leaflet (served from /vendor, see scripts/vendor.mjs; loaded on first use) ----------
 
 let leafletPromise = null;
 function loadLeaflet() {
@@ -216,10 +216,10 @@ function loadLeaflet() {
         leafletPromise = new Promise((resolve, reject) => {
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+            css.href = "/vendor/leaflet/leaflet.css";
             document.head.appendChild(css);
             const script = document.createElement("script");
-            script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+            script.src = "/vendor/leaflet/leaflet.js";
             script.onload = () => resolve(window.L);
             script.onerror = reject;
             document.body.appendChild(script);
@@ -233,7 +233,7 @@ function loadLeaflet() {
 let correctorPromise = null;
 function loadBoundaryCorrector(L) {
     if (!correctorPromise) {
-        correctorPromise = import(/* webpackIgnore: true */ "https://cdn.jsdelivr.net/npm/@india-boundary-corrector/leaflet-layer@0.2.2/+esm")
+        correctorPromise = import("@india-boundary-corrector/leaflet-layer")
             .then(module => { module.extendLeaflet(L); return L; })
             .catch(err => { correctorPromise = null; throw err; });
     }
@@ -270,6 +270,7 @@ function WorldMap({ travel, focus }) {
                 maxZoom: 12,
                 className: "side-quests-tiles",
                 layerConfig: "osm-carto",
+                pmtilesUrl: "/vendor/india-boundary/india_boundary_corrections.pmtiles",
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · India boundaries corrected with <a href="https://github.com/ramSeraph/india_boundary_corrector">india_boundary_corrector</a>',
             }).addTo(map);
 

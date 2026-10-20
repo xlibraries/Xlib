@@ -5,8 +5,8 @@
   "homepage": "https://xlibraries.com/",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "next dev",
-    "build": "node scripts/update-music-snapshot.mjs; next build",
+    "dev": "node scripts/vendor.mjs && next dev",
+    "build": "node scripts/vendor.mjs && node scripts/update-music-snapshot.mjs; next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
@@ -14,19 +14,21 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:python": "python3 -m unittest discover -s tests/python",
-    "verify": "eslint . && next typegen && tsc --noEmit && vitest run && python3 -m unittest discover -s tests/python && next build && playwright test",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "verify": "eslint . && next typegen && tsc --noEmit && vitest run && python3 -m unittest discover -s tests/python && node scripts/vendor.mjs && next build --webpack && playwright test",
+    "prepare": "git config core.hooksPath .githooks || true; node scripts/vendor.mjs"
   },
   "engines": {
     "node": ">=20.9.0"
   },
   "dependencies": {
     "@emailjs/browser": "^3.10.0",
+    "@india-boundary-corrector/leaflet-layer": "0.2.2",
     "@mozilla/readability": "0.6.0",
     "@vercel/analytics": "^1.6.1",
     "autoprefixer": "^10.4.13",
     "expr-eval": "^2.0.2",
     "jquery": "^3.6.3",
+    "leaflet": "1.9.4",
     "linkedom": "0.18.12",
     "next": "^16.4.2",
     "pdfjs-dist": "^4.8.69",
