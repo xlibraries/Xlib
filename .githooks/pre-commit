@@ -1,5 +1,6 @@
 #!/bin/sh
-# Runs the full check suite before every commit (lint, types, unit, Python, build, e2e).
+# Runs the full check suite before every commit: `pnpm verify` at the root runs each workspace
+# package's verify (the site: lint, types, unit, Python, build, e2e; packages: types and unit tests).
 # Skip in an emergency with: git commit --no-verify
 set -e
 if command -v pnpm >/dev/null 2>&1; then PNPM="pnpm"; else PNPM="npx -y pnpm@9.15.4"; fi
