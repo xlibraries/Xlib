@@ -41,4 +41,5 @@ uploads use your storage, not your visitors'. Visitors need the passcode to uplo
 - **Change the passcode:** edit the `PASSCODE` script property. It takes effect immediately and old links stop working.
 - **Update the script:** **Deploy → Manage deployments → ✏️ → Version: New version**. The URL stays the same.
 - **Deleted the album?** Delete the `ALBUM_ID` script property and run `setup` again.
-- **Limits:** Google Photos accepts photos up to 200 MB and videos up to 20 GB. Each 8 MB piece of a file is one Apps Script URL-fetch call, and consumer accounts get 20,000 of those per day.
+- **How bytes travel:** the script starts each upload and gives the browser Google's upload URL for that one file, so the bytes go straight to Google Photos (Android Chrome hands the whole file to its background transfer manager). If a browser can't reach Google directly, the page falls back to sending 8 MB pieces through the script.
+- **Limits:** Google Photos accepts photos up to 200 MB and videos up to 20 GB. Direct uploads use only a few Apps Script calls per file; in the fallback, each 8 MB piece is one URL-fetch call, and consumer accounts get 20,000 of those per day.
