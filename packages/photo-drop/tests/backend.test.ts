@@ -96,15 +96,23 @@ describe('Photo Drop backend', () => {
     });
 
     it('reports the size limit on check', () => {
-        expect(backend.post({ action: 'check', passcode: 'letmein' })).toEqual({ ok: true, maxFileMb: 4096 });
+        expect(backend.post({ action: 'check', passcode: 'letmein' })).toEqual({ ok: true, maxFileMb: 0 });   // no limit by default
+        expect(makeBackend({ PASSCODE: 'letmein', MAX_FILE_MB: '1024' }).post({ action: 'check', passcode: 'letmein' })).toEqual({ ok: true, maxFileMb: 1024 });
     });
 
     it('accepts only photos and videos within the size limit', () => {
         const start = (mimeType: string, size: number) => backend.post({ action: 'start', passcode: 'letmein', fileName: 'x', mimeType, size });
         expect(start('text/plain', 10)).toMatchObject({ fatal: true, error: expect.stringContaining('Only photos and videos') });
         expect(start('image/jpeg', 0)).toMatchObject({ fatal: true });
-        expect(start('video/mp4', 5000 * 1024 * 1024)).toMatchObject({ fatal: true, error: expect.stringContaining('too large') });
         expect(start('image/jpeg', 10)).toMatchObject({ uploadId: 'uuid-1', granularity: 262144 });
+        expect(start('video/mp4', 15 * 1024 ** 3)).toMatchObject({ uploadId: 'uuid-2' });   // no cap by default
+    });
+
+    it('enforces MAX_FILE_MB when it is set', () => {
+        const b = makeBackend({ PASSCODE: 'letmein', MAX_FILE_MB: '4096' });
+        const start = (size: number) => b.post({ action: 'start', passcode: 'letmein', fileName: 'x', mimeType: 'video/mp4', size });
+        expect(start(5000 * 1024 * 1024)).toMatchObject({ fatal: true, error: 'File is too large (max 4096 MB).' });
+        expect(start(4096 * 1024 * 1024)).toMatchObject({ uploadId: 'uuid-1' });
     });
 
     it('uploads a file in chunks and saves it to an album created once', () => {

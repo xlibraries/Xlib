@@ -48,7 +48,7 @@ uploads use your storage, not your visitors'. Visitors need the passcode to uplo
    | --- | --- |
    | `PASSCODE` | the passcode you'll give people (required) |
    | `ALBUM_TITLE` | album name, default `Website Uploads` (optional) |
-   | `MAX_FILE_MB` | per-file size limit, default `4096` (optional) |
+   | `MAX_FILE_MB` | per-file size limit in MB, no limit by default (optional) |
 6. In the editor, choose the **`setup`** function → **Run** → approve the permissions. Google will show "Google hasn't verified this app" → **Advanced → Go to xlib's gallery**. The log should say `Album ready`, and the album appears in Google Photos.
 
 ### 3. Deploy
