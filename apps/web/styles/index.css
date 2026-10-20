@@ -100,12 +100,6 @@ input[type=range].ubuntu-slider::-webkit-slider-thumb {
     filter: brightness(90%);
 }
 
-.root,
-#root,
-#docs-root {
-    --window-transform-x: 0px;
-    --window-transform-y: 0px;
-}
 
 .window-shadow {
     box-shadow: 1px 4px 12px 4px rgba(0, 0, 0, 0.2);
