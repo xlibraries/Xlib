@@ -1,6 +1,6 @@
 // Hosts one game: picks the backend, loads its WebAssembly build, and connects it to the window (keyboard focus,
 // pause while hidden, fullscreen). Closing the view shuts the game down and releases its GPU resources.
-import { useEffect, useId, useRef, useState } from 'react';
+import { Suspense, useEffect, useId, useRef, useState } from 'react';
 import { BACKEND_LABEL, pickBackend, type Backend, type BackendChoice } from './backend';
 import type { GameInfo } from './games';
 
@@ -27,6 +27,7 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
     const frame = useRef<HTMLDivElement>(null);
     const instance = useRef<GameInstance | null>(null);
     const [status, setStatus] = useState<Status>({ kind: 'loading' });
+    const [running, setRunning] = useState<GameInstance | null>(null);
     const [fps, setFps] = useState(0);
 
     // Load the game; shut it down when the view closes
@@ -52,6 +53,7 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
             });
             if (disposed) return created._xl_quit();
             instance.current = created;
+            setRunning(created);
             setStatus({ kind: 'running', backend });
         })().catch((err: Error) => { if (!disposed) setStatus({ kind: 'error', message: err.message }); });
         return () => {
@@ -80,7 +82,8 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
 
     const setFocused = (focused: boolean) => instance.current?._xl_set_focused(focused ? 1 : 0);
 
-    return (
+    const Panel = game.Panel;
+    const view = (
         <div ref={frame} className="relative h-full w-full bg-black" data-game={game.id} data-backend={status.kind === 'running' ? status.backend : ''} data-frames="0">
             <canvas
                 ref={canvas}
@@ -106,6 +109,18 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
                     <button type="button" onClick={onBack} className="px-3 py-1 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20">Back to games</button>
                 </div>
             )}
+        </div>
+    );
+
+    if (!Panel) return view;
+    return (
+        <div className="h-full w-full flex flex-col md:flex-row">
+            <div className="flex-grow min-h-0 md:min-w-0 h-1/2 md:h-full">{view}</div>
+            <div className="h-1/2 md:h-full md:w-2/5 md:max-w-md border-t md:border-t-0 md:border-l border-black">
+                {running && status.kind === 'running'
+                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} /></Suspense>
+                    : <div className="h-full" style={{ background: '#16121f' }} />}
+            </div>
         </div>
     );
 }

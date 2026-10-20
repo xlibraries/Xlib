@@ -18,10 +18,12 @@ export const EMSCRIPTEN_VERSION = '6.0.11';
 export const SOKOL_TOOLS_COMMIT = '11d0cf678105d614d675e6d9bd2aaf3eeff12f8c';
 export const BACKENDS = ['webgpu', 'webgl2'];
 
-/** Each game: its sources and shaders (paths relative to native/). */
+/** Each game: its sources and shaders (paths relative to native/), and any extra em++ flags. */
 export const GAMES = {
     hello: { sources: ['games/hello/main.cpp'], shaders: ['shaders/hello.glsl'] },
     breakout: { sources: ['games/breakout/main.cpp', 'games/breakout/logic.cpp'], shaders: [] },
+    // the page passes shader source in, so it needs string helpers
+    playground: { sources: ['games/playground/main.cpp'], shaders: [], flags: ['-sEXPORTED_RUNTIME_METHODS=stringToNewUTF8', '-sEXPORTED_FUNCTIONS=_main,_free'] },
 };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,7 +48,7 @@ export function emArgs(game, backend) {
     const spec = GAMES[game];
     if (!spec) throw new Error(`unknown game: ${game}`);
     if (!BACKEND_FLAGS[backend]) throw new Error(`unknown backend: ${backend}`);
-    return [...COMMON, ...BACKEND_FLAGS[backend], ...spec.sources.map(s => `native/${s}`), '-o', `dist/${game}/${backend}.js`];
+    return [...COMMON, ...BACKEND_FLAGS[backend], ...(spec.flags ?? []), ...spec.sources.map(s => `native/${s}`), '-o', `dist/${game}/${backend}.js`];
 }
 
 export function shdcBinaryPath(platform = process.platform, arch = process.arch) {

@@ -498,6 +498,22 @@ test.describe('Arcade', () => {
         await expect(game.locator('canvas')).toBeFocused();
     });
 
+    test('Shader Playground: presets run and mistakes show their line', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play Shader Playground' }).click();
+        const status = arcade.locator('[data-status]');
+        for (const preset of ['Plasma', 'Neon tunnel', 'Raymarched spheres']) {
+            await arcade.getByRole('button', { name: preset, exact: true }).click();
+            await expect(status).toHaveAttribute('data-status', 'ok', { timeout: 15_000 });
+        }
+        const editor = arcade.getByLabel('GLSL shader code');
+        await editor.fill('void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n    fragColor = vec4(nope);\n}\n');
+        await expect(status).toHaveAttribute('data-status', 'error');
+        await expect(arcade.getByRole('alert')).toContainText("line 2: 'nope' : undeclared identifier");
+        await expect.poll(() => page.locator('[data-game="playground"]').evaluate(el => Number((el as HTMLElement).dataset.frames))).toBeGreaterThan(10);
+    });
+
     test("a running game doesn't steal keys from the terminal", async ({ page }) => {
         await play(page, 'webgl2');
         await openApp(page, 'terminal');
