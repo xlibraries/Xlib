@@ -6,7 +6,7 @@ import vm from 'node:vm';
 // including a fake Google Photos resumable-upload server.
 
 type Ctx = Record<string, any>;
-const CODE = readFileSync('../../backend/photo-drop/Code.gs', 'utf8');
+const CODE = readFileSync('backend/Code.gs', 'utf8');
 
 function makeBackend(props: Record<string, string> = { PASSCODE: 'letmein' }) {
     const store = { props: { ...props } as Record<string, string>, cache: new Map<string, string>() };

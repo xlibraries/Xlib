@@ -1,7 +1,30 @@
-# Photo Drop backend
+# @xlibraries/photo-drop
 
-The hidden uploader at `/drop/` (also opened by the terminal command `upload`) sends files to this
-Google Apps Script. It runs as you and saves everything to an album in **your** Google Photos, so
+A passcode-protected page where friends upload photos and videos straight into **your** Google Photos.
+On xlibraries.com it's the hidden uploader at `/drop/` (also opened by the terminal command `upload`).
+
+| Folder | |
+| --- | --- |
+| `web/` | the upload page: `index.html`, `app.js`, `sw.js` (background uploads on Android). Serve it as a folder and put a `config.js` next to it (below). |
+| `backend/` | the Google Apps Script (`Code.gs`, `appsscript.json`) the page talks to |
+| `tests/` | the backend's tests, run in a sandbox with fake Google services (`pnpm test`) |
+
+`config.js` holds your settings:
+
+```js
+window.PHOTO_DROP = {
+    endpoint: "https://script.google.com/macros/s/…/exec",   // the Apps Script web app URL (step 3 below)
+    albumName: "Website Uploads",                            // must match ALBUM_TITLE
+};
+```
+
+The endpoint isn't a secret: uploads are protected by the passcode, which the script checks. On
+xlibraries.com, `apps/web/scripts/vendor.mjs` copies `web/` to `public/drop/` and the site's
+`content/photo-drop.config.js` to `public/drop/config.js`.
+
+## How it works
+
+The page sends files to the Google Apps Script. It runs as you and saves everything to an album in **your** Google Photos, so
 uploads use your storage, not your visitors'. Visitors need the passcode to upload.
 
 > Google removed the API for adding to existing shared albums in March 2025. Uploads go into an album
@@ -18,7 +41,7 @@ uploads use your storage, not your visitors'. Visitors need the passcode to uplo
 ### 2. Apps Script
 1. Open <https://script.google.com/> → **New project**, name it "Photo Drop".
 2. **Project Settings** (⚙️) → tick **Show "appsscript.json" manifest file in editor**.
-3. Replace the contents of `Code.gs` and `appsscript.json` with the files in this folder.
+3. Replace the contents of `Code.gs` and `appsscript.json` with the files in `backend/`.
 4. **Project Settings → Google Cloud Platform (GCP) Project → Change project** → paste the project number from step 1.
 5. **Project Settings → Script properties → Add**:
    | Property | Value |
@@ -31,7 +54,7 @@ uploads use your storage, not your visitors'. Visitors need the passcode to uplo
 ### 3. Deploy
 1. **Deploy → New deployment** → type **Web app** → *Execute as*: **Me**, *Who has access*: **Anyone** → **Deploy**.
 2. Copy the **Web app URL** (ends in `/exec`).
-3. Paste it into [`apps/web/public/drop/config.js`](../../apps/web/public/drop/config.js) as `endpoint`, and make `albumName` match `ALBUM_TITLE`. Commit and push; Vercel deploys it.
+3. Paste it into your `config.js` as `endpoint`, and make `albumName` match `ALBUM_TITLE` (on xlibraries.com: [`apps/web/content/photo-drop.config.js`](../../apps/web/content/photo-drop.config.js)). Commit and push; Vercel deploys it.
 
 ## Sharing it
 - Easiest for friends: `https://xlibraries.com/drop#k=YOUR_PASSCODE`. The passcode is in the part after `#`, which browsers never send to any server. The page removes it from the address bar and remembers it on that device.
