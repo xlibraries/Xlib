@@ -498,6 +498,24 @@ test.describe('Arcade', () => {
         await expect(game.locator('canvas')).toBeFocused();
     });
 
+    test('the Breakout paddle stays where the keys left it', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play Neon Breakout' }).click();
+        const game = page.locator('[data-game="breakout"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 20_000 }).toBeGreaterThan(10);
+        const paddle = () => game.evaluate(el => (el as unknown as { xlGame: { _breakout_paddle_x(): number } }).xlGame._breakout_paddle_x());
+        await game.locator('canvas').click();   // clicks the middle: focus, and the paddle starts centred
+        expect(await paddle()).toBeCloseTo(320, 0);
+        await page.keyboard.down('ArrowRight');
+        await page.waitForTimeout(400);
+        await page.keyboard.up('ArrowRight');
+        const released = await paddle();
+        expect(released).toBeGreaterThan(400);
+        await page.waitForTimeout(500);
+        expect(await paddle()).toBeCloseTo(released, 0);   // doesn't snap back to where the mouse last was
+    });
+
     test('Shader Playground: presets run and mistakes show their line', async ({ page }) => {
         await openDesktop(page, { 'arcade-backend': 'webgl2' });
         const arcade = await openApp(page, 'arcade');
