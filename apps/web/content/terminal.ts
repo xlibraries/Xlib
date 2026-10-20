@@ -26,6 +26,23 @@ export const terminal: ShellConfig = {
             hidden: true,
             run: () => ({ output: { kind: 'text', text: 'Opening Photo Drop in a new tab…' }, effects: [{ type: 'openUrl', url: './drop/' }] }),
         },
+        // hidden: shows the Photo Drop passcode and a share link, but only on a device that has already unlocked
+        // Photo Drop (the page remembers it there). Visitors never see it: the site itself doesn't contain it.
+        passcode: {
+            hidden: true,
+            run: () => {
+                let saved: string | null = null;
+                try { saved = localStorage.getItem('drop-passcode'); } catch { /* storage blocked */ }
+                return {
+                    output: {
+                        kind: 'text',
+                        text: saved
+                            ? `Photo Drop passcode: ${saved}\nShare link: ${location.origin}/drop#k=${encodeURIComponent(saved)}`
+                            : "This device hasn't unlocked Photo Drop yet. Open it with `upload`, enter the passcode once, and `passcode` will show it here.",
+                    },
+                };
+            },
+        },
         sudo: {
             hidden: true,
             run: () => ({
