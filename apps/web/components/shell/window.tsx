@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type DragEvent } from 'react';
 import Draggable from 'react-draggable';
 import type { AppProps, Host } from '@xlibraries/app-sdk';
-import { trackPageview } from '../../lib/analytics';
 
 export interface WindowProps {
     id: string;
@@ -31,18 +30,14 @@ export default function Window({ id, title, screen, host, isFocused, minimized, 
     const [maximized, setMaximized] = useState(false);
     const [viewport, setViewport] = useState({ width: 1000, height: 800 });
 
-    // Mount: size for the screen, page view for analytics
+    // Mount: size for the screen
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- window size is only known in the browser
         setSize(defaultSize());
-        trackPageview(`/${id}`);
         const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
         onResize();
         window.addEventListener('resize', onResize);
-        return () => {
-            trackPageview("/desktop");
-            window.removeEventListener('resize', onResize);
-        };
+        return () => window.removeEventListener('resize', onResize);
     }, [id]);
 
     // How far the window can be dragged: the screen minus its own size (and the top bar)

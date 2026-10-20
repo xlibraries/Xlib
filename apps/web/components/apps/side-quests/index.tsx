@@ -38,7 +38,7 @@ export default function SideQuests() {
     const open = (id: string) => {
         setTab(id);
         try { localStorage.setItem("side-quests-tab", id); } catch { /* storage blocked */ }
-        trackPageview("/side-quests/" + id, "Side Quests");
+        trackPageview("/side-quests/" + id);
     };
 
     const showOnMap = (at: LatLng) => {
