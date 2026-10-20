@@ -64,6 +64,8 @@ describe('upstashStore', () => {
         await store.hincrby('a:1', 'visits', 1);
         expect(await store.hgetall('a:1')).toEqual({ visits: 3, 'country:IN': 2 });
         expect(await store.incr('rl')).toBe(4);
+        await store.set('settings', '{"a":1}');
+        expect(calls).toContainEqual(['SET', 'settings', '{"a":1}']);
         expect(calls[0]).toEqual(['HINCRBY', 'a:1', 'visits', 1]);
         expect(fetch.mock.calls[0][1].headers).toMatchObject({ authorization: 'Bearer t' });
     });
@@ -71,5 +73,14 @@ describe('upstashStore', () => {
     it('throws Redis errors', async () => {
         const fetch = vi.fn(async () => ({ ok: false, status: 401, json: async () => ({ error: 'WRONGPASS' }) }) as Response);
         await expect(upstashStore({ url: 'u', token: 't', fetch: fetch as unknown as typeof globalThis.fetch }).incr('x')).rejects.toThrow('WRONGPASS');
+    });
+});
+
+describe('memoryStore strings', () => {
+    it('gets and sets', async () => {
+        const store = memoryStore();
+        expect(await store.get('k')).toBeNull();
+        await store.set('k', 'v');
+        expect(await store.get('k')).toBe('v');
     });
 });

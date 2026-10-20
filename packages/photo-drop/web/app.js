@@ -64,7 +64,7 @@
             store.set("drop-passcode", code);
             showUploader();
         } catch (e) {
-            store.remove("drop-passcode");
+            if (e.code === "passcode") store.remove("drop-passcode");   // keep it when merely closed or offline
             show("lock");
             if (!silent || e.code !== "passcode") $("lock-error").textContent = e.code === "passcode" ? "That passcode isn't right." : e.message;
         } finally {
