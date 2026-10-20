@@ -9,6 +9,8 @@ export interface AnalyticsEvent {
 }
 
 export interface Host {
+    /** Close this app's window. */
+    close(): void;
     /** Open (or focus) another app's window by its id, e.g. "music". */
     openApp(id: string): void;
     /** Create a folder on the desktop. */

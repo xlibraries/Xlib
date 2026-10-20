@@ -22,7 +22,7 @@ Also on the site:
 
 - **Photo Drop** (`/drop`, or the terminal command `upload`): a passcode-protected uploader that sends
   photos and videos into Aman's Google Photos. Its backend is a Google Apps Script in
-  [`backend/photo-drop/`](backend/photo-drop/README.md).
+  [`packages/photo-drop/`](packages/photo-drop/README.md).
 - **Privacy page** at `/privacy`.
 
 ## Run it locally
@@ -74,15 +74,19 @@ pull request.
 apps/web/             the Next.js site
   pages/              the desktop (index) and two API routes for the Brave app
   components/shell/   desktop, windows, dock, top bar, boot and lock screens
-  components/apps/    the apps that aren't packages yet
+  components/apps/    the apps that live in the site (About, Side Quests, Settings, …)
+  content/            site-specific settings for the packages (terminal folders, bookmarks, Photo Drop URL)
   lib/                pure logic, unit-tested (browser routing, lyrics, distances, security headers, …)
   apps.config.ts      the list of apps: titles, icons, dock and desktop placement
   public/             static files, plus standalone pages: drop/, privacy/, brave/newtab.html
-  scripts/, data/     generators for the music snapshot and the Side Quests map data
+  scripts/, data/     the Side Quests map data generators, the vendor copy, the playlist list
   tests/              unit, Python and e2e tests
 packages/
   app-sdk/            @xlibraries/app-sdk: the contract between the desktop and its apps
-backend/photo-drop/   Google Apps Script for Photo Drop (deployed by hand)
+  terminal/           @xlibraries/terminal: Terminal and Calc on a shared prompt
+  browser/            @xlibraries/browser: the Brave app, plus framework-free frame-check and reader endpoints
+  music/              @xlibraries/music: the Music app and the playlist snapshot CLI
+  photo-drop/         @xlibraries/photo-drop: the upload page and its Google Apps Script backend
 docs/                 architecture notes and the restructuring plan
 ```
 
@@ -94,7 +98,9 @@ published package. A unit test enforces the rule.
 
 - [Architecture](docs/architecture.md): how the desktop, the apps, the server routes and the security policy fit together.
 - [Data scripts](apps/web/scripts/README.md): what each script generates, when to run it and the privacy rules for travel data.
-- [Photo Drop backend](backend/photo-drop/README.md): setting up and deploying the Apps Script.
+- Each package's README: [app-sdk](packages/app-sdk/README.md), [terminal](packages/terminal/README.md),
+  [browser](packages/browser/README.md), [music](packages/music/README.md),
+  [photo-drop](packages/photo-drop/README.md) (including setting up and deploying the Apps Script).
 
 ## Deployment
 
@@ -104,7 +110,7 @@ pull requests get preview deployments.
 (see `apps/web/next.config.ts`). The old GitHub Pages site (`gh-pages` branch) only redirects to xlibraries.com.
 
 The Photo Drop Apps Script isn't deployed by Vercel: after changing
-[`backend/photo-drop/Code.gs`](backend/photo-drop/Code.gs), paste it into Apps Script and publish a new
+[`packages/photo-drop/backend/Code.gs`](packages/photo-drop/backend/Code.gs), paste it into Apps Script and publish a new
 version (steps in its README).
 
 ## License

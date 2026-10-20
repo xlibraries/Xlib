@@ -1,0 +1,21 @@
+{
+  "name": "@xlibraries/photo-drop",
+  "version": "0.1.0",
+  "description": "A passcode-protected page for friends to upload photos and videos into your Google Photos, backed by Google Apps Script",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "web",
+    "backend"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "verify": "eslint . && vitest run",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "vitest": "3.2.4"
+  }
+}
