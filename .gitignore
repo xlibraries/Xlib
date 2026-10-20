@@ -51,3 +51,7 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 /public/vendor/
+
+# python
+__pycache__/
+*.pyc
