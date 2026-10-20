@@ -5,11 +5,12 @@
 #include "sokol_app.h"
 #include "sokol_glue.h"
 #include "sokol_log.h"
-#include "sokol_audio.h"
 #include "sokol_gl.h"
 #include "sokol_debugtext.h"
 #define XL_IMPL
 #include "xl.h"
+#define XL_AUDIO_IMPL
+#include "xl_audio.h"
 #include "logic.h"
 
 #include <algorithm>
@@ -30,7 +31,7 @@ const Rgb ROW_COLORS[] = { {1.0f, 0.24f, 0.5f}, {1.0f, 0.42f, 0.2f}, {1.0f, 0.79
 const Rgb CYAN = { 0.3f, 0.95f, 1.0f };
 const Rgb WHITE = { 1, 1, 1 };
 
-// ---------- Sound: a few synthesized voices mixed into sokol_audio's stream ----------
+// ---------- Sound: a few synthesized voices mixed into the AudioWorklet stream (xl_audio.h) ----------
 
 struct Voice { float freq, freq_end, t, dur, vol; int wave; };   // wave: 0 square, 1 triangle, 2 noise
 std::vector<Voice> voices;
@@ -41,11 +42,11 @@ void play(float freq, float freq_end, float dur, float vol, int wave) {
 }
 
 void mix_audio() {
-    const int frames = saudio_expect();
+    const int frames = xl::audio_expect();
     if (frames <= 0) return;
     static std::vector<float> buf;
     buf.assign(frames, 0.0f);
-    const float rate = static_cast<float>(saudio_sample_rate());
+    const float rate = static_cast<float>(xl::audio_sample_rate());
     for (Voice& v : voices) {
         for (int i = 0; i < frames && v.t < v.dur; i++) {
             const float k = v.t / v.dur;
@@ -61,7 +62,7 @@ void mix_audio() {
     }
     voices.erase(std::remove_if(voices.begin(), voices.end(), [](const Voice& v) { return v.t >= v.dur; }), voices.end());
     for (float& s : buf) s = std::max(-1.0f, std::min(1.0f, s));
-    saudio_push(buf.data(), frames);
+    xl::audio_push(buf.data(), frames);
 }
 
 // ---------- Particles and screen shake ----------
@@ -348,10 +349,7 @@ void init() {
     text.logger.func = slog_func;
     sdtx_setup(&text);
 
-    saudio_desc audio = {};
-    audio.num_channels = 1;
-    audio.logger.func = slog_func;
-    saudio_setup(&audio);
+    xl::audio_setup(1);
 
     st.best = std::atoi(xl::load("best", "0").c_str());
     st.game.rng ^= xl::seed();
@@ -360,7 +358,7 @@ void init() {
 }
 
 void cleanup() {
-    saudio_shutdown();
+    xl::audio_shutdown();
     sdtx_shutdown();
     sgl_shutdown();
     sg_shutdown();
