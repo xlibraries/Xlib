@@ -1,552 +1,187 @@
-// @ts-nocheck
-import React, { Component } from 'react';
-import BackgroundImage from '../util/background-image';
-import SideBar from './dock';
-import apps from '../../apps.config';
-import Window from './window';
-import UbuntuApp from './desktop-icon';
-import AllApplications from './app-grid'
-import DesktopMenu from '../context-menus/desktop-menu';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState, type MouseEvent as ReactMouseEvent, type Ref } from 'react';
+import type { Host } from '@xlibraries/app-sdk';
+import apps, { type AppConfig } from '../../apps.config';
+import { trackEvent, trackPageview } from '../../lib/analytics';
+import { emptyWindows, folderId, recordOpen, windowReducer } from '../../lib/window-manager';
 import DefaultMenu from '../context-menus/default';
-import $ from 'jquery';
-import { trackPageview, trackEvent } from '../../lib/analytics';
-
-export class Desktop extends Component {
-    constructor() {
-        super();
-        this.app_stack = [];
-        this.initFavourite = {};
-        this.allWindowClosed = false;
-        this.state = {
-            focused_windows: {},
-            closed_windows: {},
-            allAppsView: false,
-            overlapped_windows: {},
-            disabled_apps: {},
-            favourite_apps: {},
-            hideSideBar: false,
-            minimized_windows: {},
-            desktop_apps: [],
-            context_menus: {
-                desktop: false,
-                default: false,
-            },
-            showNameBar: false,
-        }
-    }
-
-    componentDidMount() {
-        // google analytics
-        trackPageview("/desktop");
-
-        this.fetchAppsData();
-        this.setContextListeners();
-        this.setEventListeners();
-        this.checkForNewFolders();
-    }
-
-    componentWillUnmount() {
-        this.removeContextListeners();
-    }
-
-    checkForNewFolders = () => {
-        let new_folders = localStorage.getItem('new_folders');
-        if (new_folders === null && new_folders !== undefined) {
-            localStorage.setItem("new_folders", JSON.stringify([]));
-        }
-        else {
-            new_folders = JSON.parse(new_folders);
-            new_folders.forEach(folder => {
-                apps.push({
-                    id: `new-folder-${folder.id}`,
-                    title: folder.name,
-                    icon: './themes/Yaru/system/folder.png',
-                    disabled: true,
-                    favourite: false,
-                    desktop_shortcut: true,
-                    screen: () => { },
-                });
-            });
-            this.updateAppsData();
-        }
-    }
-
-    setEventListeners = () => {
-        document.getElementById("open-settings").addEventListener("click", () => {
-            this.openApp("settings");
-        });
-    }
-
-    setContextListeners = () => {
-        document.addEventListener('contextmenu', this.checkContextMenu);
-        // on click, anywhere, hide all menus
-        document.addEventListener('click', this.hideAllContextMenu);
-    }
-
-    removeContextListeners = () => {
-        document.removeEventListener("contextmenu", this.checkContextMenu);
-        document.removeEventListener("click", this.hideAllContextMenu);
-    }
-
-    checkContextMenu = (e) => {
-        e.preventDefault();
-        this.hideAllContextMenu();
-        switch (e.target.dataset.context) {
-            case "desktop-area":
-                trackEvent({
-                    category: `Context Menu`,
-                    action: `Opened Desktop Context Menu`
-                });
-                this.showContextMenu(e, "desktop");
-                break;
-            default:
-                trackEvent({
-                    category: `Context Menu`,
-                    action: `Opened Default Context Menu`
-                });
-                this.showContextMenu(e, "default");
-        }
-    }
-
-    showContextMenu = (e, menuName /* context menu name */) => {
-        let { posx, posy } = this.getMenuPosition(e);
-        const contextMenu = document.getElementById(`${menuName}-menu`);
-
-        if (posx + $(contextMenu).width() > window.innerWidth) posx -= $(contextMenu).width();
-        if (posy + $(contextMenu).height() > window.innerHeight) posy -= $(contextMenu).height();
-
-        posx = posx.toString() + "px";
-        posy = posy.toString() + "px";
-
-        contextMenu.style.left = posx;
-        contextMenu.style.top = posy;
-
-        this.setState({ context_menus: { ...this.state.context_menus, [menuName]: true } });
-    }
-
-    hideAllContextMenu = () => {
-        const menus = this.state.context_menus;
-        Object.keys(menus).forEach(key => {
-            menus[key] = false;
-        });
-        this.setState({ context_menus: menus });
-    }
-
-    getMenuPosition = (e) => {
-        let posx = 0;
-        let posy = 0;
-
-        if (!e) e = window.event;
-
-        if (e.pageX || e.pageY) {
-            posx = e.pageX;
-            posy = e.pageY;
-        } else if (e.clientX || e.clientY) {
-            posx = e.clientX + document.body.scrollLeft +
-                document.documentElement.scrollLeft;
-            posy = e.clientY + document.body.scrollTop +
-                document.documentElement.scrollTop;
-        }
-        return {
-            posx, posy
-        }
-    }
-
-    fetchAppsData = () => {
-        let focused_windows = {}, closed_windows = {}, disabled_apps = {}, favourite_apps = {}, overlapped_windows = {}, minimized_windows = {};
-        const desktop_apps = [];
-        apps.forEach((app) => {
-            focused_windows = {
-                ...focused_windows,
-                [app.id]: false,
-            };
-            closed_windows = {
-                ...closed_windows,
-                [app.id]: true,
-            };
-            disabled_apps = {
-                ...disabled_apps,
-                [app.id]: app.disabled,
-            };
-            favourite_apps = {
-                ...favourite_apps,
-                [app.id]: app.favourite,
-            };
-            overlapped_windows = {
-                ...overlapped_windows,
-                [app.id]: false,
-            };
-            minimized_windows = {
-                ...minimized_windows,
-                [app.id]: false,
-            }
-            if (app.desktop_shortcut) desktop_apps.push(app.id);
-        });
-        this.setState({
-            focused_windows,
-            closed_windows,
-            disabled_apps,
-            favourite_apps,
-            overlapped_windows,
-            minimized_windows,
-            desktop_apps
-        });
-        this.initFavourite = { ...favourite_apps };
-    }
-
-    updateAppsData = () => {
-        let focused_windows = {}, closed_windows = {}, favourite_apps = {}, minimized_windows = {}, disabled_apps = {};
-        const desktop_apps = [];
-        apps.forEach((app) => {
-            focused_windows = {
-                ...focused_windows,
-                [app.id]: ((this.state.focused_windows[app.id] !== undefined || this.state.focused_windows[app.id] !== null) ? this.state.focused_windows[app.id] : false),
-            };
-            minimized_windows = {
-                ...minimized_windows,
-                [app.id]: ((this.state.minimized_windows[app.id] !== undefined || this.state.minimized_windows[app.id] !== null) ? this.state.minimized_windows[app.id] : false)
-            };
-            disabled_apps = {
-                ...disabled_apps,
-                [app.id]: app.disabled
-            };
-            closed_windows = {
-                ...closed_windows,
-                [app.id]: ((this.state.closed_windows[app.id] !== undefined || this.state.closed_windows[app.id] !== null) ? this.state.closed_windows[app.id] : true)
-            };
-            favourite_apps = {
-                ...favourite_apps,
-                [app.id]: app.favourite
-            }
-            if (app.desktop_shortcut) desktop_apps.push(app.id);
-        });
-        this.setState({
-            focused_windows,
-            closed_windows,
-            disabled_apps,
-            minimized_windows,
-            favourite_apps,
-            desktop_apps
-        });
-        this.initFavourite = { ...favourite_apps };
-    }
-
-    renderDesktopApps = () => {
-        if (Object.keys(this.state.closed_windows).length === 0) return;
-        const appsJsx = [];
-        apps.forEach((app, index) => {
-            if (this.state.desktop_apps.includes(app.id)) {
-
-                const props = {
-                    name: app.title,
-                    id: app.id,
-                    icon: app.icon,
-                    openApp: this.openApp
-                }
-
-                appsJsx.push(
-                    <UbuntuApp key={index} {...props} />
-                );
-            }
-        });
-        return appsJsx;
-    }
-
-    // What every app gets from the desktop (packages/app-sdk's Host); the window adds close()
-    host = () => ({
-        openApp: this.openApp,
-        addFolder: this.addToDesktop,
-        wallpaper: this.props.bg_image_name,
-        setWallpaper: this.props.changeBackgroundImage,
-        track: trackEvent,
-    });
-
-    renderWindows = () => {
-        const windowsJsx = [];
-        apps.forEach((app, index) => {
-            if (this.state.closed_windows[app.id] === false) {
-
-                const props = {
-                    title: app.title,
-                    id: app.id,
-                    screen: app.screen,
-                    host: this.host(),
-                    closed: this.closeApp,
-                    focus: this.focus,
-                    isFocused: this.state.focused_windows[app.id],
-                    hideSideBar: this.hideSideBar,
-                    hasMinimised: this.hasMinimised,
-                    minimized: this.state.minimized_windows[app.id],
-                }
-
-                windowsJsx.push(
-                    <Window key={index} {...props} />
-                )
-            }
-        });
-        return windowsJsx;
-    }
-
-    hideSideBar = (objId, hide) => {
-        if (hide === this.state.hideSideBar) return;
-
-        if (objId === null) {
-            if (hide === false) {
-                this.setState({ hideSideBar: false });
-            }
-            else {
-                for (const key in this.state.overlapped_windows) {
-                    if (this.state.overlapped_windows[key]) {
-                        this.setState({ hideSideBar: true });
-                        return;
-                    }  // if any window is overlapped then hide the SideBar
-                }
-            }
-            return;
-        }
-
-        if (hide === false) {
-            for (const key in this.state.overlapped_windows) {
-                if (this.state.overlapped_windows[key] && key !== objId) return; // if any window is overlapped then don't show the SideBar
-            }
-        }
-
-        const overlapped_windows = this.state.overlapped_windows;
-        overlapped_windows[objId] = hide;
-        this.setState({ hideSideBar: hide, overlapped_windows });
-    }
-
-    hasMinimised = (objId) => {
-        const minimized_windows = this.state.minimized_windows;
-        const focused_windows = this.state.focused_windows;
-
-        // remove focus and minimise this window
-        minimized_windows[objId] = true;
-        focused_windows[objId] = false;
-        this.setState({ minimized_windows, focused_windows });
-
-        this.hideSideBar(null, false);
-
-        this.giveFocusToLastApp();
-    }
-
-    giveFocusToLastApp = () => {
-        // if there is atleast one app opened, give it focus
-        if (!this.checkAllMinimised()) {
-            for (const index in this.app_stack) {
-                if (!this.state.minimized_windows[this.app_stack[index]]) {
-                    this.focus(this.app_stack[index]);
-                    break;
-                }
-            }
-        }
-    }
-
-    checkAllMinimised = () => {
-        let result = true;
-        for (const key in this.state.minimized_windows) {
-            if (!this.state.closed_windows[key]) { // if app is opened
-                result = result & this.state.minimized_windows[key];
-            }
-        }
-        return result;
-    }
-
-    openApp = (objId) => {
-
-        // google analytics
-        trackEvent({
-            category: `Open App`,
-            action: `Opened ${objId} window`
-        });
-
-        // if the app is disabled
-        if (this.state.disabled_apps[objId]) return;
-
-        if (this.state.minimized_windows[objId]) {
-            // focus this app's window
-            this.focus(objId);
-
-            // set window's last position
-            const r = document.querySelector("#" + objId);
-            r.style.transform = `translate(${r.style.getPropertyValue("--window-transform-x")},${r.style.getPropertyValue("--window-transform-y")}) scale(1)`;
-
-            // tell childs that his app has been not minimised
-            const minimized_windows = this.state.minimized_windows;
-            minimized_windows[objId] = false;
-            this.setState({ minimized_windows: minimized_windows });
-            return;
-        }
-
-        //if app is already opened
-        if (this.app_stack.includes(objId)) this.focus(objId);
-        else {
-            const closed_windows = this.state.closed_windows;
-            const favourite_apps = this.state.favourite_apps;
-            const frequentApps = localStorage.getItem('frequentApps') ? JSON.parse(localStorage.getItem('frequentApps')) : [];
-            const currentApp = frequentApps.find(app => app.id === objId);
-            if (currentApp) {
-                frequentApps.forEach((app) => {
-                    if (app.id === currentApp.id) {
-                        app.frequency += 1; // increase the frequency if app is found 
-                    }
-                });
-            } else {
-                frequentApps.push({ id: objId, frequency: 1 }); // new app opened
-            }
-
-            frequentApps.sort((a, b) => {
-                if (a.frequency < b.frequency) {
-                    return 1;
-                }
-                if (a.frequency > b.frequency) {
-                    return -1;
-                }
-                return 0; // sort according to decreasing frequencies
-            });
-
-            localStorage.setItem("frequentApps", JSON.stringify(frequentApps));
-
-            setTimeout(() => {
-                favourite_apps[objId] = true; // adds opened app to sideBar
-                closed_windows[objId] = false; // openes app's window
-                this.setState({ closed_windows, favourite_apps, allAppsView: false }, this.focus(objId));
-                this.app_stack.push(objId);
-            }, 200);
-        }
-    }
-
-    closeApp = (objId) => {
-
-        // remove app from the app stack
-        this.app_stack.splice(this.app_stack.indexOf(objId), 1);
-
-        this.giveFocusToLastApp();
-
-        this.hideSideBar(null, false);
-
-        // close window
-        const closed_windows = this.state.closed_windows;
-        const favourite_apps = this.state.favourite_apps;
-
-        if (this.initFavourite[objId] === false) favourite_apps[objId] = false; // if user default app is not favourite, remove from sidebar
-        closed_windows[objId] = true; // closes the app's window
-
-        this.setState({ closed_windows, favourite_apps });
-    }
-
-    focus = (objId) => {
-        // removes focus from all window and 
-        // gives focus to window with 'id = objId'
-        const focused_windows = this.state.focused_windows;
-        focused_windows[objId] = true;
-        for (const key in focused_windows) {
-            if (focused_windows.hasOwnProperty(key)) {
-                if (key !== objId) {
-                    focused_windows[key] = false;
-                }
-            }
-        }
-        this.setState({ focused_windows });
-    }
-
-    addNewFolder = () => {
-        this.setState({ showNameBar: true });
-    }
-
-    addToDesktop = (folder_name) => {
-        folder_name = folder_name.trim();
-        const folder_id = folder_name.replace(/\s+/g, '-').toLowerCase();
-        apps.push({
-            id: `new-folder-${folder_id}`,
-            title: folder_name,
-            icon: './themes/Yaru/system/folder.png',
-            disabled: true,
-            favourite: false,
-            desktop_shortcut: true,
-            screen: () => { },
-        });
-        // store in local storage
-        const new_folders = JSON.parse(localStorage.getItem('new_folders'));
-        new_folders.push({ id: `new-folder-${folder_id}`, name: folder_name });
-        localStorage.setItem("new_folders", JSON.stringify(new_folders));
-
-        this.setState({ showNameBar: false }, this.updateAppsData);
-    }
-
-    showAllApps = () => { this.setState({ allAppsView: !this.state.allAppsView }) }
-
-    renderNameBar = () => {
-        const addFolder = () => {
-            const folder_name = document.getElementById("folder-name-input").value;
-            this.addToDesktop(folder_name);
-        }
-
-        const removeCard = () => {
-            this.setState({ showNameBar: false });
-        }
-
-        return (
-            <div className="absolute rounded-md top-1/2 left-1/2 text-center text-white font-light text-sm bg-ub-cool-grey transform -translate-y-1/2 -translate-x-1/2 sm:w-96 w-3/4 z-50">
-                <div className="w-full flex flex-col justify-around items-start pl-6 pb-8 pt-6">
-                    <span>New folder name</span>
-                    <input className="outline-none mt-5 px-1 w-10/12  context-menu-bg border-2 border-yellow-700 rounded py-0.5" id="folder-name-input" type="text" autoComplete="off" spellCheck="false" autoFocus={true} />
-                </div>
-                <div className="flex">
-                    <div onClick={addFolder} className="w-1/2 px-4 py-2 border border-gray-900 border-opacity-50 border-r-0 hover:bg-ub-warm-grey hover:bg-opacity-10 hover:border-opacity-50">Create</div>
-                    <div onClick={removeCard} className="w-1/2 px-4 py-2 border border-gray-900 border-opacity-50 hover:bg-ub-warm-grey hover:bg-opacity-10 hover:border-opacity-50">Cancel</div>
-                </div>
-            </div>
-        );
-    }
-
-    render() {
-        return (
-            <div className={" h-full w-full flex flex-col items-end justify-start content-start flex-wrap-reverse pt-8 bg-transparent relative overflow-hidden overscroll-none window-parent"}>
-
-                {/* Window Area */}
-                <div className="absolute h-full w-full bg-transparent" data-context="desktop-area">
-                    {this.renderWindows()}
-                </div>
-
-                {/* Background Image */}
-                <BackgroundImage img={this.props.bg_image_name} />
-
-                {/* Ubuntu Side Menu Bar */}
-                <SideBar apps={apps}
-                    hide={this.state.hideSideBar}
-                    hideSideBar={this.hideSideBar}
-                    favourite_apps={this.state.favourite_apps}
-                    showAllApps={this.showAllApps}
-                    allAppsView={this.state.allAppsView}
-                    closed_windows={this.state.closed_windows}
-                    focused_windows={this.state.focused_windows}
-                    isMinimized={this.state.minimized_windows}
-                    openAppByAppId={this.openApp} />
-
-                {/* Desktop Apps */}
-                {this.renderDesktopApps()}
-
-                {/* Context Menus */}
-                <DesktopMenu active={this.state.context_menus.desktop} openApp={this.openApp} addNewFolder={this.addNewFolder} />
-                <DefaultMenu active={this.state.context_menus.default} />
-
-                {/* Folder Input Name Bar */}
-                {
-                    (this.state.showNameBar
-                        ? this.renderNameBar()
-                        : null
-                    )
-                }
-
-                { this.state.allAppsView ?
-                    <AllApplications apps={apps}
-                        recentApps={this.app_stack}
-                        openApp={this.openApp} /> : null}
-
-            </div>
-        )
+import DesktopMenu from '../context-menus/desktop-menu';
+import BackgroundImage from '../util/background-image';
+import AppGrid from './app-grid';
+import DesktopIcon from './desktop-icon';
+import Dock from './dock';
+import Window from './window';
+
+export interface DesktopHandle { openApp(id: string): void }
+
+interface DesktopProps {
+    wallpaper: string;
+    setWallpaper: (name: string) => void;
+    ref?: Ref<DesktopHandle>;
+}
+
+type Folder = { id: string; name: string };
+
+// Folders made on the desktop (context menu or the terminal's mkdir) are icons only: they don't open
+const folderApp = ({ id, name }: Folder): AppConfig => ({
+    id, title: name, icon: './themes/Yaru/system/folder.png', disabled: true, favourite: false, desktop_shortcut: true, screen: () => null,
+});
+
+function loadFolders(): Folder[] {
+    try {
+        const saved: Folder[] = JSON.parse(localStorage.getItem('new_folders') || '[]');
+        // Older versions saved ids that already started with "new-folder-" and added it again on load
+        return saved.map(f => ({ id: folderId(f.name), name: f.name }));
+    } catch {
+        return [];
     }
 }
 
-export default Desktop
+function saveFrequent(id: string) {
+    try {
+        const frequent = JSON.parse(localStorage.getItem('frequentApps') || '[]');
+        localStorage.setItem('frequentApps', JSON.stringify(recordOpen(frequent, id)));
+    } catch { /* storage blocked */ }
+}
+
+export default function Desktop({ wallpaper, setWallpaper, ref }: DesktopProps) {
+    const [folders, setFolders] = useState<Folder[]>([]);
+    const allApps = useMemo(() => [...apps, ...folders.map(folderApp)], [folders]);
+    const [windows, dispatch] = useReducer(windowReducer, emptyWindows);
+    const [menus, setMenus] = useState({ desktop: false, default: false });
+    const [naming, setNaming] = useState(false);
+    const desktopMenu = useRef<HTMLDivElement>(null);
+    const defaultMenu = useRef<HTMLDivElement>(null);
+    // Latest state for callbacks that outlive a render (openApp is passed to every app)
+    const live = useRef(windows);
+    useEffect(() => { live.current = windows; }, [windows]);
+
+    useEffect(() => {
+        trackPageview("/desktop");
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR)
+        setFolders(loadFolders());
+    }, []);
+
+    useEffect(() => { dispatch({ type: 'sync', apps: allApps }); }, [allApps]);
+
+    const openApp = useCallback((id: string) => {
+        trackEvent({ category: `Open App`, action: `Opened ${id} window` });
+        const s = live.current;
+        if (s.disabled[id]) return;
+        if (s.minimized[id] || s.stack.includes(id)) return dispatch({ type: 'open', id });
+        saveFrequent(id);
+        setTimeout(() => dispatch({ type: 'open', id }), 200);   // lets the dock icon's launch animation start
+    }, []);
+
+    useImperativeHandle(ref, () => ({ openApp }), [openApp]);
+
+    const addFolder = useCallback((name: string) => {
+        const title = name.trim();
+        if (!title) return;
+        const folder = { id: folderId(title), name: title };
+        setFolders(prev => {
+            const next = prev.some(f => f.id === folder.id) ? prev : [...prev, folder];
+            try { localStorage.setItem('new_folders', JSON.stringify(next)); } catch { /* storage blocked */ }
+            return next;
+        });
+        setNaming(false);
+    }, []);
+
+    const onFocus = useCallback((id: string) => dispatch({ type: 'focus', id }), []);
+    const onMinimize = useCallback((id: string) => dispatch({ type: 'minimize', id }), []);
+    const onClose = useCallback((id: string) => dispatch({ type: 'close', id }), []);
+    const onOverlap = useCallback((id: string | null, hide: boolean) => dispatch({ type: 'overlap', id, hide }), []);
+
+    // What every app gets from the desktop (packages/app-sdk's Host); the window adds close()
+    const host: Omit<Host, 'close'> = useMemo(() => ({ openApp, addFolder, wallpaper, setWallpaper, track: trackEvent }), [openApp, addFolder, wallpaper, setWallpaper]);
+
+    // Right-click: the desktop menu on empty desktop, the default menu elsewhere; any click hides them
+    useEffect(() => {
+        const hideAll = () => setMenus({ desktop: false, default: false });
+        const onContextMenu = (e: MouseEvent) => {
+            e.preventDefault();
+            const which = (e.target as HTMLElement).dataset.context === "desktop-area" ? "desktop" : "default";
+            trackEvent({ category: `Context Menu`, action: which === "desktop" ? `Opened Desktop Context Menu` : `Opened Default Context Menu` });
+            const menu = (which === "desktop" ? desktopMenu : defaultMenu).current;
+            if (menu) {
+                // keep the menu on screen (it's display:none until shown, so measure its fixed width)
+                const width = menu.offsetWidth || 208, height = menu.offsetHeight || 320;
+                const x = e.pageX + width > window.innerWidth ? e.pageX - width : e.pageX;
+                const y = e.pageY + height > window.innerHeight ? e.pageY - height : e.pageY;
+                menu.style.left = x + "px";
+                menu.style.top = y + "px";
+            }
+            setMenus({ desktop: which === "desktop", default: which === "default" });
+        };
+        document.addEventListener('contextmenu', onContextMenu);
+        document.addEventListener('click', hideAll);
+        return () => {
+            document.removeEventListener('contextmenu', onContextMenu);
+            document.removeEventListener('click', hideAll);
+        };
+    }, []);
+
+    return (
+        <div className=" h-full w-full flex flex-col items-end justify-start content-start flex-wrap-reverse pt-8 bg-transparent relative overflow-hidden overscroll-none window-parent">
+            {/* Window area */}
+            <div className="absolute h-full w-full bg-transparent" data-context="desktop-area">
+                {allApps.filter(app => windows.closed[app.id] === false).map(app => (
+                    <Window
+                        key={app.id}
+                        id={app.id}
+                        title={app.title}
+                        screen={app.screen}
+                        host={host}
+                        isFocused={!!windows.focused[app.id]}
+                        minimized={!!windows.minimized[app.id]}
+                        onFocus={onFocus}
+                        onMinimize={onMinimize}
+                        onClose={onClose}
+                        onOverlap={onOverlap}
+                    />
+                ))}
+            </div>
+
+            <BackgroundImage img={wallpaper} />
+
+            <Dock apps={allApps} windows={windows} openApp={openApp} onOverlap={onOverlap} showAllApps={() => dispatch({ type: 'toggleAllApps' })} />
+
+            {allApps.filter(app => app.desktop_shortcut).map(app => (
+                <DesktopIcon key={app.id} id={app.id} name={app.title} icon={app.icon} openApp={openApp} />
+            ))}
+
+            <DesktopMenu ref={desktopMenu} active={menus.desktop} openApp={openApp} addNewFolder={() => setNaming(true)} />
+            <DefaultMenu ref={defaultMenu} active={menus.default} />
+
+            {naming && <FolderNameDialog onCreate={addFolder} onCancel={() => setNaming(false)} />}
+
+            {windows.allApps && <AppGrid apps={allApps} openApp={openApp} />}
+        </div>
+    );
+}
+
+function FolderNameDialog({ onCreate, onCancel }: { onCreate: (name: string) => void; onCancel: () => void }) {
+    const [name, setName] = useState("");
+    const stop = (e: ReactMouseEvent) => e.stopPropagation();
+    return (
+        <div onClick={stop} className="absolute rounded-md top-1/2 left-1/2 text-center text-white font-light text-sm bg-ub-cool-grey transform -translate-y-1/2 -translate-x-1/2 sm:w-96 w-3/4 z-50">
+            <div className="w-full flex flex-col justify-around items-start pl-6 pb-8 pt-6">
+                <span>New folder name</span>
+                <input
+                    className="outline-none mt-5 px-1 w-10/12  context-menu-bg border-2 border-yellow-700 rounded py-0.5"
+                    id="folder-name-input"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") onCreate(name); }}
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoFocus
+                />
+            </div>
+            <div className="flex">
+                <div onClick={() => onCreate(name)} className="w-1/2 px-4 py-2 border border-gray-900 border-opacity-50 border-r-0 hover:bg-ub-warm-grey hover:bg-opacity-10 hover:border-opacity-50">Create</div>
+                <div onClick={onCancel} className="w-1/2 px-4 py-2 border border-gray-900 border-opacity-50 hover:bg-ub-warm-grey hover:bg-opacity-10 hover:border-opacity-50">Cancel</div>
+            </div>
+        </div>
+    );
+}

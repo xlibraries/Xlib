@@ -1,5 +1,8 @@
 # Restructuring plan: current vs proposed
 
+> **Status: done** (PRs #18–#21, October 2026). This file is kept as the record of the plan; the
+> current layout is described in [architecture.md](architecture.md) and the package READMEs.
+
 Legend: 🔴 class component · 🟡 `@ts-nocheck` · 🟣 jQuery · ✅ hooks, typed, tested
 
 ## 0. Packages (revised plan)

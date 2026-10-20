@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { AppProps } from '@xlibraries/app-sdk';
 
 const TRASH_ITEMS = [
     { name: "php", icon: "./themes/filetypes/php.png" },
@@ -15,7 +14,7 @@ function wasEmptied(): boolean {
     try { return localStorage.getItem("trash-empty") === "true"; } catch { return false; }
 }
 
-export default function Trash(_props: AppProps) {
+export default function Trash() {
     const [empty, setEmpty] = useState(wasEmptied);
     const [selected, setSelected] = useState<number | null>(null);
 

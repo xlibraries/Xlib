@@ -30,7 +30,17 @@ const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
 const displayTrash = lazyApp(() => import('./components/apps/trash'));
 const displayGedit = lazyApp(() => import('./components/apps/gedit'));
 
-const apps = [
+export interface AppConfig {
+    id: string;
+    title: string;
+    icon: string;
+    disabled: boolean;
+    favourite: boolean;
+    desktop_shortcut: boolean;
+    screen: ComponentType<AppProps>;
+}
+
+const apps: AppConfig[] = [
     {
         id: "brave",
         title: "Brave",
