@@ -48,7 +48,7 @@ flowchart LR
 | --- | --- | --- |
 | **1. Login + Analytics** ✅ | `/xlib`, passcode lock screen, Analytics app (visits per day, top apps, countries, referrers) | Add Upstash Redis in Vercel; set `ADMIN_PASSCODE`, `ADMIN_SESSION_SECRET` |
 | **2. Photo Drop status** ✅ | Recent uploads, and a warning when Google access is about to expire (with a "how to re-authorize" link) | Nothing: I deploy the Apps Script change with `pnpm deploy:photo-drop` |
-| **3. Site switches** | Live toggles without a deploy: Photo Drop open/closed, show/hide apps, a banner message | Nothing |
+| **3. Site switches** ✅ | Live toggles without a deploy: Photo Drop open/closed, show/hide apps, a banner message | Nothing |
 | **4. Edit content** | Edit About / Side Quests / terminal text from the desktop; saved as a GitHub commit, so Vercel redeploys | A GitHub fine-grained token (this repo, contents: write) in Vercel |
 
 ## Setup for phase 1 (about 5 minutes, in Vercel)

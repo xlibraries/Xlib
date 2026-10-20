@@ -119,7 +119,12 @@ checks it against `ADMIN_PASSCODE` (5 attempts per 15 minutes per IP) and sets a
 
 Analytics are the site's own (`packages/analytics`): pages send beacons to `/api/track`, which keeps daily
 counters in Upstash Redis (no cookies, no IPs stored; bots and the admin aren't counted); the admin Analytics
-app reads `/api/admin/analytics`. Details and the next phases: [admin-plan.md](admin-plan.md).
+app reads `/api/admin/analytics`.
+
+Site switches: hidden apps and a banner are one JSON value in Redis (`lib/site-settings.ts`), saved by
+`/api/admin/settings` and read by every desktop from `/api/settings` (cached for 15 seconds). Hidden apps stay
+visible to the admin. Photo Drop open/closed is a property of its Apps Script, which refuses new uploads while
+closed. Details and the next phases: [admin-plan.md](admin-plan.md).
 
 ## Security headers
 
