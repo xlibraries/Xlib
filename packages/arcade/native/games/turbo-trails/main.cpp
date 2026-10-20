@@ -1,16 +1,17 @@
 // Turbo Trails: the game around physics.h / terrain.h / rules.h / eras.h. Drawn with sokol_gl in metres (the
-// camera maps the world to the window), HUD with sokol_debugtext, synthesized sound with sokol_audio. The page's
+// camera maps the world to the window), HUD with sokol_debugtext, synthesized sound through xl_audio.h. The page's
 // side panel (src/turbo-trails/Panel.tsx) reads the state through tt_state_json and drives the era/shop.
 #define SOKOL_IMPL
 #include "sokol_gfx.h"
 #include "sokol_app.h"
 #include "sokol_glue.h"
 #include "sokol_log.h"
-#include "sokol_audio.h"
 #include "sokol_gl.h"
 #include "sokol_debugtext.h"
 #define XL_IMPL
 #include "xl.h"
+#define XL_AUDIO_IMPL
+#include "xl_audio.h"
 #include "eras.h"
 #include "physics.h"
 #include "rules.h"
@@ -47,12 +48,12 @@ uint32_t noise_seed = 777;
 void play(float f0, float f1, float dur, float vol, int wave) { if (voices.size() < 16) voices.push_back({ f0, f1, 0, dur, vol, wave }); }
 
 void mix_audio() {
-    const int frames = saudio_expect();
+    const int frames = xl::audio_expect();
     if (frames <= 0) return;
     static std::vector<float> buf;
     static float engine_phase = 0;
     buf.assign(frames, 0.0f);
-    const float rate = static_cast<float>(saudio_sample_rate());
+    const float rate = static_cast<float>(xl::audio_sample_rate());
     static float chuff_phase = 0;
     for (int i = 0; i < frames; i++) {
         engine_phase = std::fmod(engine_phase + engine_pitch / rate, 1.0f);
@@ -74,7 +75,7 @@ void mix_audio() {
     }
     voices.erase(std::remove_if(voices.begin(), voices.end(), [](const Voice& v) { return v.t >= v.dur; }), voices.end());
     for (float& s : buf) s = std::max(-1.0f, std::min(1.0f, s));
-    saudio_push(buf.data(), frames);
+    xl::audio_push(buf.data(), frames);
 }
 
 // ---------- State ----------
@@ -421,10 +422,7 @@ void init() {
     text.fonts[0] = sdtx_font_oric();
     text.logger.func = slog_func;
     sdtx_setup(&text);
-    saudio_desc audio = {};
-    audio.num_channels = 1;
-    audio.logger.func = slog_func;
-    saudio_setup(&audio);
+    xl::audio_setup(1);
 
     st.progress = Progress::parse(xl::load("progress", ""));
     st.era_index = std::min(st.progress.unlocked - 1, std::max(0, std::atoi(xl::load("era", "0").c_str())));
@@ -434,7 +432,7 @@ void init() {
 
 void cleanup() {
     st.world.reset();
-    saudio_shutdown();
+    xl::audio_shutdown();
     sdtx_shutdown();
     sgl_shutdown();
     sg_shutdown();

@@ -31,6 +31,11 @@ describe('build-native', () => {
         }
     });
 
+    it('ships the audio worklet beside every build, and no longer sokol_audio', () => {
+        for (const game of Object.keys(GAMES)) expect(existsSync(new URL(`../dist/${game}/xl-audio-worklet.js`, import.meta.url)), game).toBe(true);
+        expect(existsSync(new URL('../third_party/sokol/sokol_audio.h', import.meta.url))).toBe(false);
+    });
+
     it('ships Turbo Trails with Box2D compiled in and its music beside the build', () => {
         const args = emArgs('turbo-trails', 'webgl2', ['build/obj/x.o']);
         expect(args).toContain('-Ithird_party/box2d/include');

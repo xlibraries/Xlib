@@ -72,7 +72,7 @@ flowchart LR
 | Minimized or hidden window | The page pauses the game; no frames, no audio |
 | Closing the window | The module shuts down and its canvas and GPU resources are released |
 | Fullscreen | Button in the window; the canvas follows the window's size |
-| Sound | sokol_audio (WebAudio); starts on the first click, as browsers require |
+| Sound | `xl_audio.h`: an AudioWorklet (`xl-audio-worklet.js`, copied beside each build) fed from the game's mixer; starts on the first click, as browsers require |
 | High scores | Saved in the visitor's browser through the bridge |
 | Security policy | Adds `'wasm-unsafe-eval'` (needed to run WebAssembly), nothing else; builds avoid `eval` (`-sDYNAMIC_EXECUTION=0`) and load only from this site |
 
