@@ -89,6 +89,7 @@ struct {
     int best = 0;
     bool keys_left = false, keys_right = false, launch = false;
     float mouse_x = -1;           // in field coordinates
+    bool mouse_moved = false;     // the paddle follows the pointer only when it moves (not after a key is released)
     float scale = 1, ox = 0, oy = 0;   // field → screen (logical pixels)
     std::vector<Vec2> trail;
 } st;
@@ -199,6 +200,9 @@ void draw_text() {
     }
 }
 
+// Read-only, for tests: the paddle's centre in field coordinates (0..640)
+extern "C" EMSCRIPTEN_KEEPALIVE float breakout_paddle_x() { return st.game.paddle_x; }
+
 // ---------- Frame ----------
 
 void handle_events() {
@@ -242,10 +246,11 @@ void frame() {
     Input in;
     if (xl::focused()) {
         in.dir = (st.keys_right ? 1 : 0) - (st.keys_left ? 1 : 0);
-        in.target_x = in.dir == 0 ? st.mouse_x : -1;
+        in.target_x = (in.dir == 0 && st.mouse_moved) ? st.mouse_x : -1;
         in.launch = st.launch;
     }
     st.launch = false;
+    st.mouse_moved = false;
     update(st.game, dt, in);
     handle_events();
 
@@ -289,10 +294,11 @@ void event(const sapp_event* e) {
     switch (e->type) {
         case SAPP_EVENTTYPE_MOUSE_MOVE:
             st.mouse_x = (e->mouse_x / dpi - st.ox) / st.scale;
+            st.mouse_moved = true;
             break;
         case SAPP_EVENTTYPE_TOUCHES_BEGAN:
         case SAPP_EVENTTYPE_TOUCHES_MOVED:
-            if (e->num_touches > 0) st.mouse_x = (e->touches[0].pos_x / dpi - st.ox) / st.scale;
+            if (e->num_touches > 0) { st.mouse_x = (e->touches[0].pos_x / dpi - st.ox) / st.scale; st.mouse_moved = true; }
             if (e->type == SAPP_EVENTTYPE_TOUCHES_BEGAN) st.launch = true;
             break;
         case SAPP_EVENTTYPE_MOUSE_DOWN:

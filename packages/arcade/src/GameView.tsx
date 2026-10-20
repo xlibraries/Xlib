@@ -53,6 +53,8 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
             });
             if (disposed) return created._xl_quit();
             instance.current = created;
+            // reachable from devtools and tests as document.querySelector('[data-game]').xlGame
+            if (frame.current) Object.defineProperty(frame.current, 'xlGame', { value: created, configurable: true });
             setRunning(created);
             setStatus({ kind: 'running', backend });
         })().catch((err: Error) => { if (!disposed) setStatus({ kind: 'error', message: err.message }); });

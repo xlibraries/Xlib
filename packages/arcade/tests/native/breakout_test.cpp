@@ -133,3 +133,30 @@ TEST_CASE("the paddle stays inside the field") {
     for (int i = 0; i < 200; i++) update(g, 0.016f, in);
     CHECK(g.paddle_x == doctest::Approx(g.paddle_w / 2));
 }
+
+TEST_CASE("the paddle stays where it was: after keys, a lost life and a new level; only a new game re-centres it") {
+    Game g; new_game(g);
+    Input right; right.dir = 1;
+    for (int i = 0; i < 20; i++) update(g, 0.016f, right);
+    const float moved = g.paddle_x;
+    CHECK(moved > FIELD_W / 2 + 50);
+    update(g, 0.016f, {});                 // key released: no target, no movement
+    CHECK(g.paddle_x == doctest::Approx(moved));
+
+    update(g, 0.016f, launch()); empty_field(g);
+    g.balls[0].p = { 50, FIELD_H - 2 }; g.balls[0].v = { 0, 400 };
+    update(g, 0.05f, {});
+    CHECK(has(g, Event::LifeLost));
+    CHECK(g.paddle_x == doctest::Approx(moved));
+    CHECK(g.balls[0].p.x == doctest::Approx(moved));   // the next ball waits on the paddle where it is
+
+    g.phase = Phase::LevelCleared;
+    update(g, 0.016f, launch());
+    CHECK(g.level == 1);
+    CHECK(g.paddle_x == doctest::Approx(moved));
+
+    g.phase = Phase::GameOver;
+    update(g, 0.016f, launch());
+    CHECK(g.paddle_x == doctest::Approx(FIELD_W / 2));
+}
+
