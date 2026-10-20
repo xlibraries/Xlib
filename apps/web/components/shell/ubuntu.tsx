@@ -1,128 +1,80 @@
-// @ts-nocheck
-import React, { Component } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { trackEvent, trackPageview } from '../../lib/analytics';
+import { DEFAULT_WALLPAPER } from '../../lib/wallpapers';
 import BootingScreen from './boot-screen';
-import Desktop from './desktop';
+import Desktop, { type DesktopHandle } from './desktop';
 import LockScreen from './lock-screen';
 import Navbar from './navbar';
-import { trackPageview, trackEvent } from '../../lib/analytics';
 
-export default class Ubuntu extends Component {
-	constructor() {
-		super();
-		this.state = {
-			screen_locked: false,
-			bg_image_name: 'wall-2',
-			booting_screen: true,
-			shutDownScreen: false
-		};
-	}
+const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
+const write = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* storage blocked */ } };
+const blurStatusBar = () => document.getElementById('status-bar')?.blur();
 
-	componentDidMount() {
-		this.getLocalData();
-	}
+export default function Ubuntu() {
+	const [locked, setLocked] = useState(false);
+	const [wallpaper, setWallpaperState] = useState(DEFAULT_WALLPAPER);
+	const [booting, setBooting] = useState(true);
+	const [shutDown, setShutDown] = useState(false);
+	const desktop = useRef<DesktopHandle>(null);
 
-	setTimeOutBootScreen = () => {
-		setTimeout(() => {
-			this.setState({ booting_screen: false });
-		}, 2000);
-	};
+	const bootFor2s = () => setTimeout(() => setBooting(false), 2000);
 
-	getLocalData = () => {
-		// Get Previously selected Background Image
-		const bg_image_name = localStorage.getItem('bg-image');
-		if (bg_image_name !== null && bg_image_name !== undefined) {
-			this.setState({ bg_image_name });
-		}
-
-		const booting_screen = localStorage.getItem('booting_screen');
-		if (booting_screen !== null && booting_screen !== undefined) {
-			// user has visited site before
-			this.setState({ booting_screen: false });
-		} else {
-			// user is visiting site for the first time
-			localStorage.setItem('booting_screen', false);
-			this.setTimeOutBootScreen();
-		}
-
-		// get shutdown state
-		const shut_down = localStorage.getItem('shut-down');
-		if (shut_down !== null && shut_down !== undefined && shut_down === 'true') this.shutDown();
+	// Restore the last visit: wallpaper, lock and power state; the boot animation only plays on the first visit
+	useEffect(() => {
+		/* eslint-disable react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR) */
+		const saved = read('bg-image');
+		if (saved) setWallpaperState(saved);
+		if (read('booting_screen') !== null) setBooting(false);
 		else {
-			// Get previous lock screen state
-			const screen_locked = localStorage.getItem('screen-locked');
-			if (screen_locked !== null && screen_locked !== undefined) {
-				this.setState({ screen_locked: screen_locked === 'true' ? true : false });
-			}
+			write('booting_screen', 'false');
+			bootFor2s();
 		}
-	};
+		if (read('shut-down') === 'true') setShutDown(true);
+		else setLocked(read('screen-locked') === 'true');
+		/* eslint-enable react-hooks/set-state-in-effect */
+	}, []);
 
-	lockScreen = () => {
-		// google analytics
+	const lockScreen = () => {
 		trackPageview("/lock-screen", "Lock Screen");
-		trackEvent({
-			category: `Screen Change`,
-			action: `Set Screen to Locked`
-		});
-
-		document.getElementById('status-bar').blur();
-		setTimeout(() => {
-			this.setState({ screen_locked: true });
-		}, 100); // waiting for all windows to close (transition-duration)
-		localStorage.setItem('screen-locked', true);
+		trackEvent({ category: `Screen Change`, action: `Set Screen to Locked` });
+		blurStatusBar();
+		setTimeout(() => setLocked(true), 100);   // waiting for all windows to close (transition-duration)
+		write('screen-locked', 'true');
 	};
 
-	unLockScreen = () => {
+	const unLockScreen = useCallback(() => {
 		trackPageview("/desktop");
+		setLocked(false);
+		write('screen-locked', 'false');
+	}, []);
 
-		window.removeEventListener('pointerdown', this.unLockScreen);
-		window.removeEventListener('keydown', this.unLockScreen);
+	const setWallpaper = useCallback((name: string) => {
+		setWallpaperState(name);
+		write('bg-image', name);
+	}, []);
 
-		this.setState({ screen_locked: false });
-		localStorage.setItem('screen-locked', false);
-	};
-
-	changeBackgroundImage = (img_name) => {
-		this.setState({ bg_image_name: img_name });
-		localStorage.setItem('bg-image', img_name);
-	};
-
-	shutDown = () => {
+	const powerOff = () => {
 		trackPageview("/switch-off");
-
-		trackEvent({
-			category: `Screen Change`,
-			action: `Switched off the Ubuntu`
-		});
-
-		document.getElementById('status-bar').blur();
-		this.setState({ shutDownScreen: true });
-		localStorage.setItem('shut-down', true);
+		trackEvent({ category: `Screen Change`, action: `Switched off the Ubuntu` });
+		blurStatusBar();
+		setShutDown(true);
+		write('shut-down', 'true');
 	};
 
-	turnOn = () => {
+	const turnOn = () => {
 		trackPageview("/desktop");
-
-		this.setState({ shutDownScreen: false, booting_screen: true });
-		this.setTimeOutBootScreen();
-		localStorage.setItem('shut-down', false);
+		setShutDown(false);
+		setBooting(true);
+		bootFor2s();
+		write('shut-down', 'false');
 	};
 
-	render() {
-		return (
-			<div className="w-screen h-screen overflow-hidden" id="monitor-screen">
-				<LockScreen
-					isLocked={this.state.screen_locked}
-					bgImgName={this.state.bg_image_name}
-					unLockScreen={this.unLockScreen}
-				/>
-				<BootingScreen
-					visible={this.state.booting_screen}
-					isShutDown={this.state.shutDownScreen}
-					turnOn={this.turnOn}
-				/>
-				<Navbar lockScreen={this.lockScreen} shutDown={this.shutDown} />
-				<Desktop bg_image_name={this.state.bg_image_name} changeBackgroundImage={this.changeBackgroundImage} />
-			</div>
-		);
-	}
+	return (
+		<div className="w-screen h-screen overflow-hidden" id="monitor-screen">
+			<LockScreen isLocked={locked} bgImgName={wallpaper} unLockScreen={unLockScreen} />
+			<BootingScreen visible={booting} isShutDown={shutDown} turnOn={turnOn} />
+			<Navbar lockScreen={lockScreen} shutDown={powerOff} onOpenSettings={() => desktop.current?.openApp('settings')} />
+			<Desktop ref={desktop} wallpaper={wallpaper} setWallpaper={setWallpaper} />
+		</div>
+	);
 }

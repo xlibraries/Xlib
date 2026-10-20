@@ -69,9 +69,10 @@ export function Resume() {
     };
 
     loadPdf();
+    const renderToken = renderTokenRef;
     return () => {
       mounted = false;
-      renderTokenRef.current++;
+      renderToken.current++;   // stops any page render still in progress
     };
   }, []);
 

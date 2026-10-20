@@ -44,7 +44,8 @@ More detail in `docs/architecture.md` and `apps/web/scripts/README.md`; keep the
 things work.
 
 - `apps.config.ts` – registers every app; `components/shell/` – desktop, windows, dock, top bar, boot and
-  lock screens; `components/apps/*` – apps that live in the site; pure logic lives in `lib/`.
+  lock screens, driven by the `lib/window-manager.ts` reducer; `components/apps/*` – apps that live in the
+  site; pure logic lives in `lib/`. Everything is typed function components; `@ts-nocheck` is a lint error.
 - `content/` – what the site passes to packages (terminal folders and commands, browser bookmarks, Photo Drop
   settings).
 - `pages/api/*` – five-line adapters over `@xlibraries/browser/server` (`checkFrame`, `readArticle`).

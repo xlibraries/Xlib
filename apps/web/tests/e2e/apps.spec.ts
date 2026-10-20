@@ -218,6 +218,53 @@ test.describe('Desktop', () => {
         await expect(page.getByText('Test Folder')).toBeVisible();
     });
 
+    test('desktop folders survive a reload', async ({ page }) => {
+        await openDesktop(page);
+        await openApp(page, 'terminal');
+        await runCommand(page, 'terminal', 'mkdir Mixtapes');
+        await expect(page.locator('#app-new-folder-mixtapes')).toBeVisible();
+        await page.reload();
+        await expect(page.locator('#app-new-folder-mixtapes')).toBeVisible();
+        await expect(page.locator('#app-new-folder-new-folder-mixtapes')).toHaveCount(0);
+    });
+
+    test('minimizes to the dock and restores from it', async ({ page }) => {
+        await openDesktop(page);
+        const window = await openApp(page, 'settings');
+        await window.getByAltText('ubuntu window minimize').click();
+        await expect(window).toBeHidden();
+        await page.locator('#sidebar-settings').click();
+        await expect(window).toBeVisible();
+    });
+
+    test('maximizes and restores a window', async ({ page }) => {
+        await openDesktop(page);
+        const window = await openApp(page, 'settings');
+        const before = (await window.boundingBox())!.width;
+        await window.getByAltText('ubuntu window maximize').click();
+        await expect.poll(async () => (await window.boundingBox())!.width).toBeGreaterThan(before + 50);
+        await window.getByAltText('ubuntu window restore').click();
+        await expect.poll(async () => Math.round((await window.boundingBox())!.width)).toBe(Math.round(before));
+    });
+
+    test('opens Settings from the top bar', async ({ page }) => {
+        await openDesktop(page);
+        await page.locator('#status-bar').click();
+        await page.locator('#open-settings').click();
+        await expect(page.locator('#settings')).toBeVisible();
+    });
+
+    test('app grid search narrows and widens again', async ({ page }) => {
+        await openDesktop(page);
+        await page.getByAltText('Ubuntu view app').click();
+        const search = page.getByPlaceholder('Type to Search');
+        await search.fill('mus');
+        await expect(page.locator('#app-music')).toBeVisible();
+        await expect(page.locator('#app-todoist')).toHaveCount(0);
+        await search.fill('');
+        await expect(page.locator('#app-todoist')).toBeVisible();
+    });
+
     test('opens apps from the app grid', async ({ page }) => {
         await openDesktop(page);
         await page.getByAltText('Ubuntu view app').click();
