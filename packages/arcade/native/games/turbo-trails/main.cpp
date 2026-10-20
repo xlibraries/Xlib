@@ -15,6 +15,7 @@
 #include "physics.h"
 #include "rules.h"
 #include "terrain.h"
+#include "art.h"
 
 #include <algorithm>
 #include <cmath>
@@ -179,22 +180,6 @@ void draw_sky(const Era& e, float w, float h) {
     sgl_end();
 }
 
-void draw_parallax(const Era& e, float w, float h, float horizon_px) {
-    // two layers of soft hills in screen space, scrolling at a fraction of the camera
-    for (int layer = 0; layer < 2; layer++) {
-        const float speed = layer == 0 ? 0.08f : 0.2f, amp = layer == 0 ? h * 0.12f : h * 0.08f, wl = layer == 0 ? 380.0f : 220.0f;
-        const float off = st.cam_x * st.scale * speed;
-        sgl_begin_quads();
-        col(layer == 0 ? e.far_hills : e.near_hills);
-        for (float x = 0; x < w; x += 12) {
-            const float y0 = horizon_px - amp * (0.6f + 0.4f * std::sin((x + off) / wl * 6.2832f) + 0.25f * std::sin((x + off) / (wl * 0.37f) * 6.2832f));
-            const float y1 = horizon_px - amp * (0.6f + 0.4f * std::sin((x + 12 + off) / wl * 6.2832f) + 0.25f * std::sin((x + 12 + off) / (wl * 0.37f) * 6.2832f));
-            sgl_v2f(x, y0); sgl_v2f(x + 12, y1); sgl_v2f(x + 12, h); sgl_v2f(x, h);
-        }
-        sgl_end();
-    }
-}
-
 void draw_ground(const Era& e, float left, float right) {
     const Terrain& t = st.terrain;
     const int i0 = std::max(0, static_cast<int>((left - t.xs.front()) / TERRAIN_STEP) - 1);
@@ -233,42 +218,6 @@ void draw_pickups(const Era& e, float left, float right) {
         disc(tr.x, tr.y + bob, 0.45f, e.accent);
         disc(tr.x, tr.y + bob, 0.2f, { 1, 1, 1 });
     }
-}
-
-void draw_vehicle(const Era& e) {
-    const Pose& p = st.pose;
-    const VehicleSpec& s = st.spec;
-    if (e.wheels_visible) {
-        for (int i = 0; i < 2; i++) {
-            disc(p.wheel_x[i], p.wheel_y[i], s.wheel_r, { 0.12f, 0.1f, 0.1f });
-            disc(p.wheel_x[i], p.wheel_y[i], s.wheel_r * 0.72f, e.accent, 0.9f);
-            sgl_begin_lines();
-            col({ 0.15f, 0.12f, 0.1f });
-            for (int k = 0; k < 6; k++) {
-                const float a = p.wheel_angle[i] + k * 6.2832f / 6;
-                sgl_v2f(p.wheel_x[i], p.wheel_y[i]); sgl_v2f(p.wheel_x[i] + std::cos(a) * s.wheel_r * 0.7f, p.wheel_y[i] + std::sin(a) * s.wheel_r * 0.7f);
-            }
-            sgl_end();
-            disc(p.wheel_x[i], p.wheel_y[i], s.wheel_r * 0.18f, { 0.9f, 0.9f, 0.9f });
-        }
-    } else {
-        // a glowing cushion under the hover vehicle
-        for (int i = 0; i < 2; i++) disc(p.wheel_x[i], p.wheel_y[i] - s.wheel_r * 0.3f, s.wheel_r * (1.1f + 0.2f * std::sin(st.time * 9 + i)), e.accent, 0.25f);
-    }
-    sgl_push_matrix();
-    sgl_translate(p.x, p.y, 0);
-    sgl_rotate(p.angle, 0, 0, 1);
-    const float hw = s.chassis_w / 2, hh = s.chassis_h / 2;
-    sgl_begin_quads();
-    col(e.body); quad(-hw, -hh, hw, hh);
-    col(e.accent); quad(-hw, hh - 0.08f, hw, hh);                     // trim line
-    col({ 0.85f, 0.95f, 1.0f }, 0.85f); quad(-hw * 0.1f, hh, hw * 0.55f, hh + hh * 1.2f);   // cabin / canopy
-    col(e.body); quad(hw * 0.55f, hh, hw * 0.7f, hh + hh * 0.5f);
-    sgl_end();
-    // a little flag at the back for the chariot, a headlight for everyone else
-    if (st.era_index == 0) { sgl_begin_triangles(); col(e.accent); sgl_v2f(-hw, hh); sgl_v2f(-hw, hh + 0.9f); sgl_v2f(-hw + 0.6f, hh + 0.6f); sgl_end(); }
-    else disc(hw, 0, hh * 0.35f, { 1.0f, 0.95f, 0.7f });
-    sgl_pop_matrix();
 }
 
 void draw_particles() {
@@ -370,7 +319,7 @@ void frame() {
 
     // camera: lead the vehicle, keep the ground in the lower half
     const float w = sapp_widthf(), h = sapp_heightf();
-    st.scale = std::min(h / 13.0f, w / 24.0f);
+    st.scale = std::min(h / 11.5f, w / 21.0f);
     const float target_x = st.pose.x + 3.5f + std::min(4.0f, speed * 0.25f);
     const float target_y = std::max(st.pose.y, st.terrain.height(st.pose.x)) + 2.0f;
     st.cam_x += (target_x - st.cam_x) * std::min(1.0f, dt * 5.0f);
@@ -382,15 +331,16 @@ void frame() {
     sgl_matrix_mode_projection();
     sgl_ortho(0, w, h, 0, -1, 1);
     draw_sky(e, w, h);
-    draw_parallax(e, w, h, h * 0.62f);
+    art::draw_backdrop(st.era_index, e, { w, h, h * 0.62f, st.cam_x, st.scale, st.time });
     sgl_matrix_mode_modelview();
     sgl_load_identity();
     sgl_translate(w / 2, h / 2, 0);
     sgl_scale(st.scale, -st.scale, 1);           // y up, metres
     sgl_translate(-st.cam_x, -st.cam_y, 0);
     draw_ground(e, left, right);
+    art::draw_landmarks(st.era_index, e, st.terrain, left, right, st.time);
     draw_pickups(e, left, right);
-    draw_vehicle(e);
+    art::draw_vehicle(st.era_index, e, st.pose, st.spec, st.time, speed);
     draw_particles();
     draw_hud(e, w, h);
 

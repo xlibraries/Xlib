@@ -608,6 +608,32 @@ test.describe('Arcade', () => {
         expect(after.run.distance).toBeLessThan(60);
     });
 
+    test('Turbo Trails: unlocked eras switch the world, locked ones stay locked, the shop sells upgrades', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2', 'arcade:turbo-trails:progress': 'v1;coins=650;unlocked=3' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByAltText('ubuntu window maximize').click();
+        await arcade.getByRole('button', { name: 'Play Turbo Trails' }).click();
+        const game = page.locator('[data-game="turbo-trails"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 25_000 }).toBeGreaterThan(10);
+        const panel = page.locator('[data-coins]');
+        await expect(panel).toHaveAttribute('data-coins', '650');
+        await arcade.getByRole('button', { name: /1769 · Steam/ }).click();
+        await expect(panel).toHaveAttribute('data-era', '1');
+        await expect(arcade.getByText('Shropshire, England')).toBeVisible();
+        await expect(arcade.getByRole('button', { name: /1885 · Motorwagen/ })).toBeDisabled();
+        // buy: Engine tier 1 costs 300, tier 2 costs 400 (can't afford after the first)
+        const engine = arcade.getByRole('button', { name: /^Engine/ });
+        await engine.click();
+        await expect(panel).toHaveAttribute('data-coins', '350');
+        await expect(engine).toContainText('●○○○ $400');
+        await expect(engine).toBeDisabled();
+        // it sticks: reload, the upgrade and coins are still there
+        await page.reload();
+        await openApp(page, 'arcade');
+        await page.getByRole('button', { name: 'Play Turbo Trails' }).click();
+        await expect(page.locator('[data-coins]')).toHaveAttribute('data-coins', '350', { timeout: 25_000 });
+    });
+
     test("a running game doesn't steal keys from the terminal", async ({ page }) => {
         await play(page, 'webgl2');
         await openApp(page, 'terminal');
