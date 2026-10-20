@@ -447,3 +447,46 @@ test.describe('Admin (/xlib)', () => {
     });
 });
 
+test.describe('Arcade', () => {
+    const framesOf = (page: import('@playwright/test').Page) => page.locator('[data-game="hello"]').evaluate(el => Number((el as HTMLElement).dataset.frames));
+
+    async function play(page: import('@playwright/test').Page, backend: 'webgl2' | 'webgpu') {
+        await openDesktop(page, { 'arcade-backend': backend });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play Hello Cube' }).click();
+        await expect.poll(() => framesOf(page), { timeout: 20_000 }).toBeGreaterThan(10);
+        await expect(page.locator('[data-game="hello"]')).toHaveAttribute('data-backend', backend);
+        return arcade;
+    }
+
+    test('runs a sokol game on WebGL2, pauses when minimized, and goes back to the launcher', async ({ page }) => {
+        const arcade = await play(page, 'webgl2');
+        await expect(arcade.getByText('WebGL2 ·')).toBeVisible();
+
+        await arcade.getByAltText('ubuntu window minimize').click();
+        await page.waitForTimeout(1500);   // the page notices within 400 ms
+        const paused = await framesOf(page);
+        await page.waitForTimeout(1500);
+        expect(await framesOf(page)).toBeLessThanOrEqual(paused + 30);   // at most one stats report in flight
+        await page.locator('#sidebar-arcade').click();
+        await expect.poll(() => framesOf(page), { timeout: 10_000 }).toBeGreaterThan(paused + 30);
+
+        await arcade.getByRole('button', { name: '← Games' }).click();
+        await expect(arcade.getByRole('button', { name: 'Play Hello Cube' })).toBeVisible();
+    });
+
+    test('runs on WebGPU where the browser has an adapter', async ({ page }) => {
+        await page.goto('/');
+        const hasAdapter = await page.evaluate(async () => !!((navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu && await (navigator as unknown as { gpu: { requestAdapter(): Promise<unknown> } }).gpu.requestAdapter()));
+        test.skip(!hasAdapter, 'no WebGPU adapter in this browser');
+        await play(page, 'webgpu');
+    });
+
+    test("a running game doesn't steal keys from the terminal", async ({ page }) => {
+        await play(page, 'webgl2');
+        await openApp(page, 'terminal');
+        await runCommand(page, 'terminal', 'echo typing still works');
+        await expect(page.locator('#terminal')).toContainText('typing still works');
+    });
+});
+

@@ -88,6 +88,17 @@ folders the explorer shows (`lib/file-tree.ts` resolves paths). The UI is `compo
 `Explorer`, the `SimplifiedView` and the `Resume` viewer. The resume preview renders `public/files/Aman-Agrawal-Resume.pdf` with
 pdf.js from `public/vendor/`, loaded as a native module (bundling pdf.js through Next's dev server crashes).
 
+## Arcade (`packages/arcade`)
+
+Games are C++20 on [sokol](https://github.com/floooh/sokol), compiled by Emscripten twice, for WebGPU
+(`SOKOL_WGPU`, emdawnwebgpu) and WebGL2 (`SOKOL_GLES3`); shaders are written once and cross-compiled by
+`sokol-shdc`. The compiled `dist/` is committed (CI rebuilds and diffs it) and copied to `/arcade/` by
+`scripts/vendor.mjs`. `GameView` picks the backend (WebGPU if an adapter exists), loads the matching module with
+its own canvas, and drives the runtime bridge (`native/runtime/xl.h`): focus (keys reach a game only while its
+canvas is focused; sokol's page-wide key listeners are set to let everything through), pause while the window is
+hidden, and `sapp_quit()` on close. The security policy allows `'wasm-unsafe-eval'` for this. Plan:
+[arcade-plan.md](arcade-plan.md).
+
 ## Photo Drop (`packages/photo-drop`)
 
 A standalone page (served at `/drop/`, copied from the package's `web/` folder by `scripts/vendor.mjs`) for friends to upload photos and videos into Aman's Google Photos.

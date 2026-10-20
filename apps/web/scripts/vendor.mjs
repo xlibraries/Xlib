@@ -1,6 +1,7 @@
 // Copies files the site serves but doesn't own into public/ (both folders are gitignored):
 // - public/vendor/: browser libraries from node_modules, so the site serves them itself (no CDN, and the
 //   security policy only has to allow 'self'). Versions come from package.json via the lockfile.
+// - public/arcade/: the Arcade's compiled games (@xlibraries/arcade dist/).
 // - public/drop/: the Photo Drop page from @xlibraries/photo-drop, plus config.js made from this site's settings
 //   (content/photo-drop.json).
 // Runs on install (prepare), before dev and before every build.
@@ -20,7 +21,7 @@ function boundaryData() {
 }
 
 // Folders under public/ that this script owns (emptied and refilled on every run)
-export const MANAGED = ['vendor', 'drop'];
+export const MANAGED = ['vendor', 'drop', 'arcade'];
 
 // [source, destination under public/]
 export function vendorFiles() {
@@ -35,6 +36,7 @@ export function vendorFiles() {
         [join(pdfjs, 'legacy/build/pdf.worker.min.mjs'), 'vendor/pdfjs/pdf.worker.min.mjs'],
         [boundaryData(), 'vendor/india-boundary/india_boundary_corrections.pmtiles'],
         [drop, 'drop'],
+        [join(pkgDir('@xlibraries/arcade'), 'dist'), 'arcade'],
     ];
 }
 

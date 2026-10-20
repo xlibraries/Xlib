@@ -1,0 +1,39 @@
+{
+  "name": "@xlibraries/arcade",
+  "version": "0.1.0",
+  "description": "Real-time C++/sokol games and graphics for the Xlib desktop, on WebGPU or WebGL2",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "native",
+    "third_party",
+    "scripts"
+  ],
+  "scripts": {
+    "build:native": "node scripts/build-native.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "eslint . && tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "@xlibraries/app-sdk": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.3.0",
+    "react": "^19.2.9",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  }
+}

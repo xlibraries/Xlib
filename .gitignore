@@ -64,3 +64,8 @@ Timeline*.json
 # clasp writes this while deploying Photo Drop
 packages/photo-drop/backend/.clasp.json
 packages/photo-drop/backend/config.gs
+
+# arcade build tools and intermediate files
+packages/arcade/.tools/
+packages/arcade/build/
+apps/web/public/arcade/

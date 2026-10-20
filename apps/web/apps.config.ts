@@ -29,6 +29,7 @@ const displayMusic = lazyApp(async () => {
 const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
 const displayTrash = lazyApp(() => import('./components/apps/trash'));
 const displayGedit = lazyApp(() => import('./components/apps/gedit'));
+const displayArcade = lazyApp(() => import('@xlibraries/arcade').then(m => ({ default: m.createArcade({ baseUrl: '/arcade' }) })));
 
 export interface AppConfig {
     id: string;
@@ -130,6 +131,15 @@ const apps: AppConfig[] = [
         favourite: false,
         desktop_shortcut: true,
         screen: displayTrash,
+    },
+    {
+        id: "arcade",
+        title: "Arcade",
+        icon: './themes/Yaru/apps/arcade.svg',
+        disabled: false,
+        favourite: true,
+        desktop_shortcut: true,
+        screen: displayArcade,
     },
     {
         id: "gedit",
