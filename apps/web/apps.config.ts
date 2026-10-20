@@ -8,15 +8,24 @@ const AppLoading = () => createElement('div', { className: 'w-full h-full flex i
 const lazyApp = (load: () => Promise<{ default: ComponentType<AppProps> }>): ComponentType<AppProps> =>
     dynamic(load, { ssr: false, loading: AppLoading });
 
-const displayTerminal = lazyApp(() => import('./components/apps/terminal'));
+const displayTerminal = lazyApp(async () => {
+    const [{ createTerminal }, { terminal }] = await Promise.all([import('@xlibraries/terminal'), import('./content/terminal')]);
+    return { default: createTerminal(terminal) };
+});
 const displaySettings = lazyApp(() => import('./components/apps/settings'));
 
-const displayBrave = lazyApp(() => import('./components/apps/brave'));
-const displayTerminalCalc = lazyApp(() => import('./components/apps/calc'));
+const displayBrave = lazyApp(async () => {
+    const [{ createBrowser }, { browser }] = await Promise.all([import('@xlibraries/browser'), import('./content/browser')]);
+    return { default: createBrowser(browser) };
+});
+const displayTerminalCalc = lazyApp(() => import('@xlibraries/terminal').then(m => ({ default: m.Calc })));
 const displayAboutAman = lazyApp(() => import('./components/apps/aman'));
 const displaySideQuests = lazyApp(() => import('./components/apps/side-quests'));
 const displayVsCode = lazyApp(() => import('./components/apps/vscode'));
-const displayMusic = lazyApp(() => import('./components/apps/music'));
+const displayMusic = lazyApp(async () => {
+    const [{ createMusic }, { default: playlists }] = await Promise.all([import('@xlibraries/music'), import('./data/music-playlists.json')]);
+    return { default: createMusic({ playlists, snapshotUrl: './music/snapshot.json' }) };
+});
 const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
 const displayTrash = lazyApp(() => import('./components/apps/trash'));
 const displayGedit = lazyApp(() => import('./components/apps/gedit'));

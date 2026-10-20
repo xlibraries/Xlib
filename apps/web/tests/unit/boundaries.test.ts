@@ -63,6 +63,12 @@ describe('package boundaries', () => {
         });
     }
 
+    it("packages don't use the site's Tailwind theme tokens (ub-*, ubt-*)", () => {
+        const problems = packageDirs.flatMap((dir) => sourceFiles(join(PACKAGES, dir, 'src')).flatMap((file) =>
+            [...readFileSync(file, 'utf8').matchAll(/\b(?:bg|text|border|from|to|via|ring|fill|stroke)-ubt?-[\w-]+/g)].map((m) => `${relative(ROOT, file)}: ${m[0]}`)));
+        expect(problems).toEqual([]);
+    });
+
     it('the site imports packages only through their entry points', () => {
         const problems: string[] = [];
         for (const file of sourceFiles(SITE)) {

@@ -6,29 +6,30 @@ so the site never calls these services at runtime. Each script exports its logic
 
 | Script | Writes | Runs |
 | --- | --- | --- |
-| `vendor.mjs` | `public/vendor/` (gitignored) | Automatically: on install, `pnpm dev`, `pnpm build`, `pnpm verify` |
-| `update-music-snapshot.mjs` | `public/music/snapshot.json` | Automatically before `pnpm build` (so on every Vercel deploy) |
+| `vendor.mjs` | `public/vendor/`, `public/drop/` (gitignored) | Automatically: on install, `pnpm dev`, `pnpm build`, `pnpm verify` |
+| `xlib-music-snapshot` (from `@xlibraries/music`) | `public/music/snapshot.json` | Automatically before `pnpm build` (so on every Vercel deploy) |
 | `side-quests/build_road_trips.mjs` | `public/side-quests/road-trips.json` | By hand, after editing the road trips |
 | `side-quests/build_travel_data.py` | `public/side-quests/travel.json` | By hand, with a new Google Maps Timeline export |
 
 ## vendor.mjs
 
-Copies the browser libraries the apps load at runtime from `node_modules` into `public/vendor/`:
+Copies the Photo Drop page from `@xlibraries/photo-drop` into `public/drop/`, with this site's settings
+(`content/photo-drop.config.js`) as `config.js`. It also copies the browser libraries the apps load at runtime
+from `node_modules` into `public/vendor/`:
 Leaflet (Side Quests map), pdf.js (resume preview) and the India boundary data used by
 `@india-boundary-corrector/leaflet-layer`. The site serves them itself, so there are no CDN requests and the
 Content Security Policy only has to allow `'self'`. Versions follow `package.json`; to upgrade one, bump it
 with `pnpm add` and the next install or build copies the new files.
 
-## update-music-snapshot.mjs
+## xlib-music-snapshot
 
-Fetches every playlist in [`data/music-playlists.json`](../data/music-playlists.json) from public Invidious
-servers and saves the track lists, so the Music app shows them instantly instead of waiting on a slow free
-server. A playlist that fails keeps its previous tracks, and the whole refresh stops after 90 seconds so a
-slow server can't hold up a deploy. To add a playlist, add its YouTube playlist id and a title to the data
-file.
+The snapshot CLI ships with `@xlibraries/music` (see its README). It fetches every playlist in
+[`data/music-playlists.json`](../data/music-playlists.json) from public Invidious servers and saves the track
+lists, so the Music app shows them instantly. A playlist that fails keeps its previous tracks, and the whole
+refresh stops after 90 seconds. To add a playlist, add its YouTube playlist id and a title to the data file.
 
 ```sh
-node scripts/update-music-snapshot.mjs
+pnpm exec xlib-music-snapshot --playlists data/music-playlists.json --out public/music/snapshot.json
 ```
 
 ## side-quests/build_road_trips.mjs
