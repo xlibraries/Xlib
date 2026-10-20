@@ -496,6 +496,11 @@ test.describe('Arcade', () => {
         const before = await frames();
         await expect.poll(frames).toBeGreaterThan(before + 20);
         await expect(game.locator('canvas')).toBeFocused();
+        // the click also unlocked audio: the AudioWorklet is up and the game has pushed samples to it
+        type Audio = { xlGame: { xlAudio?: { ready: boolean; written: number; ctx: { state: string } } } };
+        await expect.poll(() => game.evaluate(el => (el as unknown as Audio).xlGame.xlAudio?.ready)).toBe(true);
+        await expect.poll(() => game.evaluate(el => (el as unknown as Audio).xlGame.xlAudio?.ctx.state)).toBe('running');
+        await expect.poll(() => game.evaluate(el => (el as unknown as Audio).xlGame.xlAudio?.written)).toBeGreaterThan(0);
     });
 
     test('the Breakout paddle stays where the keys left it', async ({ page }) => {
