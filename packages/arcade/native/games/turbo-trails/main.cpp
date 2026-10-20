@@ -35,6 +35,13 @@ constexpr float DT = 1.0f / 60.0f;
 struct Voice { float freq, freq_end, t, dur, vol; int wave; };
 std::vector<Voice> voices;
 float engine_level = 0, engine_pitch = 80;
+// per era: base pitch, how much speed raises it, square/triangle balance (0 = soft hum, 1 = rough), a rhythmic chuff
+struct EngineVoice { float base, per_speed, rough, chuff; };
+const EngineVoice ENGINES[] = {
+    { 55, 4, 0.9f, 0 }, { 32, 2, 1.0f, 2.5f }, { 48, 3, 0.8f, 0 }, { 70, 7, 0.9f, 0.8f }, { 90, 10, 1.0f, 0 },
+    { 110, 12, 0.9f, 0 }, { 60, 6, 1.0f, 0 }, { 95, 11, 0.7f, 0 }, { 160, 9, 0.1f, 0 }, { 240, 14, 0.0f, 0 },
+};
+EngineVoice engine = ENGINES[0];
 uint32_t noise_seed = 777;
 
 void play(float f0, float f1, float dur, float vol, int wave) { if (voices.size() < 16) voices.push_back({ f0, f1, 0, dur, vol, wave }); }
@@ -46,9 +53,12 @@ void mix_audio() {
     static float engine_phase = 0;
     buf.assign(frames, 0.0f);
     const float rate = static_cast<float>(saudio_sample_rate());
+    static float chuff_phase = 0;
     for (int i = 0; i < frames; i++) {
         engine_phase = std::fmod(engine_phase + engine_pitch / rate, 1.0f);
-        const float s = (engine_phase < 0.5f ? 1.0f : -1.0f) * 0.4f + (4.0f * std::fabs(engine_phase - 0.5f) - 1.0f) * 0.6f;
+        const float square = engine_phase < 0.5f ? 1.0f : -1.0f, triangle = 4.0f * std::fabs(engine_phase - 0.5f) - 1.0f;
+        float s = square * engine.rough * 0.4f + triangle * (1.0f - engine.rough * 0.4f);
+        if (engine.chuff > 0) { chuff_phase = std::fmod(chuff_phase + engine.chuff / rate, 1.0f); s *= 0.4f + 0.6f * (chuff_phase < 0.3f ? 1.0f : 0.2f); }
         buf[i] += s * engine_level * 0.08f;
     }
     for (Voice& v : voices) {
@@ -97,6 +107,7 @@ void start_run() {
     const Era& e = era(st.era_index);
     st.terrain = build_terrain(e.terrain, static_cast<uint32_t>(st.era_index * 1000 + st.attempt), e.landmark_count);
     st.spec = apply_upgrades(e.spec, st.progress.upgrades[st.era_index]);
+    engine = ENGINES[st.era_index % 10];
     st.world = World::create();
     st.world->set_terrain(st.terrain.xs, st.terrain.ys);
     st.world->spawn(st.spec, 0, st.terrain.height(0) + st.spec.wheel_r - st.spec.wheel_y + 0.4f);
@@ -312,7 +323,7 @@ void frame() {
     // engine sound and dust
     const float speed = std::fabs(st.pose.vx);
     engine_level = engine_level * 0.9f + (motor_on && has_fuel && throttle != 0 && !ended ? 1.0f : 0.15f) * 0.1f;
-    engine_pitch = 60.0f + speed * 9.0f + std::fabs(throttle) * 30.0f;
+    engine_pitch = engine.base + speed * engine.per_speed + std::fabs(throttle) * engine.base * 0.4f;
     if (grounded && throttle != 0 && !ended && (std::rand() % 3) == 0) burst(st.pose.wheel_x[0], st.pose.wheel_y[0] - 0.2f, e.ground_top, 1, 1.5f);
     for (Particle& p : st.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 6 * dt; p.life -= dt; }
     st.particles.erase(std::remove_if(st.particles.begin(), st.particles.end(), [](const Particle& p) { return p.life <= 0; }), st.particles.end());

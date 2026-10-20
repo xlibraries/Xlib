@@ -39,13 +39,27 @@ const UPGRADES = ['Engine', 'Suspension', 'Tyres', 'Chassis'];
 const PRICES = [300, 400, 550, 750];
 
 const MUSIC_KEY = 'arcade:turbo-trails:music';
+const NAME_KEY = 'arcade:nickname';
+const POSTED_KEY = (era: number) => `arcade:turbo-trails:posted:${era}`;
+const ENDED = new Set([2, 3, 4]);   // RunState::OutOfFuel, Crashed, Finished
 
-export function TurboTrailsPanel({ instance, baseUrl }: PanelProps) {
+interface Entry { name: string; score: number }
+
+const storage = {
+    get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
+    set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } },
+};
+
+export function TurboTrailsPanel({ instance, baseUrl, leaderboardUrl }: PanelProps) {
     const game = instance as unknown as GameInstance;
     const [state, setState] = useState<State | null>(null);
     const [music, setMusic] = useState(() => { try { return localStorage.getItem(MUSIC_KEY) !== 'off'; } catch { return true; } });
     const audio = useRef<HTMLAudioElement | null>(null);
     const lastVersion = useRef(0);
+    const [nickname, setNickname] = useState(() => storage.get(NAME_KEY) ?? '');
+    const [board, setBoard] = useState<Entry[] | null>(null);
+    const [boardNote, setBoardNote] = useState<string | null>(null);
+    const posting = useRef(false);
 
     const read = useCallback(() => {
         const ptr = game._tt_state_json();
@@ -78,6 +92,38 @@ export function TurboTrailsPanel({ instance, baseUrl }: PanelProps) {
         document.addEventListener('pointerdown', start, { once: true });
         return () => { document.removeEventListener('pointerdown', start); el.pause(); };
     }, [music, track, baseUrl]);
+
+    // Leaderboard: read the era's board, and post a finished run's distance when it beats what this device posted
+    const loadBoard = useCallback(async (eraIndex: number) => {
+        if (!leaderboardUrl) return;
+        try {
+            const res = await fetch(`${leaderboardUrl}?game=turbo-trails&board=${eraIndex}`, { cache: 'no-store' });
+            const data = await res.json();
+            setBoard(res.ok ? data.entries : []);
+        } catch {
+            setBoard([]);
+        }
+    }, [leaderboardUrl]);
+
+    useEffect(() => { loadBoard(era); }, [era, loadBoard]);
+
+    useEffect(() => {
+        if (!leaderboardUrl || !state || !ENDED.has(state.run.state) || posting.current) return;
+        const distance = state.run.distance;
+        const posted = Number(storage.get(POSTED_KEY(state.era)) || 0);
+        if (distance <= posted || !nickname) return;
+        posting.current = true;
+        fetch(leaderboardUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ game: 'turbo-trails', board: state.era, name: nickname, score: distance }) })
+            .then(async (res) => {
+                const data = await res.json();
+                if (!res.ok) { setBoardNote(data.error || "Couldn't post the score."); return; }
+                storage.set(POSTED_KEY(state.era), String(distance));
+                setBoard(data.entries);
+                setBoardNote(data.rank ? `You're #${data.rank} with ${distance} m` : `${distance} m posted`);
+            })
+            .catch(() => setBoardNote("Couldn't reach the leaderboard."))
+            .finally(() => { posting.current = false; });
+    }, [state, nickname, leaderboardUrl]);
 
     const toggleMusic = () => {
         setMusic(m => { try { localStorage.setItem(MUSIC_KEY, m ? 'off' : 'on'); } catch { /* storage blocked */ } return !m; });
@@ -118,6 +164,30 @@ export function TurboTrailsPanel({ instance, baseUrl }: PanelProps) {
                     })}
                 </div>
             </div>
+
+            {leaderboardUrl && (
+                <div className="p-3 border-b border-white border-opacity-10" data-testid="leaderboard">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="uppercase tracking-wider text-gray-400">Leaderboard · {info.name}</div>
+                        <input
+                            value={nickname}
+                            onChange={(e) => { const v = e.target.value.slice(0, 16); setNickname(v); storage.set(NAME_KEY, v); }}
+                            placeholder="Nickname to post"
+                            aria-label="Nickname"
+                            className="w-32 px-2 py-0.5 rounded bg-black bg-opacity-40 border border-white border-opacity-20 outline-none focus:border-yellow-300"
+                        />
+                    </div>
+                    {boardNote && <div role="status" className="text-yellow-300 mb-1">{boardNote}</div>}
+                    {board === null ? <div className="text-gray-500">Loading…</div>
+                        : board.length === 0 ? <div className="text-gray-500">No runs posted yet. {nickname ? 'Finish a run to post yours.' : 'Add a nickname to post yours.'}</div>
+                        : board.slice(0, 10).map((e, i) => (
+                            <div key={e.name} data-rank={i + 1} className={'flex justify-between py-0.5 ' + (e.name === nickname ? 'text-yellow-300 font-bold' : '')}>
+                                <span><span className="inline-block w-5 text-gray-500">{i + 1}.</span>{e.name}</span>
+                                <span>{e.score} m</span>
+                            </div>
+                        ))}
+                </div>
+            )}
 
             <div className="p-3">
                 <div className="uppercase tracking-wider text-gray-400 mb-2">Eras</div>

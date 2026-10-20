@@ -19,11 +19,12 @@ type Status = { kind: 'loading' } | { kind: 'running'; backend: Backend } | { ki
 export interface GameViewProps {
     game: GameInfo;
     baseUrl: string;
+    leaderboardUrl?: string;
     choice: BackendChoice;
     onBack: () => void;
 }
 
-export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
+export function GameView({ game, baseUrl, leaderboardUrl, choice, onBack }: GameViewProps) {
     const canvasId = 'arcade-' + useId().replace(/[^a-zA-Z0-9]/g, '');
     const canvas = useRef<HTMLCanvasElement>(null);
     const frame = useRef<HTMLDivElement>(null);
@@ -140,7 +141,7 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
             <div className="flex-grow min-h-0 md:min-w-0 h-1/2 md:h-full">{view}</div>
             <div className="h-1/2 md:h-full md:w-2/5 md:max-w-md border-t md:border-t-0 md:border-l border-black">
                 {running && status.kind === 'running'
-                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} baseUrl={baseUrl} /></Suspense>
+                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} baseUrl={baseUrl} leaderboardUrl={leaderboardUrl} /></Suspense>
                     : <div className="h-full" style={{ background: '#16121f' }} />}
             </div>
         </div>

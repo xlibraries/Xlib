@@ -10,6 +10,10 @@ export interface Store {
     expire(key: string, seconds: number): Promise<void>;
     get(key: string): Promise<string | null>;
     set(key: string, value: string): Promise<void>;
+    /** Sorted set: records `score` for `member`; with onlyIfGreater, only when it beats the existing score. */
+    zadd(key: string, score: number, member: string, onlyIfGreater?: boolean): Promise<void>;
+    /** The highest-scoring members, best first. */
+    ztop(key: string, count: number): Promise<{ member: string; score: number }[]>;
 }
 
 /** Upstash Redis over its REST API (no SDK): https://upstash.com/docs/redis/features/restapi */
@@ -38,6 +42,13 @@ export function upstashStore({ url, token, fetch: fetchImpl = (input, init) => f
         async expire(key, seconds) { await call('EXPIRE', key, seconds); },
         async get(key) { const v = await call('GET', key); return v == null ? null : String(v); },
         async set(key, value) { await call('SET', key, value); },
+        async zadd(key, score, member, onlyIfGreater) { await call('ZADD', key, ...(onlyIfGreater ? ['GT'] : []), score, member); },
+        async ztop(key, count) {
+            const flat = (await call('ZREVRANGE', key, 0, count - 1, 'WITHSCORES')) as string[] | null;
+            const out: { member: string; score: number }[] = [];
+            for (let i = 0; flat && i < flat.length; i += 2) out.push({ member: flat[i], score: Number(flat[i + 1]) });
+            return out;
+        },
     };
 }
 
@@ -47,6 +58,7 @@ export function memoryStore(): Store {
     const sets = new Map<string, Set<string>>();
     const counters = new Map<string, number>();
     const strings = new Map<string, string>();
+    const sorted = new Map<string, Map<string, number>>();
     return {
         async hincrby(key, field, by) {
             const h = hashes.get(key) ?? {};
@@ -64,5 +76,14 @@ export function memoryStore(): Store {
         async expire() { /* no-op */ },
         async get(key) { return strings.get(key) ?? null; },
         async set(key, value) { strings.set(key, value); },
+        async zadd(key, score, member, onlyIfGreater) {
+            const set = sorted.get(key) ?? new Map<string, number>();
+            if (!onlyIfGreater || (set.get(member) ?? -Infinity) < score) set.set(member, score);
+            sorted.set(key, set);
+        },
+        async ztop(key, count) {
+            return [...(sorted.get(key) ?? new Map<string, number>()).entries()].map(([member, score]) => ({ member, score }))
+                .sort((a, b) => b.score - a.score || a.member.localeCompare(b.member)).slice(0, count);
+        },
     };
 }
