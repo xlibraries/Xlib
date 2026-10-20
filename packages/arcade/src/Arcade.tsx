@@ -10,6 +10,8 @@ export interface ArcadeConfig {
     /** Where dist/ is served, e.g. "/arcade" */
     baseUrl: string;
     games?: GameInfo[];
+    /** The site's leaderboard endpoint, if it has one */
+    leaderboardUrl?: string;
 }
 
 const CHOICES: { id: BackendChoice; label: string }[] = [
@@ -27,7 +29,7 @@ function savedChoice(): BackendChoice {
     }
 }
 
-export function createArcade({ baseUrl, games = GAMES }: ArcadeConfig): ComponentType<AppProps> {
+export function createArcade({ baseUrl, games = GAMES, leaderboardUrl }: ArcadeConfig): ComponentType<AppProps> {
     return function Arcade() {
         const [playing, setPlaying] = useState<GameInfo | null>(null);
         const [choice, setChoice] = useState<BackendChoice>(savedChoice);
@@ -37,7 +39,7 @@ export function createArcade({ baseUrl, games = GAMES }: ArcadeConfig): Componen
             try { localStorage.setItem('arcade-backend', next); } catch { /* storage blocked */ }
         };
 
-        if (playing) return <GameView game={playing} baseUrl={baseUrl} choice={choice} onBack={() => setPlaying(null)} />;
+        if (playing) return <GameView game={playing} baseUrl={baseUrl} leaderboardUrl={leaderboardUrl} choice={choice} onBack={() => setPlaying(null)} />;
 
         return (
             <div className="h-full w-full overflow-y-auto p-4 text-white" style={{ background: 'radial-gradient(ellipse at top, #2b1f4f, #120d22 70%)' }}>
