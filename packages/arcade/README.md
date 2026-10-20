@@ -62,7 +62,9 @@ A Hill Climb Racing–style drive through ten eras of transport (`native/games/t
 era's road from a seed; `rules.cpp` holds fuel, coins, flips, unlocks and the shop; `eras.cpp` is the data for
 the ten eras. The page panel (`src/turbo-trails/Panel.tsx`) shows the story, the shop and the era list, and plays
 the era's music (your own Chariots recordings, served from `dist/turbo-trails/`). `art.h` draws each era's backdrop,
-landmark silhouettes and vehicle with sokol_gl. Progress is saved on the device
+landmark silhouettes and vehicle with sokol_gl. With `createArcade({ leaderboardUrl })`, the panel shows a global board
+per era and posts a finished run's distance under the visitor's nickname when it beats what that device posted
+(`GET ?game&board` → `{ entries }`, `POST { game, board, name, score }` → `{ entries, rank }`). Progress is saved on the device
 (`arcade:turbo-trails:progress`).
 
 ## Side panels

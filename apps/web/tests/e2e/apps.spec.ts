@@ -634,6 +634,27 @@ test.describe('Arcade', () => {
         await expect(page.locator('[data-coins]')).toHaveAttribute('data-coins', '350', { timeout: 25_000 });
     });
 
+    test('Turbo Trails: the global leaderboard shows posted runs and highlights your nickname', async ({ page }) => {
+        // two runs already on the Chariots board (the test server keeps them in memory)
+        for (const [name, score] of [['Asha', 820], ['Ravi', 640]] as const) {
+            const res = await page.request.post('/api/arcade/leaderboard', { data: { game: 'turbo-trails', board: 0, name, score }, headers: { origin: 'http://localhost:3100' } });
+            expect(res.ok()).toBe(true);
+        }
+        await openDesktop(page, { 'arcade-backend': 'webgl2', 'arcade:nickname': 'Ravi' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByAltText('ubuntu window maximize').click();
+        await arcade.getByRole('button', { name: 'Play Turbo Trails' }).click();
+        const board = arcade.getByTestId('leaderboard');
+        await expect(board).toContainText('1.Asha820 m', { timeout: 25_000 });
+        await expect(board.locator('[data-rank="2"]')).toContainText('Ravi');
+        await expect(board.locator('[data-rank="2"]')).toHaveClass(/text-yellow-300/);
+        await expect(board.locator('[data-rank="1"]')).not.toHaveClass(/text-yellow-300/);
+        await expect(board.getByLabel('Nickname')).toHaveValue('Ravi');
+        // posting is validated server-side
+        const bad = await page.request.post('/api/arcade/leaderboard', { data: { game: 'turbo-trails', board: 0, name: 'X', score: 99999 }, headers: { origin: 'http://localhost:3100' } });
+        expect(bad.status()).toBe(400);
+    });
+
     test("a running game doesn't steal keys from the terminal", async ({ page }) => {
         await play(page, 'webgl2');
         await openApp(page, 'terminal');
