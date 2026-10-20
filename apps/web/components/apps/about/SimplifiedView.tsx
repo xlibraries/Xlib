@@ -29,7 +29,7 @@ export function SimplifiedView({ onExplorer }: { onExplorer(): void }) {
 
   const show = (id: string) => {
     try { localStorage.setItem("about-section", id); } catch { /* storage blocked */ }
-    trackPageview(`/${id}`, "Custom Title");
+    trackPageview(`/about/${id}`);
     setActive(id);
   };
 

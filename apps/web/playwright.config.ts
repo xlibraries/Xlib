@@ -19,5 +19,11 @@ export default defineConfig({
         url: 'http://localhost:3100',
         reuseExistingServer: !process.env.CI,
         timeout: 60_000,
+        // A test admin passcode and an in-memory store: e2e runs never touch the real ones in .env.local
+        env: {
+            ADMIN_PASSCODE: 'e2e-admin-passcode',
+            ADMIN_SESSION_SECRET: 'e2e-session-secret-0123456789abcdef0123456789',
+            XLIB_MEMORY_STORE: '1',
+        },
     },
 });

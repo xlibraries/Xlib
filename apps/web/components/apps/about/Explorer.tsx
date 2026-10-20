@@ -65,7 +65,7 @@ export function Explorer({ onSimplify }: { onSimplify(): void }) {
   const show = (next: string[]) => {
     setPath(next);
     try { localStorage.setItem("about-explorer-path", JSON.stringify(next)); } catch { /* storage blocked */ }
-    trackPageview("/about/" + next.join("/"), "About Explorer");
+    trackPageview("/about/" + next.join("/"));
   };
 
   const navigate = (next: string[]) => {

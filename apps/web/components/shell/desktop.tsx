@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState, type MouseEvent as ReactMouseEvent, type Ref } from 'react';
 import type { Host } from '@xlibraries/app-sdk';
 import apps, { type AppConfig } from '../../apps.config';
-import { trackEvent, trackPageview } from '../../lib/analytics';
+import { trackEvent } from '../../lib/analytics';
 import { emptyWindows, folderId, recordOpen, windowReducer } from '../../lib/window-manager';
 import DefaultMenu from '../context-menus/default';
 import DesktopMenu from '../context-menus/desktop-menu';
@@ -14,6 +14,8 @@ import Window from './window';
 export interface DesktopHandle { openApp(id: string): void }
 
 interface DesktopProps {
+    /** Apps added for this session (the admin apps on /xlib). */
+    extraApps?: AppConfig[];
     wallpaper: string;
     setWallpaper: (name: string) => void;
     ref?: Ref<DesktopHandle>;
@@ -43,9 +45,9 @@ function saveFrequent(id: string) {
     } catch { /* storage blocked */ }
 }
 
-export default function Desktop({ wallpaper, setWallpaper, ref }: DesktopProps) {
+export default function Desktop({ wallpaper, setWallpaper, extraApps, ref }: DesktopProps) {
     const [folders, setFolders] = useState<Folder[]>([]);
-    const allApps = useMemo(() => [...apps, ...folders.map(folderApp)], [folders]);
+    const allApps = useMemo(() => [...apps, ...(extraApps ?? []), ...folders.map(folderApp)], [folders, extraApps]);
     const [windows, dispatch] = useReducer(windowReducer, emptyWindows);
     const [menus, setMenus] = useState({ desktop: false, default: false });
     const [naming, setNaming] = useState(false);
@@ -56,7 +58,6 @@ export default function Desktop({ wallpaper, setWallpaper, ref }: DesktopProps) 
     useEffect(() => { live.current = windows; }, [windows]);
 
     useEffect(() => {
-        trackPageview("/desktop");
         // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR)
         setFolders(loadFolders());
     }, []);
@@ -64,7 +65,7 @@ export default function Desktop({ wallpaper, setWallpaper, ref }: DesktopProps) 
     useEffect(() => { dispatch({ type: 'sync', apps: allApps }); }, [allApps]);
 
     const openApp = useCallback((id: string) => {
-        trackEvent({ category: `Open App`, action: `Opened ${id} window` });
+        trackEvent({ category: `Open App`, action: id });
         const s = live.current;
         if (s.disabled[id]) return;
         if (s.minimized[id] || s.stack.includes(id)) return dispatch({ type: 'open', id });
