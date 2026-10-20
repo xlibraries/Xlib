@@ -11,7 +11,3 @@ export default function VsCode() {
         ></iframe>
     )
 }
-
-export const displayVsCode = () => {
-    return <VsCode />;
-}
