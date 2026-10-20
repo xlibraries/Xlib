@@ -55,3 +55,6 @@ next-env.d.ts
 # python
 __pycache__/
 *.pyc
+
+# personal location history: only the generated public/side-quests/travel.json belongs in the repo
+Timeline*.json

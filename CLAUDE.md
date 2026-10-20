@@ -27,6 +27,9 @@ Vercel from `master`. Package manager: **pnpm** only (`pnpm install`, never `npm
 
 ## Layout
 
+More detail in `docs/architecture.md` and `scripts/README.md`; keep them current when you change how things work.
+
+
 - `components/apps/*` – one file per desktop app; pure logic lives in `lib/`.
 - `pages/api/*` – `frame-check` and `reader` for the Brave app (server-side fetches go through `lib/safe-fetch.ts`).
 - `public/drop/`, `public/privacy/`, `public/brave/newtab.html` – standalone static pages.
