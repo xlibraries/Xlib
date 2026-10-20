@@ -57,15 +57,18 @@ describe('upstashStore', () => {
         const fetch = vi.fn(async (_url: string, init: RequestInit) => {
             const command = JSON.parse(init.body as string);
             calls.push(command);
-            const result = command[0] === 'HGETALL' ? ['visits', '3', 'country:IN', '2'] : command[0] === 'INCR' ? 4 : 1;
+            const result = command[0] === 'HGETALL' ? ['visits', '3', 'country:IN', '2'] : command[0] === 'INCR' ? 4 : command[0] === 'ZREVRANGE' ? ['asha', '820', 'ravi', '640'] : 1;
             return { ok: true, json: async () => ({ result }) } as Response;
         });
         const store = upstashStore({ url: 'https://r.example', token: 't', fetch: fetch as unknown as typeof globalThis.fetch });
         await store.hincrby('a:1', 'visits', 1);
         expect(await store.hgetall('a:1')).toEqual({ visits: 3, 'country:IN': 2 });
         expect(await store.incr('rl')).toBe(4);
+        expect(await store.ztop('lb', 10)).toEqual([{ member: 'asha', score: 820 }, { member: 'ravi', score: 640 }]);
         await store.set('settings', '{"a":1}');
         expect(calls).toContainEqual(['SET', 'settings', '{"a":1}']);
+        await store.zadd('lb', 820, 'asha', true);
+        expect(calls).toContainEqual(['ZADD', 'lb', 'GT', 820, 'asha']);
         expect(calls[0]).toEqual(['HINCRBY', 'a:1', 'visits', 1]);
         expect(fetch.mock.calls[0][1].headers).toMatchObject({ authorization: 'Bearer t' });
     });
@@ -82,5 +85,18 @@ describe('memoryStore strings', () => {
         expect(await store.get('k')).toBeNull();
         await store.set('k', 'v');
         expect(await store.get('k')).toBe('v');
+    });
+});
+
+describe('memoryStore sorted sets', () => {
+    it('keeps the best score per member and lists them best first', async () => {
+        const store = memoryStore();
+        await store.zadd('lb', 500, 'ravi');
+        await store.zadd('lb', 820, 'asha');
+        await store.zadd('lb', 300, 'asha', true);    // worse: ignored
+        await store.zadd('lb', 900, 'ravi', true);    // better: kept
+        expect(await store.ztop('lb', 10)).toEqual([{ member: 'ravi', score: 900 }, { member: 'asha', score: 820 }]);
+        expect(await store.ztop('lb', 1)).toHaveLength(1);
+        expect(await store.ztop('none', 5)).toEqual([]);
     });
 });

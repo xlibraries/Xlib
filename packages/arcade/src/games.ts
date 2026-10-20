@@ -10,6 +10,8 @@ export interface PanelProps {
     backend: Backend;
     /** Where dist/ is served, for a game's own files (e.g. "/arcade"). */
     baseUrl: string;
+    /** The site's leaderboard endpoint (GET ?game&board, POST { game, board, name, score }), if it has one. */
+    leaderboardUrl?: string;
 }
 
 export interface GameInfo {
