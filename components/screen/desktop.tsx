@@ -9,7 +9,7 @@ import AllApplications from '../screen/all-applications'
 import DesktopMenu from '../context menus/desktop-menu';
 import DefaultMenu from '../context menus/default';
 import $ from 'jquery';
-import ReactGA from 'react-ga4';
+import { trackPageview, trackEvent } from '../../lib/analytics';
 
 export class Desktop extends Component {
     constructor() {
@@ -37,7 +37,7 @@ export class Desktop extends Component {
 
     componentDidMount() {
         // google analytics
-        ReactGA.send({ hitType: "pageview", page: "/desktop", title: "Custom Title" });
+        trackPageview("/desktop");
 
         this.fetchAppsData();
         this.setContextListeners();
@@ -50,7 +50,7 @@ export class Desktop extends Component {
     }
 
     checkForNewFolders = () => {
-        var new_folders = localStorage.getItem('new_folders');
+        let new_folders = localStorage.getItem('new_folders');
         if (new_folders === null && new_folders !== undefined) {
             localStorage.setItem("new_folders", JSON.stringify([]));
         }
@@ -93,14 +93,14 @@ export class Desktop extends Component {
         this.hideAllContextMenu();
         switch (e.target.dataset.context) {
             case "desktop-area":
-                ReactGA.event({
+                trackEvent({
                     category: `Context Menu`,
                     action: `Opened Desktop Context Menu`
                 });
                 this.showContextMenu(e, "desktop");
                 break;
             default:
-                ReactGA.event({
+                trackEvent({
                     category: `Context Menu`,
                     action: `Opened Default Context Menu`
                 });
@@ -110,7 +110,7 @@ export class Desktop extends Component {
 
     showContextMenu = (e, menuName /* context menu name */) => {
         let { posx, posy } = this.getMenuPosition(e);
-        let contextMenu = document.getElementById(`${menuName}-menu`);
+        const contextMenu = document.getElementById(`${menuName}-menu`);
 
         if (posx + $(contextMenu).width() > window.innerWidth) posx -= $(contextMenu).width();
         if (posy + $(contextMenu).height() > window.innerHeight) posy -= $(contextMenu).height();
@@ -125,7 +125,7 @@ export class Desktop extends Component {
     }
 
     hideAllContextMenu = () => {
-        let menus = this.state.context_menus;
+        const menus = this.state.context_menus;
         Object.keys(menus).forEach(key => {
             menus[key] = false;
         });
@@ -133,8 +133,8 @@ export class Desktop extends Component {
     }
 
     getMenuPosition = (e) => {
-        var posx = 0;
-        var posy = 0;
+        let posx = 0;
+        let posy = 0;
 
         if (!e) e = window.event;
 
@@ -154,7 +154,7 @@ export class Desktop extends Component {
 
     fetchAppsData = () => {
         let focused_windows = {}, closed_windows = {}, disabled_apps = {}, favourite_apps = {}, overlapped_windows = {}, minimized_windows = {};
-        let desktop_apps = [];
+        const desktop_apps = [];
         apps.forEach((app) => {
             focused_windows = {
                 ...focused_windows,
@@ -196,7 +196,7 @@ export class Desktop extends Component {
 
     updateAppsData = () => {
         let focused_windows = {}, closed_windows = {}, favourite_apps = {}, minimized_windows = {}, disabled_apps = {};
-        let desktop_apps = [];
+        const desktop_apps = [];
         apps.forEach((app) => {
             focused_windows = {
                 ...focused_windows,
@@ -233,7 +233,7 @@ export class Desktop extends Component {
 
     renderDesktopApps = () => {
         if (Object.keys(this.state.closed_windows).length === 0) return;
-        let appsJsx = [];
+        const appsJsx = [];
         apps.forEach((app, index) => {
             if (this.state.desktop_apps.includes(app.id)) {
 
@@ -253,7 +253,7 @@ export class Desktop extends Component {
     }
 
     renderWindows = () => {
-        let windowsJsx = [];
+        const windowsJsx = [];
         apps.forEach((app, index) => {
             if (this.state.closed_windows[app.id] === false) {
 
@@ -305,14 +305,14 @@ export class Desktop extends Component {
             }
         }
 
-        let overlapped_windows = this.state.overlapped_windows;
+        const overlapped_windows = this.state.overlapped_windows;
         overlapped_windows[objId] = hide;
         this.setState({ hideSideBar: hide, overlapped_windows });
     }
 
     hasMinimised = (objId) => {
-        let minimized_windows = this.state.minimized_windows;
-        var focused_windows = this.state.focused_windows;
+        const minimized_windows = this.state.minimized_windows;
+        const focused_windows = this.state.focused_windows;
 
         // remove focus and minimise this window
         minimized_windows[objId] = true;
@@ -349,7 +349,7 @@ export class Desktop extends Component {
     openApp = (objId) => {
 
         // google analytics
-        ReactGA.event({
+        trackEvent({
             category: `Open App`,
             action: `Opened ${objId} window`
         });
@@ -362,11 +362,11 @@ export class Desktop extends Component {
             this.focus(objId);
 
             // set window's last position
-            var r = document.querySelector("#" + objId);
+            const r = document.querySelector("#" + objId);
             r.style.transform = `translate(${r.style.getPropertyValue("--window-transform-x")},${r.style.getPropertyValue("--window-transform-y")}) scale(1)`;
 
             // tell childs that his app has been not minimised
-            let minimized_windows = this.state.minimized_windows;
+            const minimized_windows = this.state.minimized_windows;
             minimized_windows[objId] = false;
             this.setState({ minimized_windows: minimized_windows });
             return;
@@ -375,10 +375,10 @@ export class Desktop extends Component {
         //if app is already opened
         if (this.app_stack.includes(objId)) this.focus(objId);
         else {
-            let closed_windows = this.state.closed_windows;
-            let favourite_apps = this.state.favourite_apps;
-            var frequentApps = localStorage.getItem('frequentApps') ? JSON.parse(localStorage.getItem('frequentApps')) : [];
-            var currentApp = frequentApps.find(app => app.id === objId);
+            const closed_windows = this.state.closed_windows;
+            const favourite_apps = this.state.favourite_apps;
+            const frequentApps = localStorage.getItem('frequentApps') ? JSON.parse(localStorage.getItem('frequentApps')) : [];
+            const currentApp = frequentApps.find(app => app.id === objId);
             if (currentApp) {
                 frequentApps.forEach((app) => {
                     if (app.id === currentApp.id) {
@@ -420,8 +420,8 @@ export class Desktop extends Component {
         this.hideSideBar(null, false);
 
         // close window
-        let closed_windows = this.state.closed_windows;
-        let favourite_apps = this.state.favourite_apps;
+        const closed_windows = this.state.closed_windows;
+        const favourite_apps = this.state.favourite_apps;
 
         if (this.initFavourite[objId] === false) favourite_apps[objId] = false; // if user default app is not favourite, remove from sidebar
         closed_windows[objId] = true; // closes the app's window
@@ -432,9 +432,9 @@ export class Desktop extends Component {
     focus = (objId) => {
         // removes focus from all window and 
         // gives focus to window with 'id = objId'
-        var focused_windows = this.state.focused_windows;
+        const focused_windows = this.state.focused_windows;
         focused_windows[objId] = true;
-        for (let key in focused_windows) {
+        for (const key in focused_windows) {
             if (focused_windows.hasOwnProperty(key)) {
                 if (key !== objId) {
                     focused_windows[key] = false;
@@ -450,7 +450,7 @@ export class Desktop extends Component {
 
     addToDesktop = (folder_name) => {
         folder_name = folder_name.trim();
-        let folder_id = folder_name.replace(/\s+/g, '-').toLowerCase();
+        const folder_id = folder_name.replace(/\s+/g, '-').toLowerCase();
         apps.push({
             id: `new-folder-${folder_id}`,
             title: folder_name,
@@ -461,7 +461,7 @@ export class Desktop extends Component {
             screen: () => { },
         });
         // store in local storage
-        var new_folders = JSON.parse(localStorage.getItem('new_folders'));
+        const new_folders = JSON.parse(localStorage.getItem('new_folders'));
         new_folders.push({ id: `new-folder-${folder_id}`, name: folder_name });
         localStorage.setItem("new_folders", JSON.stringify(new_folders));
 
@@ -471,12 +471,12 @@ export class Desktop extends Component {
     showAllApps = () => { this.setState({ allAppsView: !this.state.allAppsView }) }
 
     renderNameBar = () => {
-        let addFolder = () => {
-            let folder_name = document.getElementById("folder-name-input").value;
+        const addFolder = () => {
+            const folder_name = document.getElementById("folder-name-input").value;
             this.addToDesktop(folder_name);
         }
 
-        let removeCard = () => {
+        const removeCard = () => {
             this.setState({ showNameBar: false });
         }
 
