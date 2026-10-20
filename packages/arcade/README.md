@@ -34,6 +34,9 @@ Serve `dist/` at `baseUrl`, and allow WebAssembly in your Content Security Polic
   only while their canvas has focus (`xl::focused()`).
 - The page pauses a game while its window is hidden or the tab is in the background (`xl::paused()`).
 - Leaving a game calls `sapp_quit()`, which releases its GPU resources.
+- Gamepads: sokol_app doesn't read them on the web, so `GameView` polls the Gamepad API each frame (first pad,
+  standard mapping, dead zone applied) and passes it to `xl::gamepad()`; `Gamepad::pressed()` detects new presses
+  (call `xl::end_frame()` once per frame).
 
 ## Building
 

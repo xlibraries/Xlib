@@ -516,6 +516,33 @@ test.describe('Arcade', () => {
         expect(await paddle()).toBeCloseTo(released, 0);   // doesn't snap back to where the mouse last was
     });
 
+    test('a gamepad moves the Breakout paddle and launches the ball', async ({ page }) => {
+        // a fake standard-mapping gamepad the test can steer
+        await page.addInitScript(() => {
+            const state = { lx: 0, a: false };
+            (window as unknown as { __pad: typeof state }).__pad = state;
+            navigator.getGamepads = () => [{
+                connected: true, id: 'test pad', index: 0, mapping: 'standard', timestamp: 0,
+                axes: [state.lx, 0, 0, 0],
+                buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: i === 0 && state.a, touched: false, value: i === 0 && state.a ? 1 : 0 })),
+            } as unknown as Gamepad];
+        });
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play Neon Breakout' }).click();
+        const game = page.locator('[data-game="breakout"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 20_000 }).toBeGreaterThan(10);
+        await expect(game).toContainText('🎮');
+        const paddle = () => game.evaluate(el => (el as unknown as { xlGame: { _breakout_paddle_x(): number } }).xlGame._breakout_paddle_x());
+        const start = await paddle();
+        await page.evaluate(() => { (window as unknown as { __pad: { lx: number } }).__pad.lx = 1; });
+        await expect.poll(paddle).toBeGreaterThan(start + 100);
+        await page.evaluate(() => { (window as unknown as { __pad: { lx: number; a: boolean } }).__pad.lx = 0; (window as unknown as { __pad: { a: boolean } }).__pad.a = true; });
+        const stopped = await paddle();
+        await page.waitForTimeout(300);
+        expect(await paddle()).toBeCloseTo(stopped, 0);   // centred stick: the paddle stays put
+    });
+
     test('Shader Playground: presets run and mistakes show their line', async ({ page }) => {
         await openDesktop(page, { 'arcade-backend': 'webgl2' });
         const arcade = await openApp(page, 'arcade');

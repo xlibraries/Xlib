@@ -17,6 +17,23 @@
 
 namespace xl {
 
+/** W3C "standard" gamepad buttons. */
+enum PadButton { PAD_A, PAD_B, PAD_X, PAD_Y, PAD_LB, PAD_RB, PAD_LT, PAD_RT, PAD_BACK, PAD_START, PAD_LS, PAD_RS, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT };
+
+struct Gamepad {
+    bool connected = false;
+    float lx = 0, ly = 0, rx = 0, ry = 0;   // sticks, dead zone applied, -1..1 (y down is positive)
+    uint32_t buttons = 0, previous = 0;
+    bool down(PadButton b) const { return (buttons >> b) & 1u; }
+    /** Pressed since the previous frame. */
+    bool pressed(PadButton b) const { return down(b) && !((previous >> b) & 1u); }
+};
+
+/** The first connected gamepad, read by the page each frame. Call xl::end_frame() after handling it. */
+const Gamepad& gamepad();
+/** Marks the end of a frame's input (for Gamepad::pressed). */
+void end_frame();
+
 bool focused();
 bool paused();
 /** "WebGPU" or "WebGL2" */
@@ -51,6 +68,7 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE void xl_set_focused(int focused) { g_focused = focused != 0; }
 EMSCRIPTEN_KEEPALIVE void xl_set_paused(int paused) { g_paused = paused != 0; }
 EMSCRIPTEN_KEEPALIVE void xl_quit() { sapp_quit(); }
+EMSCRIPTEN_KEEPALIVE void xl_set_gamepad(int connected, float lx, float ly, float rx, float ry, uint32_t buttons);
 }
 
 EM_JS(void, xl_js_save, (const char* game, const char* key, const char* value), {
@@ -65,7 +83,18 @@ EM_JS(void, xl_js_stats, (double frames, double fps), {
     if (Module["onStats"]) Module["onStats"]({ frames: frames, fps: fps });
 });
 
+namespace { xl::Gamepad g_pad; }
+
+extern "C" EMSCRIPTEN_KEEPALIVE void xl_set_gamepad(int connected, float lx, float ly, float rx, float ry, uint32_t buttons) {
+    g_pad.connected = connected != 0;
+    g_pad.lx = lx; g_pad.ly = ly; g_pad.rx = rx; g_pad.ry = ry;
+    g_pad.buttons = buttons;
+}
+
 namespace xl {
+
+const Gamepad& gamepad() { return g_pad; }
+void end_frame() { g_pad.previous = g_pad.buttons; }
 
 bool focused() { return g_focused; }
 bool paused() { return g_paused; }

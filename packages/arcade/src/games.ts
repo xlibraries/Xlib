@@ -28,14 +28,14 @@ export const GAMES: GameInfo[] = [
         id: 'breakout',
         title: 'Neon Breakout',
         description: 'Glowing bricks, particles and synth sound effects across four levels. Catch power-ups for a wide paddle or extra balls.',
-        controls: 'Mouse, touch or ←/→ to move · Space or click to launch',
+        controls: 'Mouse, touch, ←/→ or gamepad to move · Space, click or A to launch',
         art: 'linear-gradient(135deg, #ff3d7f, #ff8a00 45%, #00b8a9)',
     },
     {
         id: 'showcase',
         title: '3D Showcase',
         description: 'A procedurally generated low-poly island: a car loops its road through day and night, headlights on after dusk.',
-        controls: 'Drag to orbit · scroll to zoom · C follow car · N skip ahead',
+        controls: 'Drag or sticks to orbit · scroll or triggers to zoom · C/Y follow car · N/X skip ahead',
         art: 'linear-gradient(180deg, #55c3ff 0%, #ffb36b 55%, #2f8f5b 56%, #1d5c3b 100%)',
     },
     {
@@ -50,7 +50,7 @@ export const GAMES: GameInfo[] = [
         id: 'hello',
         title: 'Hello Cube',
         description: 'A spinning, glowing cube: the smallest thing that proves the C++ → WebAssembly pipeline on your GPU.',
-        controls: 'Space: reverse the spin',
+        controls: 'Space or A: reverse the spin',
         art: 'linear-gradient(135deg, #ff5a5f, #8b5cf6 55%, #0a9bff)',
     },
 ];
