@@ -20,7 +20,7 @@ window.PHOTO_DROP = {
 
 The endpoint isn't a secret: uploads are protected by the passcode, which the script checks. On
 xlibraries.com, `apps/web/scripts/vendor.mjs` copies `web/` to `public/drop/` and the site's
-`content/photo-drop.config.js` to `public/drop/config.js`.
+`content/photo-drop.json` into `public/drop/config.js`.
 
 ## How it works
 
@@ -54,7 +54,7 @@ uploads use your storage, not your visitors'. Visitors need the passcode to uplo
 ### 3. Deploy
 1. **Deploy → New deployment** → type **Web app** → *Execute as*: **Me**, *Who has access*: **Anyone** → **Deploy**.
 2. Copy the **Web app URL** (ends in `/exec`).
-3. Paste it into your `config.js` as `endpoint`, and make `albumName` match `ALBUM_TITLE` (on xlibraries.com: [`apps/web/content/photo-drop.config.js`](../../apps/web/content/photo-drop.config.js)). Commit and push; Vercel deploys it.
+3. Paste it into your `config.js` as `endpoint`, and make `albumName` match `ALBUM_TITLE` (on xlibraries.com: [`apps/web/content/photo-drop.json`](../../apps/web/content/photo-drop.json)). Commit and push; Vercel deploys it.
 
 ## Sharing it
 - Easiest for friends: `https://xlibraries.com/drop#k=YOUR_PASSCODE`. The passcode is in the part after `#`, which browsers never send to any server. The page removes it from the address bar and remembers it on that device.
@@ -71,7 +71,7 @@ instead of pasting files into the editor:
    `backend/` and points your existing deployment at the new version, so the `/exec` URL never changes.
 
 On xlibraries.com: put `PHOTO_DROP_SCRIPT_ID=…` in `apps/web/.env.local` and run `pnpm deploy:photo-drop` from
-the repo root (the deployment id is read from `content/photo-drop.config.js`).
+the repo root (the deployment id is read from `content/photo-drop.json`).
 
 ## Admin status (optional)
 
