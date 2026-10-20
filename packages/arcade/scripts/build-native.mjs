@@ -127,8 +127,9 @@ async function main() {
             console.log(`▶ em++ ${game} (${backend})`);
             run('em++', emArgs(game, backend, objects));
         }
-        // sounds and images the page serves next to the build
+        // sounds and images the page serves next to the build, and the audio worklet every game may load
         if (GAMES[game].assets) cpSync(join(ROOT, 'native', GAMES[game].assets), join(ROOT, 'dist', game), { recursive: true });
+        cpSync(join(ROOT, 'native/runtime/xl-audio-worklet.js'), join(ROOT, 'dist', game, 'xl-audio-worklet.js'));
     }
     console.log('✓ built', games.join(', '));
 }
