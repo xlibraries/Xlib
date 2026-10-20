@@ -1,23 +1,28 @@
 # Architecture
 
-The site is one Next.js page (`pages/index.tsx`) that renders a fake Ubuntu desktop entirely in the
+The site (`apps/web/`) is one Next.js page (`pages/index.tsx`) that renders a fake Ubuntu desktop entirely in the
 browser, plus a few standalone static pages and two small API routes. This doc explains how the pieces fit
-together; the [README](../README.md) covers setup and commands.
+together; the [README](../README.md) covers setup and commands. Paths below are relative to `apps/web/`
+unless they start with `packages/`.
 
 ## The desktop
 
 ```
 pages/index.tsx
-└─ components/ubuntu.tsx          boot screen → lock screen → desktop; wallpaper, brightness, lock/power state
-   ├─ screen/navbar.tsx           top bar: clock, status menu
-   └─ screen/desktop.tsx          which windows are open, focused, minimized; dock; desktop icons; context menus
-      └─ base/window.tsx          one draggable, resizable window per open app (react-draggable)
-         └─ the app's screen      from apps.config.ts
+└─ components/shell/ubuntu.tsx    boot screen → lock screen → desktop; wallpaper, brightness, lock/power state
+   ├─ shell/navbar.tsx            top bar: clock, status menu
+   └─ shell/desktop.tsx           which windows are open, focused, minimized; dock; desktop icons; context menus
+      └─ shell/window.tsx         one draggable, resizable window per open app (react-draggable)
+         └─ <App host={host} />   the app's component, from apps.config.ts
 ```
 
 - **`apps.config.ts`** lists every app: id, title, icon, whether it's in the dock or on the desktop, and the
-  component that renders it. Apart from Terminal and Settings (needed up front), each app is loaded with
-  `next/dynamic` the first time its window opens, so the desktop itself stays small.
+  component that renders it. Each app is loaded with `next/dynamic` the first time its window opens, so the
+  desktop itself stays small.
+- **The app contract** (`packages/app-sdk`): every app is a component that receives one prop, `host`, with
+  `openApp`, `addFolder`, `wallpaper` / `setWallpaper` and `track` (analytics). The desktop builds `host`;
+  apps never import the shell. This is what lets self-contained apps live in `packages/` (see
+  [the restructuring plan](restructure-plan.md)).
 - **State** lives in the class components above (the desktop predates hooks) and anything worth keeping
   across visits goes to `localStorage`: wallpaper, brightness, lock state, new desktop folders, the About
   view and path, the Side Quests tab, Brave's tabs, cached Invidious responses and so on.
@@ -54,7 +59,7 @@ size limits. The reader's HTML is sanitized to plain article markup before it re
 ### Music
 
 - **Playlists** come from `public/music/snapshot.json` (built before each deploy, see
-  [scripts](../scripts/README.md)) so they show instantly, then refresh from Invidious in the background.
+  [scripts](../apps/web/scripts/README.md)) so they show instantly, then refresh from Invidious in the background.
 - **Search and playlist updates** call Invidious directly from the browser. The app starts with one known
   server, discovers more from `api.invidious.io` and moves to the next when one fails; responses are cached in
   `localStorage`.
