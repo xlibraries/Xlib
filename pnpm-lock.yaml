@@ -169,10 +169,11 @@ importers:
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
   packages/photo-drop:
-    devDependencies:
+    dependencies:
       '@google/clasp':
         specifier: 3.4.1
         version: 3.4.1(@types/node@25.3.3)
+    devDependencies:
       '@types/node':
         specifier: ^25.3.3
         version: 25.3.3

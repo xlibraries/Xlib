@@ -18,10 +18,12 @@
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
-    "vitest": "3.2.4",
-    "@google/clasp": "3.4.1"
+    "vitest": "3.2.4"
   },
   "bin": {
     "photo-drop-deploy": "./scripts/deploy.mjs"
+  },
+  "dependencies": {
+    "@google/clasp": "3.4.1"
   }
 }
