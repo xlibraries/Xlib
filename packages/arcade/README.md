@@ -45,6 +45,12 @@ pnpm --filter @xlibraries/arcade build:native
 `sokol-shdc` is downloaded (pinned) into `.tools/` on first use. Commit the updated `dist/`; CI rebuilds it with the
 same toolchain and fails if it differs.
 
+## Testing game logic
+
+Rules that don't need a GPU live in `native/games/<id>/logic.cpp` and are unit-tested natively with
+[doctest](https://github.com/doctest/doctest) (`tests/native/`): `pnpm --filter @xlibraries/arcade test:native`
+compiles them with the system C++ compiler (also part of `test`/`verify`).
+
 ## Adding a game
 
 1. `native/games/<id>/main.cpp` with a `sokol_main` that returns `xl::app_desc(argc, argv, desc)`; include `xl.h`
@@ -60,3 +66,4 @@ same toolchain and fails if it differs.
 | sokol | `3d3dcbcb15edd54902f3b59472720a5bec78d74e` (2026-10-04) |
 | sokol-shdc (sokol-tools-bin) | `11d0cf678105d614d675e6d9bd2aaf3eeff12f8c` |
 | HandmadeMath | v2.0.0 |
+| doctest | v2.5.3 |
