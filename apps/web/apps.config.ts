@@ -144,6 +144,7 @@ const apps: AppConfig[] = [
 
 // Shown only on /xlib after the admin passcode (components/shell/ubuntu.tsx)
 const displayAdminAnalytics = lazyApp(() => import('./components/admin/analytics'));
+const displayAdminPhotoDrop = lazyApp(() => import('./components/admin/photo-drop'));
 
 export const adminApps: AppConfig[] = [
     {
@@ -154,6 +155,15 @@ export const adminApps: AppConfig[] = [
         favourite: true,
         desktop_shortcut: true,
         screen: displayAdminAnalytics,
+    },
+    {
+        id: "admin-photo-drop",
+        title: "Photo Drop",
+        icon: './themes/Yaru/apps/photo-drop.svg',
+        disabled: false,
+        favourite: true,
+        desktop_shortcut: true,
+        screen: displayAdminPhotoDrop,
     },
 ];
 

@@ -406,6 +406,9 @@ test.describe('Admin (/xlib)', () => {
         await expect(app.getByText('Visits', { exact: true })).toBeVisible();
         await expect(app.getByText('Apps opened')).toBeVisible();
 
+        await page.locator('#app-admin-photo-drop').dblclick();
+        await expect(page.locator('#admin-photo-drop')).toContainText('PHOTO_DROP_ADMIN_KEY is not set');   // tests run without the key
+
         await page.reload();
         await expect(page.locator('#app-admin-analytics')).toBeVisible();   // the session cookie survives a reload
 

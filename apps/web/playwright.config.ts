@@ -24,6 +24,7 @@ export default defineConfig({
             ADMIN_PASSCODE: 'e2e-admin-passcode',
             ADMIN_SESSION_SECRET: 'e2e-session-secret-0123456789abcdef0123456789',
             XLIB_MEMORY_STORE: '1',
+            PHOTO_DROP_ADMIN_KEY: '',   // never call the real Photo Drop script from tests
         },
     },
 });
