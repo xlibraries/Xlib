@@ -1,0 +1,25 @@
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
+
+const config = [
+    ...nextCoreWebVitals,
+    ...nextTypescript,
+    {
+        rules: {
+            // The desktop uses plain <img> on purpose (icons, external badges); next/image isn't a fit here
+            "@next/next/no-img-element": "off",
+            // Every file is type-checked; keep it that way
+            "@typescript-eslint/ban-ts-comment": "error",
+        },
+    },
+    {
+        // Test fakes (e.g. Google Apps Script services) are loosely typed on purpose
+        files: ["tests/**"],
+        rules: { "@typescript-eslint/no-explicit-any": "off" },
+    },
+    {
+        ignores: [".next/**", "out/**", "node_modules/**", "public/**", "next-env.d.ts"],
+    },
+];
+
+export default config;

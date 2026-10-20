@@ -1,61 +1,120 @@
-# Web simulation of UbuntuOS
+# Xlib: an Ubuntu desktop in the browser
 
-This is a personal portfolio website of theme Ubuntu 20.04, made using Next.js & tailwind CSS.
-If you want to edit this. Clone this project and edit the files in `/src/components`.
+Aman Agrawal's personal site, built as an Ubuntu 20.04 desktop: windows you can drag, a dock, a terminal and
+a set of apps. Live at **[xlibraries.com](https://xlibraries.com)**.
 
-To run this on localhost
-type `npm start` and when u are done coding type `npm run build` to build your app.
+Next.js 16 (pages router) · React 19 · Tailwind CSS · deployed on Vercel.
 
-_NOTE: if you have yarn just replace `npm start` and `npm run build` with `yarn start` and `yarn build`._
+## The apps
 
-<a href="https://www.buymeacoffee.com/xlibraries" target="_blank">
-<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 140px !important;" >
-</a>
+| App | What it does |
+| --- | --- |
+| **About Aman** | Experience, projects, education and the resume, laid out like the Ubuntu Files app (a simplified view is one click away). |
+| **Side Quests** | The non-work side: road trips drawn on a map with India's official boundaries, travel stats, quests, music and videos. |
+| **Brave** | A tabbed browser inside the desktop. Sites that refuse to be framed fall back to a YouTube embed, a GitHub page, github1s or a reader view. |
+| **Music** | Ad-free, sign-up-free YouTube playlists (via Invidious), with search, video and synced lyrics. |
+| **Terminal** | A small shell: `ls`, `cd`, `pwd`, `echo`, `mkdir` and commands that open the other apps (`code`, `music`, …). |
+| **Calc** | A terminal-style calculator with variables. |
+| **VS Code** | This repo in an embedded VS Code (github1s). |
+| **Settings, Trash, Todoist, Contact Me** | Wallpapers, a trash can, a to-do embed and a contact form (EmailJS). |
 
-### To make the contact form work
+Also on the site:
 
-- Create a account in [emailjs](https://www.emailjs.com/) create also new Outlook or Gmail account to be able
-  to send email.
-- Create a new service, select and log in to your newly created outlook or gmail account on EmailJS.
-- Go back to the dashboard and get the Service ID copy it.
-- Create a .env file in your root folder and put
+- **Photo Drop** (`/drop`, or the terminal command `upload`): a passcode-protected uploader that sends
+  photos and videos into Aman's Google Photos. Its backend is a Google Apps Script in
+  [`packages/photo-drop/`](packages/photo-drop/README.md).
+- **Privacy page** at `/privacy`.
 
+## Run it locally
+
+You need Node 20.9+ and pnpm 9 (`corepack enable` gives you the right version from `package.json`).
+The repo is a pnpm workspace; run commands from the root.
+
+```sh
+pnpm install          # also installs the git hook and copies browser libraries into apps/web/public/vendor/
+cp apps/web/.env.example apps/web/.env.local   # optional: analytics and the contact form
+pnpm dev              # http://localhost:3000
 ```
 
-NEXT_PUBLIC_USER_ID = 'YOUR_USER_ID'
-NEXT_PUBLIC_TEMPLATE_ID = 'template_fqqqb9g'
-NEXT_PUBLIC_SERVICE_ID = 'YOUR_SERVICE_ID'
+Use pnpm only. `npm install` would create a second lockfile.
+
+Environment variables are all optional and public (they're sent to the browser); see
+[`apps/web/.env.example`](apps/web/.env.example). Without them, analytics are off and the contact form opens the visitor's
+email app instead.
+
+## Commands
+
+From the repo root:
+
+| Command | |
+| --- | --- |
+| `pnpm dev` | The site's dev server (Turbopack). Next 16 allows one dev server per folder. |
+| `pnpm build` | Production build: refreshes the music snapshot, then `next build --webpack`. |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint / TypeScript / unit tests, across every workspace package. |
+| `pnpm verify` | Everything: each package's checks, plus the site's Python tests, build and e2e tests. |
+
+Site-only commands run with `pnpm --filter @xlibraries/web <script>` (for example `test:e2e`, `test:python`,
+`start`).
+
+## Tests
+
+Every change ships with tests, and `pnpm verify` must pass before a commit. The pre-commit hook in
+[`.githooks/`](.githooks/pre-commit) runs it for you (about a minute), and CI runs the same steps on every
+pull request.
+
+- **Unit** (`tests/unit/`): the logic in `lib/`, the API routes, the data scripts and the Apps Script backend
+  (run in a sandbox with fake Google services).
+- **Python** (`tests/python/`): the travel-data builder, including the checks that keep private places out.
+- **End to end** (`tests/e2e/`): every app's main interactions in Chrome. Outside services are mocked, and
+  any test fails if the page breaks the Content Security Policy.
+
+## Project layout
 
 ```
+apps/web/             the Next.js site
+  pages/              the desktop (index) and two API routes for the Brave app
+  components/shell/   desktop, windows, dock, top bar, boot and lock screens
+  components/apps/    the apps that live in the site (About, Side Quests, Settings, …)
+  content/            site-specific settings for the packages (terminal folders, bookmarks, Photo Drop URL)
+  lib/                pure logic, unit-tested (browser routing, lyrics, distances, security headers, …)
+  apps.config.ts      the list of apps: titles, icons, dock and desktop placement
+  public/             static files, plus standalone pages: drop/, privacy/, brave/newtab.html
+  scripts/, data/     the Side Quests map data generators, the vendor copy, the playlist list
+  tests/              unit, Python and e2e tests
+packages/
+  app-sdk/            @xlibraries/app-sdk: the contract between the desktop and its apps
+  terminal/           @xlibraries/terminal: Terminal and Calc on a shared prompt
+  browser/            @xlibraries/browser: the Brave app, plus framework-free frame-check and reader endpoints
+  music/              @xlibraries/music: the Music app and the playlist snapshot CLI
+  photo-drop/         @xlibraries/photo-drop: the upload page and its Google Apps Script backend
+docs/                 architecture notes and the restructuring plan
+```
 
-into it. Replace \*your user id and your service ID with your values in your EmailJS service.
+Self-contained apps live in `packages/` and may import only their own code, their dependencies and
+`@xlibraries/app-sdk`, so each can later move to its own repo and come back as a git submodule or a
+published package. A unit test enforces the rule.
 
-## This project was made using Create Next App! Here is the scripts that u can run.
+## More docs
 
-### `npm start`
+- [Architecture](docs/architecture.md): how the desktop, the apps, the server routes and the security policy fit together.
+- [Data scripts](apps/web/scripts/README.md): what each script generates, when to run it and the privacy rules for travel data.
+- Each package's README: [app-sdk](packages/app-sdk/README.md), [terminal](packages/terminal/README.md),
+  [browser](packages/browser/README.md), [music](packages/music/README.md),
+  [photo-drop](packages/photo-drop/README.md) (including setting up and deploying the Apps Script).
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Deployment
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+Vercel builds and deploys `master` on every push from `apps/web` (the project's root directory);
+pull requests get preview deployments.
+`xlibraries.com` is the main domain, and `www.xlibraries.com` and `xlibraries.club` redirect to it
+(see `apps/web/next.config.ts`). The old GitHub Pages site (`gh-pages` branch) only redirects to xlibraries.com.
 
-### `npm run build`
+The Photo Drop Apps Script isn't deployed by Vercel: after changing
+[`packages/photo-drop/backend/Code.gs`](packages/photo-drop/backend/Code.gs), paste it into Apps Script and publish a new
+version (steps in its README).
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## License
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+[MIT](LICENSE).
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-## Contributing
-
-Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributiors who wants to make this website better can make contribution,which will be **greatly appreciated**.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Added some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+<a href="https://www.buymeacoffee.com/xlibraries" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="40" width="140"></a>

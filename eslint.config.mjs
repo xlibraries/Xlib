@@ -1,25 +1,25 @@
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import nextTypescript from "eslint-config-next/typescript";
+// Lint rules for packages/* (the site in apps/web has its own Next.js config). Each package runs
+// `eslint .` from its folder; ESLint finds this file by walking up.
+import tseslint from 'typescript-eslint';
+import reactHooks from 'eslint-plugin-react-hooks';
 
-const config = [
-    ...nextCoreWebVitals,
-    ...nextTypescript,
+export default tseslint.config(
+    { ignores: ['**/node_modules/**', 'apps/**'] },
+    ...tseslint.configs.recommended,
     {
+        rules: { '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }] },
+    },
+    {
+        files: ['**/*.{ts,tsx}'],
+        plugins: { 'react-hooks': reactHooks },
         rules: {
-            // The desktop uses plain <img> on purpose (icons, external badges); next/image isn't a fit here
-            "@next/next/no-img-element": "off",
-            // Files still opted out of type checking; remove `// @ts-nocheck` file by file as they get typed
-            "@typescript-eslint/ban-ts-comment": ["warn", { "ts-nocheck": true }],
+            'react-hooks/rules-of-hooks': 'error',
+            'react-hooks/exhaustive-deps': 'warn',
         },
     },
     {
-        // Test fakes (e.g. Google Apps Script services) are loosely typed on purpose
-        files: ["tests/**"],
-        rules: { "@typescript-eslint/no-explicit-any": "off" },
+        // Test fakes are loosely typed on purpose
+        files: ['**/tests/**'],
+        rules: { '@typescript-eslint/no-explicit-any': 'off' },
     },
-    {
-        ignores: [".next/**", "out/**", "node_modules/**", "public/**", "backend/**", "next-env.d.ts"],
-    },
-];
-
-export default config;
+);
