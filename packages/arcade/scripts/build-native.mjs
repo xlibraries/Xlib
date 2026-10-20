@@ -21,6 +21,7 @@ export const BACKENDS = ['webgpu', 'webgl2'];
 /** Each game: its sources and shaders (paths relative to native/). */
 export const GAMES = {
     hello: { sources: ['games/hello/main.cpp'], shaders: ['shaders/hello.glsl'] },
+    breakout: { sources: ['games/breakout/main.cpp', 'games/breakout/logic.cpp'], shaders: [] },
 };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');

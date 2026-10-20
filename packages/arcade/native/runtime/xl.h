@@ -24,6 +24,8 @@ const char* backend_name();
 /** Persist a small string for this game in the visitor's browser (localStorage, key "arcade:<game>:<key>"). */
 void save(const char* key, const std::string& value);
 std::string load(const char* key, const std::string& fallback = "");
+/** A different number on every run (for seeding random levels and effects). */
+uint32_t seed();
 /** Report frame statistics to the page (shown in the window, used by tests). */
 void report_frame(double frame_seconds);
 /** Fills the canvas and browser-integration fields of a sapp_desc from the command line. */
@@ -85,6 +87,8 @@ std::string load(const char* key, const std::string& fallback) {
     free(v);
     return out;
 }
+
+uint32_t seed() { return static_cast<uint32_t>(emscripten_get_now() * 1000.0) ^ 0x5bd1e995u; }
 
 void report_frame(double dt) {
     g_frames++;
