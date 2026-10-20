@@ -37,6 +37,17 @@ test.describe('Terminal', () => {
         await expect(page.locator('#app-new-folder-mixtapes')).toBeVisible();
     });
 
+    test('exit closes the window and ↑ recalls the last command', async ({ page }) => {
+        await openDesktop(page);
+        await openApp(page, 'terminal');
+        await runCommand(page, 'terminal', 'pwd');
+        const input = page.locator('input[id^="terminal-input-"]').last();
+        await input.press('ArrowUp');
+        await expect(input).toHaveValue('pwd');
+        await runCommand(page, 'terminal', 'exit');
+        await expect(page.locator('#terminal')).toHaveCount(0);
+    });
+
     test('escapes HTML in echo', async ({ page }) => {
         await openDesktop(page);
         const terminal = await openApp(page, 'terminal');
@@ -57,6 +68,10 @@ test.describe('Calc', () => {
         await expect(calc).toContainText('25');
         await runCommand(page, 'calculator', 'help');
         await expect(calc).toContainText('Square root of x');
+        await runCommand(page, 'calculator', 'clear');
+        await expect(calc).not.toContainText('Square root of x');
+        await runCommand(page, 'calculator', 'exit');
+        await expect(page.locator('#calc')).toHaveCount(0);
     });
 });
 

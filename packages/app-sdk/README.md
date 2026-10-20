@@ -13,6 +13,7 @@ export default function MyApp({ host }: AppProps) {
 
 | `host.` | |
 | --- | --- |
+| `close()` | close this app's window |
 | `openApp(id)` | open or focus another app's window |
 | `addFolder(name)` | create a folder on the desktop |
 | `wallpaper` / `setWallpaper(name)` | read or change the wallpaper |
