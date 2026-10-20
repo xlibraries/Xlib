@@ -23,7 +23,7 @@
     };
 
     let passcode = "";
-    let maxFileMb = 4096;
+    let maxFileMb = 0; // 0 = no limit (set MAX_FILE_MB in the backend to add one)
     const queue = [];
     let active = 0;
     let wakeLock = null;
@@ -97,7 +97,7 @@
             $("queue").appendChild(item.el.root);
 
             if (!/^(image|video)\//.test(type)) fail(item, "Not a photo or video", true);
-            else if (file.size > maxFileMb * 1024 * 1024) fail(item, "Too large (max " + formatSize(maxFileMb * 1024 * 1024) + ")", true);
+            else if (maxFileMb && file.size > maxFileMb * 1024 * 1024) fail(item, "Too large (max " + formatSize(maxFileMb * 1024 * 1024) + ")", true);
             queue.push(item);
         });
         updateSummary();

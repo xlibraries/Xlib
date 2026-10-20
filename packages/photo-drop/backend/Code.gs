@@ -19,9 +19,9 @@ const SESSION_TTL = 6 * 60 * 60; // seconds (CacheService maximum)
 const ORDER_WAIT_MS = 90 * 1000; // how long a chunk waits for the one before it (normally a few seconds)
 
 // Script properties (Project Settings → Script properties). Only PASSCODE is required.
+// MAX_FILE_MB is unset by default: no limit beyond Google Photos' own (20 GB videos, 200 MB photos).
 const DEFAULTS = {
   ALBUM_TITLE: 'Website Uploads',
-  MAX_FILE_MB: '4096',
 };
 
 function doGet() {
@@ -41,7 +41,7 @@ function doPost(e) {
 
     switch (req.action) {
       case 'check':
-        return reply({ ok: true, maxFileMb: Number(prop('MAX_FILE_MB')) });
+        return reply({ ok: true, maxFileMb: Number(prop('MAX_FILE_MB')) || 0 });
       case 'start':
         return reply(startUpload(req));
       case 'chunk':
@@ -71,7 +71,8 @@ function startUpload(req) {
   const size = Number(req.size);
   if (!/^(image|video)\//.test(mimeType)) throw fatal('Only photos and videos can be uploaded.');
   if (!(size > 0)) throw fatal('The file is empty.');
-  if (size > Number(prop('MAX_FILE_MB')) * 1024 * 1024) throw fatal('File is too large (max ' + prop('MAX_FILE_MB') + ' MB).');
+  const maxMb = Number(prop('MAX_FILE_MB')) || 0;
+  if (maxMb && size > maxMb * 1024 * 1024) throw fatal('File is too large (max ' + maxMb + ' MB).');
 
   const headers = {
     'X-Goog-Upload-Command': 'start',
