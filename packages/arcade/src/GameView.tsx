@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useId, useRef, useState } from 'react';
 import { BACKEND_LABEL, pickBackend, type Backend, type BackendChoice } from './backend';
 import type { GameInfo } from './games';
+import { NO_PAD, readPad, samePad } from './gamepad';
 
 interface GameInstance {
     _xl_set_focused(focused: number): void;
     _xl_set_paused(paused: number): void;
     _xl_quit(): void;
+    _xl_set_gamepad(connected: number, lx: number, ly: number, rx: number, ry: number, buttons: number): void;
 }
 
 type CreateGame = (options: Record<string, unknown>) => Promise<GameInstance>;
@@ -29,6 +31,7 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
     const [status, setStatus] = useState<Status>({ kind: 'loading' });
     const [running, setRunning] = useState<GameInstance | null>(null);
     const [fps, setFps] = useState(0);
+    const [padConnected, setPadConnected] = useState(false);
 
     // Load the game; shut it down when the view closes
     useEffect(() => {
@@ -82,6 +85,23 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
         return () => { clearInterval(timer); document.removeEventListener('visibilitychange', check); };
     }, []);
 
+    // Gamepad: sokol doesn't read it on the web, so pass the first pad's state on every animation frame
+    useEffect(() => {
+        let raf = 0, last = NO_PAD;
+        const poll = () => {
+            raf = requestAnimationFrame(poll);
+            const game = instance.current;
+            if (!game || typeof navigator.getGamepads !== 'function') return;
+            const pad = readPad(navigator.getGamepads());
+            if (samePad(pad, last)) return;
+            if (pad.connected !== last.connected) setPadConnected(pad.connected);
+            last = pad;
+            game._xl_set_gamepad(pad.connected ? 1 : 0, pad.lx, pad.ly, pad.rx, pad.ry, pad.buttons);
+        };
+        raf = requestAnimationFrame(poll);
+        return () => cancelAnimationFrame(raf);
+    }, []);
+
     const setFocused = (focused: boolean) => instance.current?._xl_set_focused(focused ? 1 : 0);
 
     const Panel = game.Panel;
@@ -100,7 +120,7 @@ export function GameView({ game, baseUrl, choice, onBack }: GameViewProps) {
                 style={{ touchAction: 'none' }}
             />
             <div className="absolute top-2 right-2 flex items-center gap-1.5 text-xs">
-                {status.kind === 'running' && <span className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white">{BACKEND_LABEL[status.backend]} · {fps} fps</span>}
+                {status.kind === 'running' && <span className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white">{padConnected ? '🎮 · ' : ''}{BACKEND_LABEL[status.backend]} · {fps} fps</span>}
                 <button type="button" onClick={() => frame.current?.requestFullscreen?.()} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80" aria-label="Fullscreen">⛶</button>
                 <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80">← Games</button>
             </div>

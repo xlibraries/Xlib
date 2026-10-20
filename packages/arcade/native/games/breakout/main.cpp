@@ -188,7 +188,7 @@ void draw_text() {
 
     const char* msg = nullptr;
     if (!xl::focused() && g.phase != Phase::Playing) msg = "CLICK TO PLAY";
-    else if (g.phase == Phase::Ready) msg = "SPACE OR CLICK TO LAUNCH";
+    else if (g.phase == Phase::Ready) msg = xl::gamepad().connected ? "PRESS A TO LAUNCH" : "SPACE OR CLICK TO LAUNCH";
     else if (g.phase == Phase::LevelCleared) msg = "LEVEL CLEARED!  SPACE FOR NEXT";
     else if (g.phase == Phase::GameOver) msg = "GAME OVER  -  SPACE TO RESTART";
     if (msg) {
@@ -245,10 +245,18 @@ void frame() {
 
     Input in;
     if (xl::focused()) {
-        in.dir = (st.keys_right ? 1 : 0) - (st.keys_left ? 1 : 0);
+        in.dir = static_cast<float>((st.keys_right ? 1 : 0) - (st.keys_left ? 1 : 0));
         in.target_x = (in.dir == 0 && st.mouse_moved) ? st.mouse_x : -1;
         in.launch = st.launch;
     }
+    // a gamepad works whenever the game is on screen: stick or D-pad to move, A or Start to launch
+    const xl::Gamepad& pad = xl::gamepad();
+    if (pad.connected) {
+        const float stick = pad.lx + (pad.down(xl::PAD_RIGHT) ? 1.0f : 0.0f) - (pad.down(xl::PAD_LEFT) ? 1.0f : 0.0f);
+        if (stick != 0) { in.dir = std::max(-1.0f, std::min(1.0f, stick)); in.target_x = -1; }
+        if (pad.pressed(xl::PAD_A) || pad.pressed(xl::PAD_START)) in.launch = true;
+    }
+    xl::end_frame();
     st.launch = false;
     st.mouse_moved = false;
     update(st.game, dt, in);

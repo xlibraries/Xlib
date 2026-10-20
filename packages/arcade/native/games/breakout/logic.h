@@ -37,7 +37,7 @@ enum class Phase { Ready, Playing, LevelCleared, GameOver };
 
 struct Input {
     float target_x = -1.0f;   // paddle centre wanted by the mouse/touch (negative = none)
-    int dir = 0;              // keyboard: -1 left, +1 right
+    float dir = 0;            // keyboard / gamepad: -1 full left … +1 full right
     bool launch = false;      // space / click
 };
 
