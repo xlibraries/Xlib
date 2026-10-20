@@ -9,12 +9,18 @@
 //   script id:     Apps Script editor → Project Settings → IDs → Script ID
 //   deployment id: the part of the /exec URL between /s/ and /exec
 import { spawnSync } from 'node:child_process';
-import { realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const BACKEND = join(dirname(fileURLToPath(import.meta.url)), '..', 'backend');
+
+// This package's own clasp (not whatever `clasp` happens to be on PATH)
+function claspBin() {
+    const local = join(dirname(fileURLToPath(import.meta.url)), '..', 'node_modules', '.bin', process.platform === 'win32' ? 'clasp.cmd' : 'clasp');
+    return existsSync(local) ? local : 'clasp';
+}
 
 /** The .clasp.json and the clasp commands for one deploy. */
 export function deployPlan({ scriptId, deploymentId, description = 'Deployed from the Xlib repo' }) {
@@ -37,7 +43,7 @@ function main() {
     try {
         for (const args of plan.commands) {
             console.log('▶ clasp ' + args.join(' '));
-            const run = spawnSync('clasp', args, { cwd: BACKEND, stdio: 'inherit', shell: process.platform === 'win32' });
+            const run = spawnSync(claspBin(), args, { cwd: BACKEND, stdio: 'inherit', shell: process.platform === 'win32' });
             if (run.status !== 0) process.exit(run.status ?? 1);
         }
         console.log('✓ Photo Drop backend deployed; the /exec URL is unchanged.');
