@@ -8,7 +8,7 @@ describe('contentSecurityPolicy', () => {
     const prod = contentSecurityPolicy();
 
     it('only runs scripts from this site and the known third parties', () => {
-        expect(directive(prod, 'script-src')).toEqual(["'self'", 'https://www.youtube.com', 'https://s.ytimg.com', 'https://www.googletagmanager.com']);
+        expect(directive(prod, 'script-src')).toEqual(["'self'", 'https://www.youtube.com', 'https://s.ytimg.com']);
     });
 
     it('allows no inline scripts or eval in production', () => {

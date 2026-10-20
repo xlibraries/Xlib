@@ -1,18 +1,17 @@
-import ReactGA from 'react-ga4';
-
-// Google Analytics 4, through one place. Vercel Analytics (automatic page views) is mounted in pages/_app.tsx.
-// Calls are no-ops until initAnalytics() runs with a measurement ID (NEXT_PUBLIC_TRACKING_ID).
+// The site's analytics, through one place: beacons to /api/track (no cookies), shown in the admin Analytics app.
+import { track, trackVisit } from '@xlibraries/analytics';
 
 type EventParams = { category: string; action: string; label?: string; value?: number };
 
-export function initAnalytics(trackingId: string | undefined) {
-    if (trackingId && !ReactGA.isInitialized) ReactGA.initialize(trackingId);
+/** Once per page load. */
+export const trackSiteVisit = () => trackVisit();
+
+/** A screen inside an app, e.g. "/about/Experience". */
+export function trackPageview(path: string) {
+    track({ type: 'view', path });
 }
 
-export function trackPageview(page: string, title?: string) {
-    if (ReactGA.isInitialized) ReactGA.send({ hitType: 'pageview', page, ...(title ? { title } : {}) });
-}
-
-export function trackEvent(params: EventParams) {
-    if (ReactGA.isInitialized) ReactGA.event(params);
+/** Something the visitor did, recorded as "Category: action". */
+export function trackEvent({ category, action }: EventParams) {
+    track({ type: 'event', name: `${category}: ${action}` });
 }

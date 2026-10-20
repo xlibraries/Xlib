@@ -142,4 +142,19 @@ const apps: AppConfig[] = [
     },
 ]
 
+// Shown only on /xlib after the admin passcode (components/shell/ubuntu.tsx)
+const displayAdminAnalytics = lazyApp(() => import('./components/admin/analytics'));
+
+export const adminApps: AppConfig[] = [
+    {
+        id: "admin-analytics",
+        title: "Analytics",
+        icon: './themes/Yaru/apps/analytics.svg',
+        disabled: false,
+        favourite: true,
+        desktop_shortcut: true,
+        screen: displayAdminAnalytics,
+    },
+];
+
 export default apps;
