@@ -1,6 +1,6 @@
 # Xlib: project notes for Claude
 
-Personal portfolio styled as an Ubuntu desktop. Next.js 16 (pages router), React 18, Tailwind, deployed on
+Personal portfolio styled as an Ubuntu desktop. Next.js 16 (pages router), React 19, Tailwind, deployed on
 Vercel from `master`. Package manager: **pnpm** only (`pnpm install`, never `npm install`).
 
 ## Tests are mandatory
