@@ -1,4 +1,4 @@
-// Pure helpers for the Music app (components/apps/music.tsx).
+// Pure helpers for the Music app: time formatting, Invidious → track, lyrics matching and parsing.
 
 export type Track = { id: string; title: string; author: string; duration: number };
 export type LyricsResult = { duration: number; instrumental?: boolean; syncedLyrics?: string | null; plainLyrics?: string | null; trackName?: string; artistName?: string };

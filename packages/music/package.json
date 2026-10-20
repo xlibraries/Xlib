@@ -1,0 +1,33 @@
+{
+  "name": "@xlibraries/music",
+  "version": "0.1.0",
+  "description": "An ad-free, sign-up-free YouTube music player app for the Xlib desktop (Invidious, synced lyrics)",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./snapshot": "./scripts/snapshot.mjs"
+  },
+  "bin": {
+    "xlib-music-snapshot": "./scripts/snapshot.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "@xlibraries/app-sdk": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.3.0",
+    "react": "^19.2.9",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  }
+}

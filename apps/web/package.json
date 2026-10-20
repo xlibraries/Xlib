@@ -5,7 +5,7 @@
   "homepage": "https://xlibraries.com/",
   "scripts": {
     "dev": "node scripts/vendor.mjs && next dev",
-    "build": "node scripts/vendor.mjs && node scripts/update-music-snapshot.mjs; next build --webpack",
+    "build": "node scripts/vendor.mjs && xlib-music-snapshot --playlists data/music-playlists.json --out public/music/snapshot.json; next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
@@ -26,6 +26,7 @@
     "@vercel/analytics": "^1.6.1",
     "@xlibraries/app-sdk": "workspace:^",
     "@xlibraries/browser": "workspace:^",
+    "@xlibraries/music": "workspace:^",
     "@xlibraries/terminal": "workspace:^",
     "autoprefixer": "^10.4.13",
     "jquery": "^3.6.3",
