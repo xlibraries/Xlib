@@ -482,6 +482,22 @@ test.describe('Arcade', () => {
         await play(page, 'webgpu');
     });
 
+    test('Neon Breakout starts, takes keyboard input and keeps running', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play Neon Breakout' }).click();
+        const game = page.locator('[data-game="breakout"]');
+        const frames = () => game.evaluate(el => Number((el as HTMLElement).dataset.frames));
+        await expect.poll(frames, { timeout: 20_000 }).toBeGreaterThan(10);
+        await game.locator('canvas').click();   // focus and launch
+        await page.keyboard.down('ArrowLeft');
+        await page.waitForTimeout(400);
+        await page.keyboard.up('ArrowLeft');
+        const before = await frames();
+        await expect.poll(frames).toBeGreaterThan(before + 20);
+        await expect(game.locator('canvas')).toBeFocused();
+    });
+
     test("a running game doesn't steal keys from the terminal", async ({ page }) => {
         await play(page, 'webgl2');
         await openApp(page, 'terminal');
