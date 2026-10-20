@@ -219,4 +219,48 @@ test.describe('Photo Drop upload', () => {
         await expect(page.locator('#done')).toBeVisible();
         expect(calls).toEqual(['check', 'start', 'chunk']);
     });
+
+    // Backend replies for the direct path: 'start' hands out Google's upload URL
+    async function routeDirectBackend(page: import('@playwright/test').Page, calls: string[]) {
+        await page.route('https://script.google.com/**', async route => {
+            const body = JSON.parse(route.request().postData() || '{}');
+            calls.push(body.action);
+            const reply = body.action === 'check' ? { ok: true, maxFileMb: 4096 }
+                : body.action === 'start' ? { uploadId: 'u1', granularity: 262144, uploadUrl: 'https://photos.example/upload/s1' }
+                    : body.action === 'finish' ? (body.uploadToken === 'token-s1' ? { ok: true, done: true } : { error: 'bad token', fatal: true })
+                        : body.action === 'status' ? { received: 0, done: false }
+                            : body.action === 'chunk' ? (body.final ? { ok: true, done: true } : { ok: true })
+                                : { error: 'unexpected' };
+            await route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(reply) });
+        });
+        await page.addInitScript(() => { delete (window as unknown as Record<string, unknown>).BackgroundFetchManager; });
+    }
+
+    test('sends the bytes straight to Google, then adds the file to the album', async ({ page }) => {
+        const calls: string[] = [];
+        const google: { command: string; offset: string; size: number }[] = [];
+        await routeDirectBackend(page, calls);
+        await page.route('https://photos.example/**', async route => {
+            const req = route.request();
+            const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+            if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers });
+            google.push({ command: req.headers()['x-goog-upload-command'], offset: req.headers()['x-goog-upload-offset'], size: req.postDataBuffer()?.length ?? 0 });
+            await route.fulfill({ status: 200, headers, body: req.headers()['x-goog-upload-command'].includes('finalize') ? 'token-s1' : '' });
+        });
+        await page.goto('/drop/index.html#k=letmein');
+        await page.locator('#files').setInputFiles([{ name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(300_000, 7) }]);
+        await expect(page.locator('#queue')).toContainText('✓ Uploaded');
+        expect(calls).toEqual(['check', 'start', 'finish']);
+        expect(google).toEqual([{ command: 'upload, finalize', offset: '0', size: 300_000 }]);
+    });
+
+    test('falls back to the Apps Script relay when Google blocks the browser', async ({ page }) => {
+        const calls: string[] = [];
+        await routeDirectBackend(page, calls);
+        await page.route('https://photos.example/**', route => route.abort());   // what a CORS refusal looks like to the page
+        await page.goto('/drop/index.html#k=letmein');
+        await page.locator('#files').setInputFiles([{ name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(300_000, 7) }]);
+        await expect(page.locator('#queue')).toContainText('✓ Uploaded', { timeout: 15_000 });
+        expect(calls).toEqual(['check', 'start', 'status', 'chunk']);
+    });
 });
