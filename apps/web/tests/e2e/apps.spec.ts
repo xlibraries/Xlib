@@ -514,6 +514,25 @@ test.describe('Arcade', () => {
         await expect.poll(() => page.locator('[data-game="playground"]').evaluate(el => Number((el as HTMLElement).dataset.frames))).toBeGreaterThan(10);
     });
 
+    test('3D Showcase renders, orbits and switches camera', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play 3D Showcase' }).click();
+        const game = page.locator('[data-game="showcase"]');
+        const frames = () => game.evaluate(el => Number((el as HTMLElement).dataset.frames));
+        await expect.poll(frames, { timeout: 20_000 }).toBeGreaterThan(10);
+        const canvas = game.locator('canvas');
+        const box = (await canvas.boundingBox())!;
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 30, { steps: 8 });
+        await page.mouse.up();
+        await page.keyboard.press('KeyC');
+        await page.keyboard.press('KeyN');
+        const before = await frames();
+        await expect.poll(frames).toBeGreaterThan(before + 20);
+    });
+
     test("a running game doesn't steal keys from the terminal", async ({ page }) => {
         await play(page, 'webgl2');
         await openApp(page, 'terminal');
