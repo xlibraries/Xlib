@@ -60,3 +60,6 @@ __pycache__/
 
 # personal location history: only the generated public/side-quests/travel.json belongs in the repo
 Timeline*.json
+
+# clasp writes this while deploying Photo Drop
+packages/photo-drop/backend/.clasp.json

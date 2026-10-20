@@ -12,7 +12,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "verify": "pnpm -r --workspace-concurrency=1 verify",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "deploy:photo-drop": "pnpm --filter @xlibraries/web exec node --env-file-if-exists=.env.local scripts/deploy-photo-drop.mjs"
   },
   "devDependencies": {
     "eslint": "^9.39.3",

@@ -60,9 +60,22 @@ uploads use your storage, not your visitors'. Visitors need the passcode to uplo
 - Easiest for friends: `https://xlibraries.com/drop#k=YOUR_PASSCODE`. The passcode is in the part after `#`, which browsers never send to any server. The page removes it from the address bar and remembers it on that device.
 - Or share `…/drop/` and tell people the passcode separately.
 
+## Deploying changes from the repo
+
+After the one-time setup above, `backend/` can be deployed with [clasp](https://github.com/google/clasp)
+instead of pasting files into the editor:
+
+1. Turn on the Apps Script API: <https://script.google.com/home/usersettings>.
+2. Authorize clasp once: `pnpm --filter @xlibraries/photo-drop exec clasp login` (opens a browser).
+3. Deploy: `photo-drop-deploy --script-id <Script ID> --deployment-id <ID from the /exec URL>`. It pushes
+   `backend/` and points your existing deployment at the new version, so the `/exec` URL never changes.
+
+On xlibraries.com: put `PHOTO_DROP_SCRIPT_ID=…` in `apps/web/.env.local` and run `pnpm deploy:photo-drop` from
+the repo root (the deployment id is read from `content/photo-drop.config.js`).
+
 ## Maintenance
 - **Change the passcode:** edit the `PASSCODE` script property. It takes effect immediately and old links stop working.
-- **Update the script:** **Deploy → Manage deployments → ✏️ → Version: New version**. The URL stays the same.
+- **Update the script:** `pnpm deploy:photo-drop` (above), or by hand: **Deploy → Manage deployments → ✏️ → Version: New version**. The URL stays the same.
 - **Deleted the album?** Delete the `ALBUM_ID` script property and run `setup` again.
 - **How bytes travel:** the script starts each upload and gives the browser Google's upload URL for that one file, so the bytes go straight to Google Photos (Android Chrome hands the whole file to its background transfer manager). If a browser can't reach Google directly, the page falls back to sending 8 MB pieces through the script.
 - **Limits:** Google Photos accepts photos up to 200 MB and videos up to 20 GB. Direct uploads use only a few Apps Script calls per file; in the fallback, each 8 MB piece is one URL-fetch call, and consumer accounts get 20,000 of those per day.

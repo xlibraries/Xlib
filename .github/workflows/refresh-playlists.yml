@@ -1,0 +1,45 @@
+name: Refresh playlists
+
+# Every Monday, re-fetch the Music app's playlists from Invidious and commit the snapshot if it changed.
+# The push to master makes Vercel redeploy the site with the fresh track lists.
+on:
+  schedule:
+    - cron: "30 3 * * 1"   # Mondays 03:30 UTC (09:00 IST)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-playlists
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: pnpm
+      # --ignore-scripts: the snapshot needs no vendor copy, and skipping `prepare` keeps the pre-commit hook off
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Fetch playlists
+        working-directory: apps/web
+        run: node ../../packages/music/scripts/snapshot.mjs --playlists data/music-playlists.json --out public/music/snapshot.json
+      - name: Check the snapshot still matches the playlist list
+        run: pnpm --filter @xlibraries/web exec vitest run tests/unit/scripts.test.mjs -t "music snapshot"
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- apps/web/public/music/snapshot.json; then
+            echo "Playlists unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/public/music/snapshot.json
+          git commit -m "Refresh music playlist snapshot"
+          git push
