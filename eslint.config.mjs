@@ -13,6 +13,11 @@ const config = [
         },
     },
     {
+        // Test fakes (e.g. Google Apps Script services) are loosely typed on purpose
+        files: ["tests/**"],
+        rules: { "@typescript-eslint/no-explicit-any": "off" },
+    },
+    {
         ignores: [".next/**", "out/**", "node_modules/**", "public/**", "backend/**", "next-env.d.ts"],
     },
 ];
