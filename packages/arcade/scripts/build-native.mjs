@@ -22,6 +22,7 @@ export const BACKENDS = ['webgpu', 'webgl2'];
 export const GAMES = {
     hello: { sources: ['games/hello/main.cpp'], shaders: ['shaders/hello.glsl'] },
     breakout: { sources: ['games/breakout/main.cpp', 'games/breakout/logic.cpp'], shaders: [] },
+    showcase: { sources: ['games/showcase/main.cpp', 'games/showcase/scene.cpp'], shaders: ['shaders/showcase.glsl'] },
     // the page passes shader source in, so it needs string helpers
     playground: { sources: ['games/playground/main.cpp'], shaders: [], flags: ['-sEXPORTED_RUNTIME_METHODS=stringToNewUTF8', '-sEXPORTED_FUNCTIONS=_main,_free'] },
 };
