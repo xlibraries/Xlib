@@ -38,7 +38,7 @@ test('every page carries the security headers', async ({ request }) => {
         const headers = res.headers();
         const scriptSrc = headers['content-security-policy']?.split('; ').find(d => d.startsWith('script-src ')) ?? '';
         expect(scriptSrc, path).toContain("'self'");
-        expect(scriptSrc, path).not.toMatch(/unsafe-inline|unsafe-eval/);   // the production policy allows neither
+        expect(scriptSrc.replace("'wasm-unsafe-eval'", ''), path).not.toMatch(/unsafe-inline|unsafe-eval/);   // only WebAssembly may compile
         expect(headers['x-content-type-options'], path).toBe('nosniff');
         expect(headers['x-frame-options'], path).toBe('SAMEORIGIN');
         expect(headers['strict-transport-security'], path).toContain('max-age=');

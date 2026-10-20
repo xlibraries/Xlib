@@ -13,6 +13,8 @@ export default defineConfig({
         viewport: { width: 1400, height: 1000 },
         // locally use the installed Chrome; CI installs Playwright's Chromium
         channel: process.env.CI ? undefined : 'chrome',
+        // lets the Arcade's WebGPU builds run where the machine has a usable GPU adapter
+        launchOptions: { args: ['--enable-unsafe-webgpu'] },
     },
     webServer: {
         command: 'pnpm exec next start -p 3100',
