@@ -44,7 +44,7 @@ export class AboutAman extends Component {
   };
 
   changeScreen = (e) => {
-    this.setScreen(e.target.id);
+    this.setScreen(e.currentTarget.dataset.screen);
   };
 
   setScreen = (screen) => {
@@ -64,11 +64,13 @@ export class AboutAman extends Component {
     this.setState({ navbar: !this.state.navbar });
   };
 
-  renderNavLinks = () => {
+  // Rendered twice (sidebar + mobile menu); only the sidebar copy gets ids, so ids stay unique
+  renderNavLinks = (withIds = true) => {
     return (
       <>
         <div
-          id="about"
+          id={withIds ? "about" : undefined}
+          data-screen="about"
           tabIndex="0"
           onFocus={this.changeScreen}
           className={
@@ -86,7 +88,8 @@ export class AboutAman extends Component {
           <span className=" ml-1 md:ml-2 text-gray-50 ">About Me</span>
         </div>
         <div
-          id="experience"
+          id={withIds ? "experience" : undefined}
+          data-screen="experience"
           tabIndex="0"
           onFocus={this.changeScreen}
           className={
@@ -104,7 +107,8 @@ export class AboutAman extends Component {
           <span className=" ml-1 md:ml-2 text-gray-50 ">Experience</span>
         </div>
         <div
-          id="education"
+          id={withIds ? "education" : undefined}
+          data-screen="education"
           tabIndex="0"
           onFocus={this.changeScreen}
           className={
@@ -122,7 +126,8 @@ export class AboutAman extends Component {
           <span className=" ml-1 md:ml-2 text-gray-50 ">Education</span>
         </div>
         <div
-          id="skills"
+          id={withIds ? "skills" : undefined}
+          data-screen="skills"
           tabIndex="0"
           onFocus={this.changeScreen}
           className={
@@ -140,7 +145,8 @@ export class AboutAman extends Component {
           <span className=" ml-1 md:ml-2 text-gray-50 ">Skills</span>
         </div>
         <div
-          id="projects"
+          id={withIds ? "projects" : undefined}
+          data-screen="projects"
           tabIndex="0"
           onFocus={this.changeScreen}
           className={
@@ -158,7 +164,8 @@ export class AboutAman extends Component {
           <span className=" ml-1 md:ml-2 text-gray-50 ">Projects</span>
         </div>
         <div
-          id="resume"
+          id={withIds ? "resume" : undefined}
+          data-screen="resume"
           tabIndex="0"
           onFocus={this.changeScreen}
           className={
@@ -225,7 +232,7 @@ export class AboutAman extends Component {
               " md:hidden text-xs absolute bg-ub-cool-grey py-0.5 px-1 rounded-sm top-full mt-1 left-0 shadow border-black border border-opacity-20"
             }
           >
-            {this.renderNavLinks()}
+            {this.renderNavLinks(false)}
           </div>
         </div>
         <div className="flex flex-col w-full md:w-4/5 pt-8 md:pt-0 justify-start items-center flex-grow bg-ub-grey overflow-y-auto windowMainScreen">

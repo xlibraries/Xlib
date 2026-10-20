@@ -2,9 +2,11 @@ import { defineConfig } from '@playwright/test';
 
 // Smoke tests against a production build: run `pnpm build` (or `pnpm exec next build`) first.
 export default defineConfig({
-    testDir: './tests',
+    testDir: './tests/e2e',
     timeout: 60_000,
     retries: process.env.CI ? 1 : 0,
+    // one browser at a time: parallel workers contend for the single local server and run slower
+    workers: 1,
     reporter: process.env.CI ? 'github' : 'list',
     use: {
         baseURL: 'http://localhost:3100',

@@ -23,6 +23,10 @@ jobs:
         run: pnpm lint
       - name: Type-check
         run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test:coverage
+      - name: Python tests
+        run: pnpm test:python
       # next build directly: skips the playlist refresh, which needs the network and isn't under test
       - name: Build
         run: pnpm exec next build
