@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React from 'react';
 import { trackPageview } from '../../lib/analytics';
+import { formatKm, monthLabel, roadTripKm, onTheRoadKm } from '../../lib/side-quests';
 
 // Life outside work, as an RPG: a world map of travels, a quest log, a character sheet and some lore.
 // Travel data comes from public/side-quests/travel.json (built by scripts/side-quests/build_travel_data.py,
@@ -205,8 +206,6 @@ const MODE_STYLE = {
     bus: { color: THEME.violet, label: "Bus" },
 };
 
-const formatKm = (n) => (n || 0).toLocaleString("en-IN");
-const monthLabel = (ym) => new Date(ym + "-01T00:00:00").toLocaleString("en-US", { month: "short", year: "numeric" });
 
 // ---------- Leaflet (loaded from CDN on first use) ----------
 
@@ -334,15 +333,13 @@ function WorldMap({ travel, focus }) {
     );
 }
 
-// Earlier road trips are stored one way unless they're loops; count the drive back too
-const roadTripKm = (trips) => (trips || []).reduce((sum, t) => sum + (t.stops[0] === t.stops[t.stops.length - 1] ? t.km : 2 * t.km), 0);
 
 function WorldTab({ travel, focus }) {
     const km = travel ? travel.km : {};
     const earlierKm = travel ? roadTripKm(travel.roadTrips) : 0;
-    const roadKm = (km.road || 0) + earlierKm;
+    const roadKm = onTheRoadKm(km.road, travel ? travel.roadTrips : []);
     const stats = [
-        { icon: "🛣️", value: formatKm(Math.round(roadKm / 100) * 100), label: "km on the road", color: THEME.pink },
+        { icon: "🛣️", value: formatKm(roadKm), label: "km on the road", color: THEME.pink },
         { icon: "🏍️", value: formatKm(km.motorcycle), label: "km on two wheels", color: THEME.orange },
         { icon: "🚆", value: formatKm(km.train), label: "km by rail", color: THEME.sky },
         { icon: "✈️", value: formatKm(km.flight), label: "km flown", color: THEME.violet },

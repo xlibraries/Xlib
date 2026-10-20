@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import SmallArrow from './small_arrow';
+import { screenBrightness } from '../../lib/display';
 
 type SliderProps = {
 	onChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -33,8 +34,6 @@ type StatusCardProps = {
 };
 type StatusCardState = { sound_level: number; brightness_level: number };
 
-// Slider 0-100 -> CSS brightness 0.25-1, so the screen never goes fully black
-const screenBrightness = (level: number) => `brightness(${3 / 400 * level + 0.25})`;
 const setScreenBrightness = (level: number) => {
 	const screen = document.getElementById('monitor-screen');
 	if (screen) screen.style.filter = screenBrightness(level);
