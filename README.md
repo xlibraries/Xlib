@@ -110,8 +110,11 @@ pull requests get preview deployments.
 (see `apps/web/next.config.ts`). The old GitHub Pages site (`gh-pages` branch) only redirects to xlibraries.com.
 
 The Photo Drop Apps Script isn't deployed by Vercel: after changing
-[`packages/photo-drop/backend/Code.gs`](packages/photo-drop/backend/Code.gs), paste it into Apps Script and publish a new
-version (steps in its README).
+[`packages/photo-drop/backend/Code.gs`](packages/photo-drop/backend/Code.gs), run `pnpm deploy:photo-drop` (one-time
+clasp setup in its README).
+
+A GitHub Action refreshes the Music playlists every Monday and commits the snapshot when tracks changed, which
+redeploys the site.
 
 ## License
 
