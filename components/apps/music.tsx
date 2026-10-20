@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { Component } from 'react';
 import PLAYLISTS from '../../data/music-playlists.json';
+import { formatTime, toTrack, lyricQueries, pickLyrics, parseLrc, currentLyricIndex } from '../../lib/music';
 
 // Playback: YouTube's embeddable player (privacy-enhanced nocookie host).
 // Track lists + search: Invidious, an open-source YouTube front-end (no API key, no signup).
@@ -42,50 +43,11 @@ const writeCache = (id, tracks) => {
     try { localStorage.setItem("music-cache-" + id, JSON.stringify({ t: Date.now(), tracks })); } catch (e) { }
 }
 
-const formatTime = (secs) => {
-    if (!secs || isNaN(secs)) return "0:00";
-    secs = Math.floor(secs);
-    return Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0");
-}
 
 const thumb = (videoId) => `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
 const hideBrokenImage = (e) => { e.target.style.visibility = "hidden"; };
 
-// ---------- Lyrics (LRCLIB: free, no key) ----------
 
-// YouTube titles are noisy ("Song - Artist | Movie (Official Video)"), so try a few cleaned variants.
-const lyricQueries = (title) => {
-    const base = title.replace(/\([^)]*\)|\[[^\]]*\]|【[^】]*】/g, " ").split(/[|｜]/)[0];
-    const cleaned = base
-        .replace(/\b(official|music|video|lyrics?|lyrical|audio|full song|full video|visualizer|hd|4k|mv)\b/gi, " ")
-        .replace(/["“”]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-    const parts = cleaned.split(/\s[-–—]\s/).map(x => x.trim()).filter(Boolean);
-    return [...new Set([cleaned, ...parts.slice(1), parts[0]])].filter(Boolean);
-}
-
-// Prefer synced lyrics whose length matches the video; reject obvious mismatches.
-const pickLyrics = (results, duration) => {
-    const scored = (results || [])
-        .filter(r => !r.instrumental && (r.syncedLyrics || r.plainLyrics))
-        .map(r => ({ r, diff: duration ? Math.abs(r.duration - duration) : 0 }))
-        .filter(x => x.diff <= 30)
-        .sort((a, b) => (a.diff - (a.r.syncedLyrics ? 10 : 0)) - (b.diff - (b.r.syncedLyrics ? 10 : 0)));
-    return scored.length ? scored[0].r : null;
-}
-
-const parseLrc = (lrc) => lrc.split("\n").map(line => {
-    const m = line.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);
-    return m ? { t: parseInt(m[1], 10) * 60 + parseFloat(m[2]), text: m[3] } : null;
-}).filter(Boolean);
-
-const toTrack = (v) => ({
-    id: v.videoId,
-    title: v.title,
-    author: v.author || "",
-    duration: v.lengthSeconds || 0,
-});
 
 let ytApiPromise = null;
 const loadYouTubeApi = () => {
@@ -431,9 +393,7 @@ export class Music extends Component {
 
     currentLine = () => {
         const { lyrics, time } = this.state;
-        let active = -1;
-        if (lyrics && lyrics.synced) lyrics.synced.forEach((l, i) => { if (l.t <= time + 0.3) active = i; });
-        return active;
+        return lyrics && lyrics.synced ? currentLyricIndex(lyrics.synced, time) : -1;
     }
 
     // Keep the current lyric line centred
