@@ -227,7 +227,8 @@
         "use strict";
 
         const config = window.PHOTO_DROP || {};
-        const CHUNK_SIZE = 8 * 1024 * 1024; // raw bytes per request (~11 MB once base64-encoded)
+        const CHUNK_SIZE = 8 * 1024 * 1024; // raw bytes per request through Apps Script (~11 MB once base64-encoded)
+        const DIRECT_CHUNK_SIZE = 32 * 1024 * 1024; // raw bytes per request straight to Google
         const PARALLEL_FILES = 2;
         const MAX_RETRIES = 5;
 
@@ -432,31 +433,111 @@
             }
         }
 
+        // Set when this browser can't send to Google directly (e.g. CORS refused): use the relay from then on
+        let directBlocked = false;
+
         async function uploadFile(item) {
             const uploader = $("name").value.trim();
             store.set("drop-name", uploader);
 
-            const { uploadId, granularity } = await withRetry(item, () => api({
+            const { uploadId, granularity, uploadUrl } = await withRetry(item, () => api({
                 action: "start", fileName: item.file.name, mimeType: item.type, size: item.file.size,
+                direct: !directBlocked, origin: location.origin,
             }));
 
             // Chunks must be a multiple of Google's granularity (except the last one)
             const g = granularity || 262144;
-            const chunkSize = Math.max(g, Math.floor(CHUNK_SIZE / g) * g);
+            const sizeFor = (target) => Math.max(g, Math.floor(target / g) * g);
+
+            if (uploadUrl && !directBlocked) {
+                const result = await uploadDirect(item, uploadId, uploadUrl, sizeFor(DIRECT_CHUNK_SIZE), uploader);
+                if (result === "done") return;
+                directBlocked = true; // nothing reached Google; send this file and the rest through Apps Script
+                item.sent = 0;
+            }
+            await uploadInPage(item, uploadId, sizeFor(CHUNK_SIZE), uploader, 0);
+        }
+
+        // ---------- Direct upload (browser → Google Photos) ----------
+        // Raw bytes go straight to the file's resumable upload URL; Apps Script only starts the upload,
+        // reports progress for resuming, and adds the finished file to the album.
+        // Returns "done", or "blocked" if Google never accepted a byte from this browser.
+
+        async function uploadDirect(item, uploadId, uploadUrl, chunkSize, uploader) {
             let offset = 0;
+            let uploadToken = "";
+            let accepted = false;
 
             if (swRegistration) {
-                const result = await uploadInBackground(item, uploadId, chunkSize, uploader);
-                if (result === "done") return;
-                // Hand-off was interrupted: finish from this page, starting wherever Google got to
-                if (result === "interrupted") {
+                const result = await uploadInBackground(item, uploadId, uploadUrl, uploader);
+                if (result.done) return "done";
+                if (result.uploadToken) uploadToken = result.uploadToken; // bytes are in; only the album step failed
+                else if (result.started) {
+                    // Finish from this page, starting wherever Google got to
                     const status = await withRetry(item, () => api({ action: "status", uploadId }));
-                    if (status.done) return;
+                    if (status.done) return "done";
                     offset = status.received || 0;
+                    accepted = offset > 0;
                 }
             }
-            await uploadInPage(item, uploadId, chunkSize, uploader, offset);
+
+            let failures = 0;
+            while (!uploadToken) {
+                const end = Math.min(offset + chunkSize, item.file.size);
+                const final = end === item.file.size;
+                try {
+                    const text = await sendDirect(uploadUrl, item.file.slice(offset, end), offset, final, (loaded) => {
+                        item.sent = offset + loaded;
+                        paint(item);
+                        updateSummary();
+                    });
+                    accepted = true;
+                    failures = 0;
+                    offset = end;
+                    item.sent = offset;
+                    item.note = "";
+                    paint(item);
+                    if (final) uploadToken = text.trim();
+                } catch (e) {
+                    failures++;
+                    if (!accepted && failures >= 2) return "blocked";
+                    if (failures > MAX_RETRIES) throw new ApiError("Upload stopped — check your connection and tap retry", false);
+                    item.note = "Connection hiccup — retrying…";
+                    paint(item);
+                    await sleep(Math.min(30000, 1000 * 2 ** failures));
+                    // Ask Google how much it already has, then resume from there
+                    try {
+                        const status = await api({ action: "status", uploadId });
+                        if (status.done) return "done";
+                        if (typeof status.received === "number" && status.received <= item.file.size) offset = status.received;
+                    } catch (err) { }
+                }
+            }
+            if (!uploadToken) throw new ApiError("Google Photos didn't confirm the upload", false);
+
+            item.note = "Saving to album…";
+            paint(item);
+            await withRetry(item, () => api({ action: "finish", uploadId, uploadToken, uploader, fileName: item.file.name }));
+            item.note = "";
+            return "done";
         }
+
+        // XHR rather than fetch, for upload progress within each 32 MB piece. Resolves with the response text.
+        function sendDirect(url, blob, offset, final, onProgress) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", url);
+                xhr.setRequestHeader("Content-Type", "application/octet-stream");
+                xhr.setRequestHeader("X-Goog-Upload-Command", final ? "upload, finalize" : "upload");
+                xhr.setRequestHeader("X-Goog-Upload-Offset", String(offset));
+                xhr.upload.onprogress = (e) => onProgress(e.loaded);
+                xhr.onload = () => xhr.status === 200 ? resolve(xhr.responseText) : reject(new Error("HTTP " + xhr.status));
+                xhr.onerror = () => reject(new Error("Network error"));
+                xhr.send(blob);
+            });
+        }
+
+        // ---------- Relay upload (browser → Apps Script → Google Photos) ----------
 
         async function uploadInPage(item, uploadId, chunkSize, uploader, offset) {
             let failures = 0;
@@ -489,9 +570,10 @@
         }
 
         // ---------- Background Fetch (Android Chrome) ----------
-        // Chrome's transfer manager sends the chunks as a system task with its own notification, so the
-        // upload continues with the page in the background or closed, whatever other apps are playing.
-        // Returns "done", "interrupted" (finish in-page from Google's progress) or "unavailable".
+        // Chrome's transfer manager sends the whole file to Google as one system task with its own
+        // notification, so the upload continues with the page in the background or closed, whatever
+        // other apps are playing. The service worker then adds it to the album (see sw.js).
+        // Resolves with { done, uploadToken?, started, error? }.
 
         let swRegistration = null;
         const pendingBackground = new Map();
@@ -503,7 +585,7 @@
             };
         }
 
-        if (channel && "serviceWorker" in navigator && "BackgroundFetchManager" in window) {
+        if (channel && "serviceWorker" in navigator && "BackgroundFetchManager" in window && "caches" in window) {
             navigator.serviceWorker.register("./sw.js")
                 .then(() => navigator.serviceWorker.ready)
                 .then(reg => {
@@ -519,34 +601,31 @@
                 .catch(() => { });
         }
 
-        async function uploadInBackground(item, uploadId, chunkSize, uploader) {
-            // Build every chunk request up front (Background Fetch needs them all at once)
-            const requests = [];
-            for (let offset = 0; ; offset += chunkSize) {
-                const end = Math.min(offset + chunkSize, item.file.size);
-                const final = end === item.file.size;
-                const data = await toBase64(item.file.slice(offset, end));
-                // Same JSON body as the in-page upload, assembled around the base64 so it isn't copied again
-                const head = JSON.stringify({ passcode, action: "chunk", uploadId, offset, final, uploader, data: "" }).slice(0, -2);
-                requests.push(new Request(config.endpoint + "?part=" + offset, {
-                    method: "POST",
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: new Blob([head, data, '"}']),
-                }));
-                item.note = "Preparing… " + Math.round((end / item.file.size) * 100) + "%";
-                paint(item);
-                if (final) break;
-            }
+        async function uploadInBackground(item, uploadId, uploadUrl, uploader) {
+            const id = "drop-" + uploadId;
+            // What the service worker needs to add the file to the album, even if this page is closed
+            const pending = await caches.open("photo-drop-pending");
+            await pending.put("./pending/" + id, new Response(JSON.stringify({
+                endpoint: config.endpoint, passcode, uploadId, uploader, fileName: item.file.name,
+            })));
 
             let registration;
             try {
-                registration = await swRegistration.backgroundFetch.fetch("drop-" + uploadId, requests, {
+                registration = await swRegistration.backgroundFetch.fetch(id, [new Request(uploadUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/octet-stream",
+                        "X-Goog-Upload-Command": "upload, finalize",
+                        "X-Goog-Upload-Offset": "0",
+                    },
+                    body: item.file,
+                })], {
                     title: "Uploading " + item.file.name,
                     icons: [{ src: artworkUrl(), sizes: "256x256", type: "image/png" }],
                 });
             } catch (e) {
-                item.note = "";
-                return "unavailable";
+                await pending.delete("./pending/" + id).catch(() => { });
+                return { done: false, started: false };
             }
 
             item.background = true;
@@ -568,9 +647,8 @@
             item.background = false;
             refreshKeepAlive();
 
-            if (result.done) return "done";
             if (result.error && /passcode/i.test(result.error)) throw new ApiError(result.error, true, "passcode");
-            return "interrupted";
+            return Object.assign({ started: true }, result);
         }
 
         async function withRetry(item, fn) {

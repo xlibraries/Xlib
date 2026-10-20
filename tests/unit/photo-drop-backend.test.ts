@@ -10,7 +10,7 @@ const CODE = readFileSync('backend/photo-drop/Code.gs', 'utf8');
 
 function makeBackend(props: Record<string, string> = { PASSCODE: 'letmein' }) {
     const store = { props: { ...props } as Record<string, string>, cache: new Map<string, string>() };
-    const photos = { sessions: new Map<string, { received: number; bytes: number[]; final: boolean; size: number }>(), albums: [] as string[], items: [] as any[], forwarded: [] as number[] };
+    const photos = { sessions: new Map<string, { received: number; bytes: number[]; final: boolean; size: number }>(), albums: [] as string[], items: [] as any[], forwarded: [] as number[], origins: [] as (string | undefined)[], refuseOrigin: false };
     const clock = { now: 1_000_000, onSleep: null as null | (() => void) };
     let uuid = 0;
 
@@ -22,6 +22,8 @@ function makeBackend(props: Record<string, string> = { PASSCODE: 'letmein' }) {
         fetch(url: string, opts: any) {
             const cmd = opts.headers?.['X-Goog-Upload-Command'];
             if (url.endsWith('/uploads') && cmd === 'start') {
+                photos.origins.push(opts.headers.Origin);
+                if (opts.headers.Origin && photos.refuseOrigin) throw new Error('Attribute provided with invalid value: Header:Origin');
                 const id = 'sess' + photos.sessions.size;
                 photos.sessions.set(id, { received: 0, bytes: [], final: false, size: Number(opts.headers['X-Goog-Upload-Raw-Size']) });
                 return response(200, '', { 'X-Goog-Upload-URL': 'https://photos.example/upload/' + id, 'x-goog-upload-chunk-granularity': '262144' });
@@ -145,6 +147,36 @@ describe('Photo Drop backend', () => {
         backend.post(first);
         expect(backend.post(first)).toMatchObject({ ok: true, duplicate: true });
         expect(backend.photos.forwarded).toEqual([0]);
+    });
+
+    it('gives the browser the upload URL for direct uploads, started for its origin', () => {
+        const start = (extra: Record<string, unknown>) => backend.post({ action: 'start', passcode: 'letmein', fileName: 'v.mp4', mimeType: 'video/mp4', size: 10, ...extra });
+        expect(start({})).not.toHaveProperty('uploadUrl');                     // relay-only clients never see it
+        expect(start({ direct: true, origin: 'https://xlibraries.com' })).toMatchObject({ uploadUrl: 'https://photos.example/upload/sess1' });
+        start({ direct: true, origin: 'javascript:alert(1)' });
+        expect(backend.photos.origins).toEqual([undefined, 'https://xlibraries.com', undefined]);
+    });
+
+    it('still starts the upload if Apps Script refuses the Origin header', () => {
+        backend.photos.refuseOrigin = true;
+        expect(backend.post({ action: 'start', passcode: 'letmein', fileName: 'v.mp4', mimeType: 'video/mp4', size: 10, direct: true, origin: 'https://xlibraries.com' }))
+            .toMatchObject({ uploadId: 'uuid-1', uploadUrl: 'https://photos.example/upload/sess0' });
+    });
+
+    it('adds a directly uploaded file to the album once', () => {
+        const { uploadId } = backend.post({ action: 'start', passcode: 'letmein', fileName: 'clip.mov', mimeType: 'video/quicktime', size: 10, direct: true });
+        const finish = { action: 'finish', passcode: 'letmein', uploadId, uploadToken: 'tok-1', uploader: 'Friend' };
+        expect(backend.post(finish)).toEqual({ ok: true, done: true });
+        expect(backend.post(finish)).toMatchObject({ ok: true, done: true, duplicate: true });
+        expect(backend.photos.items).toHaveLength(1);
+        expect(backend.photos.items[0].newMediaItems[0]).toMatchObject({ description: 'Uploaded by Friend via website', simpleMediaItem: { uploadToken: 'tok-1', fileName: 'clip.mov' } });
+        expect(backend.post({ action: 'status', passcode: 'letmein', uploadId })).toMatchObject({ done: true });
+    });
+
+    it('finishes even after the session cache expired, and requires a token', () => {
+        expect(backend.post({ action: 'finish', passcode: 'letmein', uploadId: 'gone', uploadToken: '' })).toMatchObject({ fatal: true });
+        expect(backend.post({ action: 'finish', passcode: 'letmein', uploadId: 'gone', uploadToken: 'tok', fileName: 'late.mp4' })).toEqual({ ok: true, done: true });
+        expect(backend.photos.items[0].newMediaItems[0].simpleMediaItem.fileName).toBe('late.mp4');
     });
 
     it('reports progress for resuming, and expires unknown uploads', () => {
