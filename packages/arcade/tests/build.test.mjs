@@ -31,6 +31,14 @@ describe('build-native', () => {
         }
     });
 
+    it('ships Turbo Trails with Box2D compiled in and its music beside the build', () => {
+        const args = emArgs('turbo-trails', 'webgl2', ['build/obj/x.o']);
+        expect(args).toContain('-Ithird_party/box2d/include');
+        expect(args).toContain('build/obj/x.o');
+        expect(GAMES['turbo-trails'].cFlags).toContain('-DBOX2D_DISABLE_SIMD');
+        for (const f of ['chariots-bg.mp3', 'chariots-wheel.mp3']) expect(existsSync(new URL(`../dist/turbo-trails/${f}`, import.meta.url)), f).toBe(true);
+    });
+
     it('knows where sokol-shdc lives for each platform', () => {
         expect(shdcBinaryPath('darwin', 'arm64')).toBe('bin/osx_arm64/sokol-shdc');
         expect(shdcBinaryPath('linux', 'x64')).toBe('bin/linux/sokol-shdc');

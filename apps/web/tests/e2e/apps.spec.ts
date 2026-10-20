@@ -578,6 +578,36 @@ test.describe('Arcade', () => {
         await expect.poll(frames).toBeGreaterThan(before + 20);
     });
 
+    test('Turbo Trails: the chariot drives, burns fuel, the panel shows eras and a shop', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByAltText('ubuntu window maximize').click();
+        await arcade.getByRole('button', { name: 'Play Turbo Trails' }).click();
+        const game = page.locator('[data-game="turbo-trails"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 25_000 }).toBeGreaterThan(10);
+        const state = () => game.evaluate(el => {
+            const g = (el as unknown as { xlGame: { _tt_state_json(): number; UTF8ToString(p: number): string; _free(p: number): void } }).xlGame;
+            const ptr = g._tt_state_json(); const text = g.UTF8ToString(ptr); g._free(ptr);
+            return JSON.parse(text) as { era: number; unlocked: number; coins: number; run: { state: number; distance: number } };
+        });
+        expect(await state()).toMatchObject({ era: 0, unlocked: 1, run: { state: 0, distance: 0 } });
+
+        // the panel: story, locked eras, a shop you can't afford yet
+        await expect(arcade.getByText('2000 BCE · Chariots').first()).toBeVisible();
+        await expect(arcade.getByRole('button', { name: /1769 · Steam/ })).toBeDisabled();
+        await expect(arcade.getByRole('button', { name: /^Engine/ })).toBeDisabled();
+
+        const box = (await game.locator('canvas').boundingBox())!;
+        await page.mouse.click(box.x + box.width * 0.25, box.y + box.height * 0.5);   // focus (left half = brake)
+        await page.keyboard.down('ArrowRight');
+        await expect.poll(async () => (await state()).run.distance, { timeout: 10_000 }).toBeGreaterThan(15);
+        await page.keyboard.up('ArrowRight');
+        const after = await state();
+        expect(after.run.state).toBe(1);   // driving
+        // the chariot can't go faster than its motor allows (about 9 m/s)
+        expect(after.run.distance).toBeLessThan(60);
+    });
+
     test("a running game doesn't steal keys from the terminal", async ({ page }) => {
         await play(page, 'webgl2');
         await openApp(page, 'terminal');
