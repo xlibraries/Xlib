@@ -89,6 +89,8 @@ void frame() {
     const float dt = static_cast<float>(sapp_frame_duration());
     xl::report_frame(dt);
     state.time += dt;
+    if (xl::gamepad().pressed(xl::PAD_A)) state.spin = -state.spin;
+    xl::end_frame();
     state.angle += dt * state.spin;
     state.fps = state.fps * 0.95f + (dt > 0 ? 1.0f / dt : 0) * 0.05f;
 
