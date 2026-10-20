@@ -1,8 +1,3 @@
-import React from 'react'
-
-export default function SmallArrow(props) {
-    const angle = props.angle ? props.angle : "up"; // default value is up
-    return (
-        <div className={" arrow-custom-" + angle}></div>
-    )
+export default function SmallArrow({ angle = "up", className = "" }: { angle?: "up" | "down" | "left" | "right"; className?: string }) {
+    return <div className={className + " arrow-custom-" + angle}></div>;
 }

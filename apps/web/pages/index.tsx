@@ -7,9 +7,8 @@ const TRACKING_ID = process.env.NEXT_PUBLIC_TRACKING_ID;
 
 function App() {
   useEffect(() => {
-    if (!TRACKING_ID) return;
-    initAnalytics(TRACKING_ID);
-  }, [TRACKING_ID]);
+    if (TRACKING_ID) initAnalytics(TRACKING_ID);
+  }, []);
 
   return (
     <>

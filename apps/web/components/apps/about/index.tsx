@@ -1,7 +1,6 @@
 // About Aman: an Ubuntu Files-style explorer of Aman's experience, education, skills, projects and resume,
 // with a simplified sidebar view one click away. The text lives in content/about/.
 import { useState } from "react";
-import type { AppProps } from "@xlibraries/app-sdk";
 import { Explorer } from "./Explorer";
 import { SimplifiedView } from "./SimplifiedView";
 
@@ -11,7 +10,7 @@ function savedView(): View {
   try { return localStorage.getItem("about-view") === "simple" ? "simple" : "explorer"; } catch { return "explorer"; }
 }
 
-export default function AboutAman(_props: AppProps) {
+export default function AboutAman() {
   const [view, setView] = useState<View>(savedView);
 
   const choose = (next: View) => {

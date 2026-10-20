@@ -24,8 +24,10 @@ pages/index.tsx
   `openApp`, `addFolder`, `wallpaper` / `setWallpaper` and `track` (analytics). The desktop builds `host`;
   apps never import the shell. This is what lets self-contained apps live in `packages/` (see
   [the restructuring plan](restructure-plan.md)).
-- **State** lives in the class components above (the desktop predates hooks) and anything worth keeping
-  across visits goes to `localStorage`: wallpaper, brightness, lock state, new desktop folders, the About
+- **Window state** (open, focused, minimized, what the dock shows, when it hides) is one pure reducer,
+  `lib/window-manager.ts`, which `shell/desktop.tsx` runs with `useReducer`; windows and the dock only
+  dispatch. Every component is a typed function component. Anything worth keeping across visits goes to
+  `localStorage`: wallpaper, brightness, lock state, new desktop folders, the About
   view and path, the Side Quests tab, Brave's tabs, cached Invidious responses and so on.
 - **Logic vs UI.** Anything that can be tested without a browser lives in `lib/` as plain functions:
   Brave's URL routing (`browser.ts`), lyrics parsing (`music.ts`), distances (`side-quests.ts`), the clock

@@ -20,3 +20,13 @@ it('maps brightness 0-100 to a CSS filter from 0.25 to 1', () => {
     expect(screenBrightness(60)).toBe('brightness(0.7)');
     expect(screenBrightness(100)).toBe('brightness(1)');
 });
+
+import { DEFAULT_WALLPAPER, WALLPAPERS, wallpaperUrl } from '../../lib/wallpapers';
+
+describe('wallpapers', () => {
+    it('lists the eight wallpapers and falls back to the default', () => {
+        expect(Object.keys(WALLPAPERS)).toHaveLength(8);
+        expect(wallpaperUrl('wall-5')).toBe('./images/wallpapers/wall-5.webp');
+        expect(wallpaperUrl('nope')).toBe(WALLPAPERS[DEFAULT_WALLPAPER]);
+    });
+});

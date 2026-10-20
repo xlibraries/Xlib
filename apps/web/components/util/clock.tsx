@@ -1,35 +1,17 @@
-import { Component } from 'react'
-import { formatClock } from '../../lib/clock'
+import { useEffect, useState } from 'react';
+import { formatClock } from '../../lib/clock';
 
-type ClockProps = { onlyTime?: boolean; onlyDay?: boolean };
-type ClockState = { hour_12: boolean; current_time: Date | null };
+export default function Clock({ onlyTime, onlyDay }: { onlyTime?: boolean; onlyDay?: boolean }) {
+    // Set after mount: a time rendered on the server never matches the browser's (hydration error)
+    const [now, setNow] = useState<Date | null>(null);
 
-export default class Clock extends Component<ClockProps, ClockState> {
-    update_time?: ReturnType<typeof setInterval>;
+    useEffect(() => {
+        const tick = () => setNow(new Date());
+        tick();
+        const timer = setInterval(tick, 10 * 1000);
+        return () => clearInterval(timer);
+    }, []);
 
-    constructor(props: ClockProps) {
-        super(props);
-        this.state = {
-            hour_12: true,
-            // set after mount: a time rendered on the server never matches the browser's (hydration error)
-            current_time: null
-        };
-    }
-
-    componentDidMount() {
-        this.setState({ current_time: new Date() });
-        this.update_time = setInterval(() => {
-            this.setState({ current_time: new Date() });
-        }, 10 * 1000);
-    }
-
-    componentWillUnmount() {
-        clearInterval(this.update_time);
-    }
-
-    render() {
-        const { current_time } = this.state;
-        if (!current_time) return <span>&nbsp;</span>;
-        return <span>{formatClock(current_time, { hour12: this.state.hour_12, onlyTime: this.props.onlyTime, onlyDay: this.props.onlyDay })}</span>;
-    }
+    if (!now) return <span>&nbsp;</span>;
+    return <span>{formatClock(now, { hour12: true, onlyTime, onlyDay })}</span>;
 }

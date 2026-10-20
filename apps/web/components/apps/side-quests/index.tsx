@@ -2,7 +2,6 @@
 // Travel data comes from public/side-quests/*.json (built by scripts/side-quests/, town-level only, private
 // places removed); the rest is content/side-quests.ts.
 import React from "react";
-import type { AppProps } from "@xlibraries/app-sdk";
 import type { LatLng } from "../../../content/side-quests";
 import { trackPageview } from "../../../lib/analytics";
 import { CharacterTab } from "./CharacterTab";
@@ -28,7 +27,7 @@ function savedTab(): string {
     }
 }
 
-export default function SideQuests(_props: AppProps) {
+export default function SideQuests() {
     // The app only renders in the browser (next/dynamic with ssr: false), so localStorage is readable here
     const [tab, setTab] = React.useState(savedTab);
     const [travel, setTravel] = React.useState<Travel | null>(null);
