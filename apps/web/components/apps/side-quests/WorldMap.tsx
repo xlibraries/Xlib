@@ -69,6 +69,8 @@ export function WorldMap({ travel, focus }: { travel: Travel | null; focus: LatL
             if (observer) observer.disconnect();
             if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
         };
+        // focus only sets the first view here; later changes fly the map (next effect) instead of rebuilding it
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [travel]);
 
     React.useEffect(() => {

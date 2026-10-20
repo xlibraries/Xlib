@@ -1,62 +1,49 @@
-// @ts-nocheck
-import React, { useState } from 'react'
-import SideBarApp from './dock-app';
+import { useState } from 'react';
+import type { WindowsState } from '../../lib/window-manager';
+import DockApp from './dock-app';
 
-const renderApps = (props) => {
-    const sideBarAppsJsx = [];
-    props.apps.forEach((app, index) => {
-        if (props.favourite_apps[app.id] === false) return;
-        sideBarAppsJsx.push(
-            <SideBarApp key={index} id={app.id} title={app.title} icon={app.icon} isClose={props.closed_windows} isFocus={props.focused_windows} openApp={props.openAppByAppId} isMinimized={props.isMinimized} openFromMinimised={props.openFromMinimised} />
-        );
-    });
-    return sideBarAppsJsx;
+export interface DockProps {
+    apps: { id: string; title: string; icon: string }[];
+    windows: WindowsState;
+    openApp: (id: string) => void;
+    onOverlap: (id: string | null, hide: boolean) => void;
+    showAllApps: () => void;
 }
 
-export default function SideBar(props) {
-
-    function showSideBar() {
-        props.hideSideBar(null, false);
-    }
-
-    function hideSideBar() {
-        setTimeout(() => {
-            props.hideSideBar(null, true);
-        }, 2000);
-    }
-
+export default function Dock({ apps, windows, openApp, onOverlap, showAllApps }: DockProps) {
     return (
         <>
-            <div className={(props.hide ? " -translate-x-full " : "") + " absolute transform duration-300 select-none z-40 left-0 top-0 h-full pt-7 w-auto flex flex-col justify-start items-center border-black border-opacity-60 bg-black bg-opacity-50"}>
-                {
-                    (
-                        Object.keys(props.closed_windows).length !== 0
-                            ? renderApps(props)
-                            : null
-                    )
-                }
-                <AllApps showApps={props.showAllApps} />
+            <div className={(windows.hideDock ? " -translate-x-full " : "") + " absolute transform duration-300 select-none z-40 left-0 top-0 h-full pt-7 w-auto flex flex-col justify-start items-center border-black border-opacity-60 bg-black bg-opacity-50"}>
+                {apps.filter(app => windows.favourite[app.id]).map(app => (
+                    <DockApp
+                        key={app.id}
+                        id={app.id}
+                        title={app.title}
+                        icon={app.icon}
+                        isOpen={windows.closed[app.id] === false}
+                        isFocused={!!windows.focused[app.id]}
+                        isMinimized={!!windows.minimized[app.id]}
+                        openApp={openApp}
+                    />
+                ))}
+                <AllApps showApps={showAllApps} />
             </div>
-            <div onMouseEnter={showSideBar} onMouseLeave={hideSideBar} className={"w-1 h-full absolute top-0 left-0 bg-transparent z-50"}></div>
+            {/* Hovering the left edge shows a hidden dock; it hides again 2 s after leaving */}
+            <div onMouseEnter={() => onOverlap(null, false)} onMouseLeave={() => setTimeout(() => onOverlap(null, true), 2000)} className="w-1 h-full absolute top-0 left-0 bg-transparent z-50"></div>
         </>
-    )
+    );
 }
 
-export function AllApps(props) {
-
+export function AllApps({ showApps }: { showApps: () => void }) {
     const [title, setTitle] = useState(false);
 
     return (
         <div
-            className={`w-10 h-10 rounded m-1 hover:bg-white hover:bg-opacity-10 flex items-center justify-center`}
+            className="w-10 h-10 rounded m-1 hover:bg-white hover:bg-opacity-10 flex items-center justify-center"
             style={{ marginTop: 'auto' }}
-            onMouseEnter={() => {
-                setTitle(true);
-            }}
-            onMouseLeave={() => {
-                setTitle(false);
-            }}
-            onClick={props.showApps}
+            onMouseEnter={() => setTitle(true)}
+            onMouseLeave={() => setTitle(false)}
+            onClick={showApps}
         >
             <div className="relative">
                 <img width="28px" height="28px" className="w-7" src="./themes/Yaru/system/view-app-grid-symbolic.svg" alt="Ubuntu view app" />

@@ -1,96 +1,70 @@
-import React, { Component } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import SmallArrow from './small-arrow';
 import { screenBrightness } from '../../lib/display';
-
-type SliderProps = {
-	onChange: React.ChangeEventHandler<HTMLInputElement>;
-	className: string;
-	name: string;
-	value: number;
-};
-
-class Slider extends Component<SliderProps> {
-	render() {
-		return (
-			<input
-				type="range"
-				onChange={this.props.onChange}
-				className={this.props.className}
-				name={this.props.name}
-				min="0"
-				max="100"
-				value={this.props.value}
-				step="1"
-			/>
-		);
-	}
-}
 
 type StatusCardProps = {
 	visible: boolean;
 	toggleVisible: () => void;
 	lockScreen: () => void;
 	shutDown: () => void;
+	onOpenSettings: () => void;
 };
-type StatusCardState = { sound_level: number; brightness_level: number };
 
 const setScreenBrightness = (level: number) => {
 	const screen = document.getElementById('monitor-screen');
 	if (screen) screen.style.filter = screenBrightness(level);
 };
 
-export class StatusCard extends Component<StatusCardProps, StatusCardState> {
-	wrapperRef = React.createRef<HTMLDivElement>();
+const stored = (key: string, fallback: number) => {
+	try { return Number(localStorage.getItem(key) ?? fallback); } catch { return fallback; }
+};
 
-	constructor(props: StatusCardProps) {
-		super(props);
-		this.state = {
-			sound_level: 75, // better of setting default values from localStorage
-			brightness_level: 100 // setting default value to 100 so that by default its always full.
+export default function StatusCard({ visible, toggleVisible, lockScreen, shutDown, onOpenSettings }: StatusCardProps) {
+	const wrapper = useRef<HTMLDivElement>(null);
+	// The desktop only renders in the browser after the boot screen, but keep SSR-safe defaults
+	const [sound, setSoundState] = useState(75);
+	const [brightness, setBrightnessState] = useState(100);
+
+	useEffect(() => {
+		/* eslint-disable react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR) */
+		setSoundState(stored('sound-level', 75));
+		const level = stored('brightness-level', 100);
+		setBrightnessState(level);
+		/* eslint-enable react-hooks/set-state-in-effect */
+		setScreenBrightness(level);
+	}, []);
+
+	// Clicking outside the open card closes it
+	useEffect(() => {
+		const onOutside = (event: MouseEvent | TouchEvent) => {
+			if (!visible || !wrapper.current || wrapper.current.contains(event.target as Node)) return;
+			toggleVisible();
 		};
-	}
+		document.addEventListener('mousedown', onOutside);
+		document.addEventListener('touchstart', onOutside);
+		return () => {
+			document.removeEventListener('mousedown', onOutside);
+			document.removeEventListener('touchstart', onOutside);
+		};
+	}, [visible, toggleVisible]);
 
-	componentDidMount() {
-		document.addEventListener('mousedown', this.handleOutsideClick);
-		document.addEventListener('touchstart', this.handleOutsideClick);
-		this.setState({
-			sound_level: Number(localStorage.getItem('sound-level') ?? 75),
-			brightness_level: Number(localStorage.getItem('brightness-level') ?? 100)
-		}, () => setScreenBrightness(this.state.brightness_level));
-	}
-
-	componentWillUnmount() {
-		document.removeEventListener('mousedown', this.handleOutsideClick);
-		document.removeEventListener('touchstart', this.handleOutsideClick);
-	}
-
-	handleOutsideClick = (event: MouseEvent | TouchEvent) => {
-		if (!this.props.visible) return;
-		if (!this.wrapperRef.current) return;
-		if (this.wrapperRef.current.contains(event.target as Node)) return;
-		this.props.toggleVisible();
-	};
-
-	handleBrightness = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const level = Number(e.target.value);
-		this.setState({ brightness_level: level });
-		localStorage.setItem('brightness-level', String(level));
+	const setBrightness = (level: number) => {
+		setBrightnessState(level);
+		try { localStorage.setItem('brightness-level', String(level)); } catch { /* storage blocked */ }
 		setScreenBrightness(level);
 	};
 
-	handleSound = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const level = Number(e.target.value);
-		this.setState({ sound_level: level });
-		localStorage.setItem('sound-level', String(level));
+	const setSound = (level: number) => {
+		setSoundState(level);
+		try { localStorage.setItem('sound-level', String(level)); } catch { /* storage blocked */ }
 	};
 
-	render() {
-		return (
+	return (
 			<div
-				ref={this.wrapperRef}
+				ref={wrapper}
 				className={
 					'absolute bg-ub-cool-grey rounded-md py-4 top-9 right-3 shadow border-black border border-opacity-20 status-card' +
-					(this.props.visible ? ' visible animateShow' : ' invisible')
+					(visible ? ' visible animateShow' : ' invisible')
 				}
 			>
 				{' '}
@@ -100,10 +74,10 @@ export class StatusCard extends Component<StatusCardProps, StatusCardState> {
 					<div className="w-8">
 						<img width="16px" height="16px" src="./themes/Yaru/status/audio-headphones-symbolic.svg" alt="ubuntu headphone" />
 					</div>
-					<Slider
-						onChange={this.handleSound}
+					<input type="range" min="0" max="100" step="1"
+						onChange={(e) => setSound(Number(e.target.value))}
 						className="ubuntu-slider w-2/3"
-						value={this.state.sound_level}
+						value={sound}
 						name="headphone_range"
 					/>
 				</div>
@@ -111,11 +85,11 @@ export class StatusCard extends Component<StatusCardProps, StatusCardState> {
 					<div className="w-8">
 						<img width="16px" height="16px" src="./themes/Yaru/status/display-brightness-symbolic.svg" alt="ubuntu brightness" />
 					</div>
-					<Slider
-						onChange={this.handleBrightness}
+					<input type="range" min="0" max="100" step="1"
+						onChange={(e) => setBrightness(Number(e.target.value))}
 						className="ubuntu-slider w-2/3"
 						name="brightness_range"
-						value={this.state.brightness_level}
+						value={brightness}
 					/>
 				</div>
 				<div className="w-64 flex content-center justify-center">
@@ -153,6 +127,7 @@ export class StatusCard extends Component<StatusCardProps, StatusCardState> {
 				</div>
 				<div
 					id="open-settings"
+					onClick={onOpenSettings}
 					className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20"
 				>
 					<div className="w-8">
@@ -163,7 +138,7 @@ export class StatusCard extends Component<StatusCardProps, StatusCardState> {
 					</div>
 				</div>
 				<div
-					onClick={this.props.lockScreen}
+					onClick={lockScreen}
 					className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20"
 				>
 					<div className="w-8">
@@ -174,7 +149,7 @@ export class StatusCard extends Component<StatusCardProps, StatusCardState> {
 					</div>
 				</div>
 				<div
-					onClick={this.props.shutDown}
+					onClick={shutDown}
 					className="w-64 py-1.5 flex items-center justify-center bg-ub-cool-grey hover:bg-ub-warm-grey hover:bg-opacity-20"
 				>
 					<div className="w-8">
@@ -186,8 +161,5 @@ export class StatusCard extends Component<StatusCardProps, StatusCardState> {
 					</div>
 				</div>
 			</div>
-		);
-	}
+);
 }
-
-export default StatusCard;
