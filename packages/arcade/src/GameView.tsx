@@ -10,6 +10,8 @@ interface GameInstance {
     _xl_set_paused(paused: number): void;
     _xl_quit(): void;
     _xl_set_gamepad(connected: number, lx: number, ly: number, rx: number, ry: number, buttons: number): void;
+    /** Set by xl_audio.h once the game has sound: the master volume, 0..1 */
+    xlSetVolume?(volume: number): void;
 }
 
 type CreateGame = (options: Record<string, unknown>) => Promise<GameInstance>;
@@ -21,10 +23,12 @@ export interface GameViewProps {
     baseUrl: string;
     leaderboardUrl?: string;
     choice: BackendChoice;
+    /** The desktop's master volume, 0..1 */
+    volume?: number;
     onBack: () => void;
 }
 
-export function GameView({ game, baseUrl, leaderboardUrl, choice, onBack }: GameViewProps) {
+export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, onBack }: GameViewProps) {
     const canvasId = 'arcade-' + useId().replace(/[^a-zA-Z0-9]/g, '');
     const canvas = useRef<HTMLCanvasElement>(null);
     const frame = useRef<HTMLDivElement>(null);
@@ -68,6 +72,9 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, onBack }: Game
             instance.current = null;
         };
     }, [game.id, baseUrl, choice, canvasId]);
+
+    // The desktop's volume slider reaches the game's audio (and again once it has loaded)
+    useEffect(() => { running?.xlSetVolume?.(volume); }, [running, volume]);
 
     // Pause while the window is minimized or the tab is hidden
     useEffect(() => {
@@ -141,7 +148,7 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, onBack }: Game
             <div className="flex-grow min-h-0 md:min-w-0 h-1/2 md:h-full">{view}</div>
             <div className="h-1/2 md:h-full md:w-2/5 md:max-w-md border-t md:border-t-0 md:border-l border-black">
                 {running && status.kind === 'running'
-                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} baseUrl={baseUrl} leaderboardUrl={leaderboardUrl} /></Suspense>
+                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} baseUrl={baseUrl} leaderboardUrl={leaderboardUrl} volume={volume} /></Suspense>
                     : <div className="h-full" style={{ background: '#16121f' }} />}
             </div>
         </div>
