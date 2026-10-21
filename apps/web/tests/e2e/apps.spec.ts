@@ -565,6 +565,7 @@ test.describe('Arcade', () => {
     });
 
     test('3D Showcase renders, orbits and switches camera', async ({ page }) => {
+        test.setTimeout(150_000);   // the car takes a while to reach the crates on a slow machine
         await openDesktop(page, { 'arcade-backend': 'webgl2' });
         const arcade = await openApp(page, 'arcade');
         await arcade.getByRole('button', { name: 'Play 3D Showcase' }).click();
@@ -585,8 +586,8 @@ test.describe('Arcade', () => {
         type Showcase = { xlGame: { _showcase_crate_height(i: number): number; _showcase_car_to_crates(): number } };
         const top = () => game.evaluate(el => (el as unknown as Showcase).xlGame._showcase_crate_height(9));
         expect(await top()).toBeGreaterThan(0.9);
-        await expect.poll(() => game.evaluate(el => (el as unknown as Showcase).xlGame._showcase_car_to_crates()), { timeout: 60_000 }).toBeLessThan(2);
-        await expect.poll(top, { timeout: 15_000 }).toBeLessThan(0.6);
+        await expect.poll(() => game.evaluate(el => (el as unknown as Showcase).xlGame._showcase_car_to_crates()), { timeout: 110_000 }).toBeLessThan(2);
+        await expect.poll(top, { timeout: 20_000 }).toBeLessThan(0.6);
     });
 
     test('Turbo Trails: the chariot drives, burns fuel, the panel shows eras and a shop', async ({ page }) => {

@@ -38,6 +38,7 @@ struct {
     xl::phys::Body car_body;
     xl::phys::Body crates[CRATES];
     float crate_s = 0;         // where along the road the crates stand
+    HMM_Mat4 pallet_model;     // the flat pallet they stand on
     float time = 0;
     float day = 0.3f;          // 0..1, 0.25 = noon-ish rise
     float car_s = 0;           // distance along the road
@@ -102,13 +103,18 @@ void setup_physics() {
     const float spacing = WORLD / GRID;
     st.physics->add_height_field(heights, n, { -WORLD / 2, 0, -WORLD / 2 }, spacing, { 0.8f, 0.1f });
     st.car_body = st.physics->add_box(ph::Motion::Kinematic, { 0, 5, 0 }, {}, { 0.5f, 0.22f, 0.26f });
-    st.crate_s = st.scene.road.length * 0.25f;
+    st.crate_s = st.scene.road.length * 0.12f;
     const V3 at = st.scene.road.at(st.crate_s), dir = st.scene.road.dir(st.crate_s);
     const V3 side = { -dir.z, 0, dir.x };   // across the road
+    // a flat pallet, level however the road slopes, so the pyramid stands until the car arrives
+    const float yaw = std::atan2(-dir.z, dir.x);
+    const float pallet_y = at.y + 0.05f;
+    st.physics->add_box(ph::Motion::Static, { at.x, pallet_y, at.z }, ph::axis_angle({ 0, 1, 0 }, yaw), { 0.7f, 0.05f, 0.9f }, 0, { 0.8f, 0.1f });
+    st.pallet_model = HMM_MulM4(HMM_MulM4(HMM_Translate(HMM_V3(at.x, pallet_y, at.z)), HMM_Rotate_RH(yaw, HMM_V3(0, 1, 0))), HMM_Scale(HMM_V3(0.7f / 0.16f, 0.05f / 0.16f, 0.9f / 0.16f)));
     int k = 0;
     for (int row = 0; row < 4 && k < CRATES; row++) for (int col = 0; col < 4 - row && k < CRATES; col++, k++) {
         const float across = (col - (3 - row) * 0.5f) * 0.34f;
-        st.crates[k] = st.physics->add_box(ph::Motion::Dynamic, { at.x + side.x * across, at.y + 0.17f + row * 0.34f, at.z + side.z * across }, {}, { 0.16f, 0.16f, 0.16f }, 2.0f, { 0.6f, 0.15f });
+        st.crates[k] = st.physics->add_box(ph::Motion::Dynamic, { at.x + side.x * across, pallet_y + 0.05f + 0.17f + row * 0.34f, at.z + side.z * across }, {}, { 0.16f, 0.16f, 0.16f }, 2.0f, { 0.6f, 0.15f });
     }
 }
 
@@ -218,6 +224,11 @@ void frame() {
     sg_bindings crates = {};
     crates.vertex_buffers[0] = st.crate_buf;
     sg_apply_bindings(&crates);
+    {   // the pallet: the crate mesh, flattened
+        vs_params_t vs_pallet = { HMM_MulM4(view_proj, st.pallet_model), st.pallet_model };
+        sg_apply_uniforms(UB_vs_params, SG_RANGE(vs_pallet));
+        sg_draw(0, st.crate_count, 1);
+    }
     for (int i = 0; i < CRATES; i++) {
         const HMM_Mat4 model = pose_matrix(st.physics->pose(st.crates[i]));
         vs_params_t vs_crate = { HMM_MulM4(view_proj, model), model };
