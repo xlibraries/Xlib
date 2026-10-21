@@ -89,18 +89,35 @@ public:
         }
     }
 
-    void drive(float throttle, bool motor_on) override {
-        throttle = std::max(-1.0f, std::min(1.0f, throttle));
+    void drive(const DriveInput& in) override {
+        const float throttle = std::max(-1.0f, std::min(1.0f, in.throttle));
+        const float lean = std::max(-1.0f, std::min(1.0f, in.lean));
+        const float boost = std::max(0.0f, std::min(1.0f, in.boost));
+        const bool motor_on = in.motor_on;
         for (int i = 0; i < 2; i++) {
             const bool driven = i == 0 ? spec_.rear_drive : spec_.front_drive;
             b2WheelJoint_EnableMotor(joints_[i], driven && motor_on && throttle != 0);
             // positive joint speed turns the wheel anticlockwise, which rolls it to the left
-            b2WheelJoint_SetMotorSpeed(joints_[i], -throttle * spec_.max_speed);
-            b2WheelJoint_SetMaxMotorTorque(joints_[i], spec_.max_torque * std::fabs(throttle));
+            b2WheelJoint_SetMotorSpeed(joints_[i], -throttle * spec_.max_speed * (1 + 0.5f * boost));
+            b2WheelJoint_SetMaxMotorTorque(joints_[i], spec_.max_torque * std::fabs(throttle) * (1 + boost));
+        }
+        if (boost > 0) {
+            // Turbo pushes along the chassis, so in the air it goes where the nose points
+            const b2Rot rot = b2Body_GetRotation(chassis_);
+            const float f = boost * spec_.boost_force * spec_.mass;
+            b2Body_ApplyForceToCenter(chassis_, { rot.c * f, rot.s * f }, true);
+        }
+        // leaning: anticlockwise is nose up. In the air it's the main control. On the ground leaning back takes real
+        // torque to lift the front off its suspension; leaning forward only presses the nose a little (pressing hard
+        // pole-vaults the vehicle over its front wheel)
+        if (lean != 0) {
+            float torque = spec_.air_torque * 1.6f;
+            if (!airborne()) torque = lean > 0 ? spec_.air_torque * 0.8f + spec_.max_torque * 0.25f : touching_[0] > 0 ? spec_.air_torque * 0.4f : 0.0f;   // a stoppie, never an endo
+            b2Body_ApplyTorque(chassis_, lean * torque, true);
         }
         if (throttle == 0) return;
         if (airborne()) {
-            // gas / brake pitch the vehicle in the air
+            // gas / brake pitch the vehicle a little in the air too
             b2Body_ApplyTorque(chassis_, -throttle * spec_.air_torque, true);
         } else if (motor_on) {
             // on the ground the motor's reaction torque would stand the vehicle on its tail; suspension geometry

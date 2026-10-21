@@ -15,13 +15,18 @@ constexpr int UPGRADE_TIERS = 4;
 constexpr int UPGRADE_PRICES[UPGRADE_TIERS] = { 300, 400, 550, 750 };
 constexpr int COINS_PER_100M = 10, COINS_PER_FLIP = 50, COINS_TREASURE = 100, COINS_ROAD = 5;
 constexpr float FUEL_SECONDS = 24.0f;    // a full tank at full throttle
+// Turbo: a meter filled by coins, flips and air time, spent by holding the boost key
+constexpr float TURBO_SECONDS = 2.5f;    // a full meter lasts this long
+constexpr float TURBO_PER_COIN = 0.08f, TURBO_PER_FLIP = 0.5f, TURBO_PER_AIR_SECOND = 0.15f;
 
 enum class RunState { Ready, Driving, OutOfFuel, Crashed, Finished };
-enum class RunEvent { Coin, Fuel, Flip, Treasure, Landmark, Crash, OutOfFuel, Landing, Finished };
+enum class RunEvent { Coin, Fuel, Flip, Treasure, Landmark, Crash, OutOfFuel, Landing, Finished, Turbo };
 
 struct Run {
     RunState state = RunState::Ready;
     float fuel = 1.0f;                 // fraction of the tank
+    float turbo = 0;                   // the Turbo meter, 0..1
+    bool boosting = false;             // Turbo in use this update (drive the physics with it next step)
     float distance = 0;                // metres from the start, best so far this run
     int coins = 0;                     // earned this run (road coins, flips, treasure)
     int flips = 0;
@@ -50,7 +55,7 @@ bool buy_upgrade(Progress& p, int era, int kind);
 /** Metres needed in era `era` to unlock the next one. */
 int unlock_distance(int era);
 
-struct RunInput { float throttle = 0; };
+struct RunInput { float throttle = 0; float lean = 0; bool boost = false; };
 
 /** Advances a run by dt using the vehicle's state after the physics step. */
 void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, bool chassis_hit, float impact, const RunInput& in, float dt, float road_length);

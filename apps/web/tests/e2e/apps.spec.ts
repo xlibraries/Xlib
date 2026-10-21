@@ -593,9 +593,9 @@ test.describe('Arcade', () => {
         const state = () => game.evaluate(el => {
             const g = (el as unknown as { xlGame: { _tt_state_json(): number; UTF8ToString(p: number): string; _free(p: number): void } }).xlGame;
             const ptr = g._tt_state_json(); const text = g.UTF8ToString(ptr); g._free(ptr);
-            return JSON.parse(text) as { era: number; unlocked: number; coins: number; run: { state: number; distance: number } };
+            return JSON.parse(text) as { era: number; unlocked: number; coins: number; run: { state: number; distance: number; turbo: number; boosting: boolean } };
         });
-        expect(await state()).toMatchObject({ era: 0, unlocked: 1, run: { state: 0, distance: 0 } });
+        expect(await state()).toMatchObject({ era: 0, unlocked: 1, run: { state: 0, distance: 0, turbo: 0, boosting: false } });
 
         // the panel: story, locked eras, a shop you can't afford yet
         await expect(arcade.getByText('2000 BCE · Chariots').first()).toBeVisible();
@@ -611,6 +611,24 @@ test.describe('Arcade', () => {
         expect(after.run.state).toBe(1);   // driving
         // the chariot can't go faster than its motor allows (about 9 m/s)
         expect(after.run.distance).toBeLessThan(60);
+
+        // leaning (↑) and Turbo (Space) are not gas: on a fresh run neither starts it
+        await game.evaluate(el => (el as unknown as { xlGame: { _tt_restart(): void } }).xlGame._tt_restart());
+        await page.keyboard.down('ArrowUp');
+        await page.keyboard.down('Space');
+        await page.waitForTimeout(800);
+        expect((await state()).run).toMatchObject({ state: 0, distance: 0, boosting: false });
+        await page.keyboard.up('ArrowUp');
+        await page.keyboard.up('Space');
+        // with a full meter, Space boosts while held and spends the meter
+        await game.evaluate(el => (el as unknown as { xlGame: { _tt_fill_turbo(): void } }).xlGame._tt_fill_turbo());
+        await page.keyboard.down('ArrowRight');
+        await page.keyboard.down('Space');
+        await expect.poll(async () => (await state()).run.boosting).toBe(true);
+        await expect.poll(async () => (await state()).run.turbo).toBeLessThan(90);
+        await page.keyboard.up('Space');
+        await expect.poll(async () => (await state()).run.boosting).toBe(false);
+        await page.keyboard.up('ArrowRight');
     });
 
     test('Turbo Trails: unlocked eras switch the world, locked ones stay locked, the shop sells upgrades', async ({ page }) => {

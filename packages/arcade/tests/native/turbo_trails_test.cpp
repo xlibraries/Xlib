@@ -1,5 +1,6 @@
 #include "doctest.h"
 #include "games/turbo-trails/eras.h"
+#include "games/turbo-trails/feel.h"
 #include "games/turbo-trails/physics.h"
 #include "games/turbo-trails/rules.h"
 #include "games/turbo-trails/terrain.h"
@@ -215,4 +216,136 @@ TEST_CASE("eras: ten of them, each with a story, four landmarks with facts and a
     }
     CHECK(std::strcmp(era(0).name, "Chariots") == 0);
     CHECK(era(9).wheels_visible == false);
+}
+
+TEST_CASE("physics: leaning back lifts the nose, leaning forward in the air pitches it down, Turbo adds speed") {
+    // on the ground: average pitch over three seconds of gas, leaning back, not at all, and forward; no era flips
+    for (int e = 0; e < era_count(); e++) {
+        float pitch[3];
+        for (int k = 0; k < 3; k++) {
+            auto w = flat_world(era(e).spec);
+            settle(*w);
+            DriveInput in; in.throttle = 1; in.motor_on = true; in.lean = 1.0f - k;
+            float sum = 0, worst = 0;
+            for (int i = 0; i < 180; i++) { w->drive(in); w->step(1.0f / 60); if (i >= 60) sum += w->pose().angle; worst = std::max(worst, std::fabs(w->pose().angle)); }
+            pitch[k] = sum / 120;
+            CHECK_MESSAGE(worst < 1.2f, std::string(era(e).name) << " lean " << in.lean);   // leaning never flips it on the flat
+        }
+        if (e == 0) {
+            MESSAGE("chariot pitch back/flat/forward: " << pitch[0] << " " << pitch[1] << " " << pitch[2]);
+            CHECK(pitch[0] > pitch[1] + 0.05f);   // nose up: a wheelie you asked for
+            CHECK(pitch[2] < pitch[1] - 0.005f);  // nose pressed down
+        }
+    }
+
+    // in the air, leaning forward rotates the vehicle nose-down faster than gas alone
+    std::vector<float> xs, ys;
+    for (float x = -20; x <= 200; x += TERRAIN_STEP) { xs.push_back(x); ys.push_back(x < 20 ? 0 : x < 28 ? (x - 20) * 0.45f : 0); }
+    float omega_fwd = 0, omega_flat = 0;
+    for (int variant = 0; variant < 2; variant++) {
+        auto r = World::create();
+        r->set_terrain(xs, ys);
+        r->spawn(era(5).spec, 0, 1.0f);
+        settle(*r);
+        DriveInput in; in.throttle = 1; in.motor_on = true;
+        float omega = 0;
+        for (int i = 0; i < 400; i++) {
+            const bool air = !r->wheel_grounded(0) && !r->wheel_grounded(1) && r->pose().x > 28;
+            in.lean = air && variant == 1 ? -1.0f : 0.0f;
+            r->drive(in); r->step(1.0f / 60);
+            const bool still_air = !r->wheel_grounded(0) && !r->wheel_grounded(1);
+            if (air && still_air) omega = std::min(omega, r->pose().omega);   // in flight, not the landing jolt
+        }
+        (variant ? omega_fwd : omega_flat) = omega;
+    }
+    CHECK(omega_fwd < omega_flat - 0.3f);
+
+    // Turbo: faster over the same stretch
+    auto a = flat_world(era(0).spec), b = flat_world(era(0).spec);
+    settle(*a); settle(*b);
+    DriveInput gas; gas.throttle = 1; gas.motor_on = true;
+    DriveInput turbo = gas; turbo.boost = 1;
+    for (int i = 0; i < 180; i++) { a->drive(gas); a->step(1.0f / 60); b->drive(turbo); b->step(1.0f / 60); }
+    CHECK(b->pose().x > a->pose().x + 3.0f);
+    CHECK(std::fabs(b->pose().angle) < 0.6f);   // and still on its wheels
+}
+
+TEST_CASE("rules: the Turbo meter fills from coins, flips and air time, and drains only while the key is held") {
+    Terrain t = build_terrain(era(0).terrain, 1, 4);
+    Run run; run.state = RunState::Driving;
+    Pose pose; pose.x = 10; pose.y = 1.0f;
+    RunInput gas; gas.throttle = 1;
+    t.coins = { { 10, 1.0f }, { 10.2f, 1.0f } };
+    update_run(run, t, pose, true, false, 0, gas, 0.016f, 2400);
+    CHECK(run.turbo == doctest::Approx(2 * TURBO_PER_COIN));
+    CHECK(!run.boosting);
+    // a second in the air
+    pose.x = 20;
+    update_run(run, t, pose, false, false, 0, gas, 1.0f, 2400);
+    CHECK(run.turbo == doctest::Approx(2 * TURBO_PER_COIN + TURBO_PER_AIR_SECOND));
+    // a flip
+    pose.omega = 7.0f;
+    update_run(run, t, pose, false, false, 0, gas, 1.0f, 2400);
+    CHECK(has(run, RunEvent::Flip));
+    CHECK(run.turbo == doctest::Approx(2 * TURBO_PER_COIN + 2 * TURBO_PER_AIR_SECOND + TURBO_PER_FLIP));
+    // the treasure fills it
+    pose.omega = 0; pose.x = t.treasure.x; pose.y = t.treasure.y;
+    update_run(run, t, pose, true, false, 0, gas, 0.016f, 2400);
+    CHECK(run.turbo == doctest::Approx(1.0f));
+    // holding Turbo: boosting, draining, an event once at the start
+    RunInput boost = gas; boost.boost = true;
+    pose.x = 30; pose.y = 1.0f;
+    update_run(run, t, pose, true, false, 0, boost, 0.5f, 2400);
+    CHECK(run.boosting);
+    CHECK(has(run, RunEvent::Turbo));
+    CHECK(run.turbo == doctest::Approx(1.0f - 0.5f / TURBO_SECONDS));
+    update_run(run, t, pose, true, false, 0, boost, 0.5f, 2400);
+    CHECK(!has(run, RunEvent::Turbo));
+    update_run(run, t, pose, true, false, 0, gas, 0.5f, 2400);
+    CHECK(!run.boosting);
+    CHECK(run.turbo == doctest::Approx(1.0f - 1.0f / TURBO_SECONDS));
+    // empty: the key does nothing
+    run.turbo = 0;
+    update_run(run, t, pose, true, false, 0, boost, 0.5f, 2400);
+    CHECK(!run.boosting);
+}
+
+TEST_CASE("feel: the face reacts to flying, speed, Turbo and crashes; the body squashes on landing; blinks happen") {
+    Run run; run.state = RunState::Driving;
+    Pose pose; pose.vx = 2;
+    Mood calm = target_mood(run, pose, true, 2, 0);
+    CHECK(calm.eyes == doctest::Approx(1));
+    CHECK(calm.smile > 0);
+    Mood air = target_mood(run, pose, false, 2, 0);
+    CHECK(air.eyes > 1.2f);
+    CHECK(air.mouth_open > 0.8f);
+    Mood fast = target_mood(run, pose, true, 12, 0);
+    CHECK(fast.smile > calm.smile);
+    run.boosting = true;
+    Mood turbo = target_mood(run, pose, true, 12, 0);
+    CHECK(turbo.brow < -0.5f);   // focused
+    run.boosting = false;
+    run.state = RunState::Crashed;
+    Mood crashed = target_mood(run, pose, true, 0, 0);
+    CHECK(crashed.dizzy);
+    CHECK(crashed.smile < 0);
+
+    Feel f;
+    run.state = RunState::Driving;
+    for (int i = 0; i < 30; i++) update_feel(f, run, pose, false, 0, 1.0f / 60, i / 60.0f);
+    CHECK(f.mood.eyes > 1.2f);          // eased toward wide-eyed
+    update_feel(f, run, pose, true, 8.0f, 1.0f / 60, 0.5f);   // a hard landing
+    float lowest = 1, eyes = 2;
+    for (int i = 0; i < 20; i++) { update_feel(f, run, pose, true, 0, 1.0f / 60, 0.5f + i / 60.0f); lowest = std::min(lowest, f.squash); eyes = std::min(eyes, f.mood.eyes); }
+    CHECK(lowest < 0.9f);
+    CHECK(eyes < 0.6f);                 // squinting through the impact
+    CHECK(f.shake > 0);
+    for (int i = 0; i < 120; i++) update_feel(f, run, pose, true, 0, 1.0f / 60, 1 + i / 60.0f);
+    CHECK(f.squash == doctest::Approx(1).epsilon(0.03));
+    CHECK(f.shake == 0);
+    for (int i = 0; i < 60 * 6; i++) update_feel(f, run, pose, true, 0, 1.0f / 60, 3 + i / 60.0f);
+    CHECK(f.blinks >= 1);
+    run.boosting = true;
+    for (int i = 0; i < 60; i++) update_feel(f, run, pose, true, 0, 1.0f / 60, 9 + i / 60.0f);
+    CHECK(f.boost_glow > 0.9f);
 }

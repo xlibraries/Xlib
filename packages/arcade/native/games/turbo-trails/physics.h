@@ -17,9 +17,17 @@ struct VehicleSpec {
     float suspension_hz = 4.0f;
     float suspension_damping = 0.7f;
     float tyre_friction = 1.2f;
-    float air_torque = 2.5f;        // how hard gas/brake tilt the vehicle in the air
+    float air_torque = 2.5f;        // how hard leaning (and, a little, gas/brake) tilts the vehicle in the air
     float wheelie_resistance = 0.7f; // fraction of the motor's reaction torque cancelled while the wheels are down
+    float boost_force = 9.0f;       // Turbo: forward push per kg, along the chassis
     bool front_drive = true, rear_drive = true;
+};
+
+struct DriveInput {
+    float throttle = 0;   // -1 (reverse/brake) … 1 (gas)
+    float lean = 0;       // -1 lean forward (nose down) … 1 lean back (nose up): weight shift on the ground, rotation in the air
+    float boost = 0;      // 0..1 Turbo: extra motor torque and a push along the chassis, even in the air
+    bool motor_on = false;
 };
 
 struct Pose {
@@ -35,8 +43,9 @@ public:
     /** The ground as a polyline from left to right (metres). */
     virtual void set_terrain(const std::vector<float>& xs, const std::vector<float>& ys) = 0;
     virtual void spawn(const VehicleSpec& spec, float x, float y) = 0;
-    /** throttle: -1 (reverse/brake) … 1 (gas); it also tilts the vehicle while airborne. */
-    virtual void drive(float throttle, bool motor_on) = 0;
+    virtual void drive(const DriveInput& in) = 0;
+    /** Gas/brake only (it also tilts the vehicle a little while airborne). */
+    void drive(float throttle, bool motor_on) { DriveInput in; in.throttle = throttle; in.motor_on = motor_on; drive(in); }
     virtual void step(float dt) = 0;
     virtual Pose pose() const = 0;
     virtual bool wheel_grounded(int wheel) const = 0;
