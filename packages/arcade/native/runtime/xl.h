@@ -35,6 +35,8 @@ const Gamepad& gamepad();
 void end_frame();
 
 bool focused();
+/** The phone's tilt as a lean, -1..1 (0 without a gyro); the page sets it. */
+float tilt();
 /** Haptics: rumbles a connected gamepad (strong/weak motors 0..1 for `ms`), and, when `touch` is set, the phone. */
 void rumble(float strong, float weak, int ms, bool touch = false);
 bool paused();
@@ -71,6 +73,7 @@ EMSCRIPTEN_KEEPALIVE void xl_set_focused(int focused) { g_focused = focused != 0
 EMSCRIPTEN_KEEPALIVE void xl_set_paused(int paused) { g_paused = paused != 0; }
 EMSCRIPTEN_KEEPALIVE void xl_quit() { sapp_quit(); }
 EMSCRIPTEN_KEEPALIVE void xl_set_gamepad(int connected, float lx, float ly, float rx, float ry, uint32_t buttons);
+EMSCRIPTEN_KEEPALIVE void xl_set_tilt(float lean);
 }
 
 EM_JS(void, xl_js_save, (const char* game, const char* key, const char* value), {
@@ -96,7 +99,9 @@ EM_JS(void, xl_js_rumble, (float strong, float weak, int ms, int touch), {
     } catch (e) {}
 });
 
-namespace { xl::Gamepad g_pad; }
+namespace { xl::Gamepad g_pad; float g_tilt = 0; }
+
+extern "C" EMSCRIPTEN_KEEPALIVE void xl_set_tilt(float lean) { g_tilt = lean < -1 ? -1 : lean > 1 ? 1 : lean; }
 
 extern "C" EMSCRIPTEN_KEEPALIVE void xl_set_gamepad(int connected, float lx, float ly, float rx, float ry, uint32_t buttons) {
     g_pad.connected = connected != 0;
@@ -107,6 +112,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void xl_set_gamepad(int connected, float lx, flo
 namespace xl {
 
 const Gamepad& gamepad() { return g_pad; }
+float tilt() { return g_tilt; }
 void end_frame() { g_pad.previous = g_pad.buttons; }
 
 bool focused() { return g_focused; }

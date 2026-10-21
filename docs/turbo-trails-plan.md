@@ -28,7 +28,8 @@ the USA canyons are steep, Japan is smooth.
 
 - **Controls**: gas →/D, brake/reverse ←/A, lean back/forward ↑/↓ (W/S): a wheelie on the ground, rotation in the
   air; Turbo on Space, from a meter filled by coins, flips and air time. Mouse/touch: right half gas, left half
-  brake, the lightning button is Turbo. Gamepad: triggers, stick or d-pad to lean, A for Turbo.
+  brake, both halves together gas + Turbo, the lightning button is Turbo; tilt the phone to lean. Gamepad: triggers,
+  stick or d-pad to lean, A for Turbo, Start/Y restart. R restarts on a keyboard.
 - **Fuel**: a tank that drains while the motor runs; fuel cans on the road refill it. Out of fuel or landing
   on the roof = run over, coins banked.
 - **Coins**: 10 per 100 m, 50 per flip, 100 per hidden collectible (one "treasure" per era, off the main
@@ -72,5 +73,6 @@ flowchart LR
 | **1. Driving** ✅ | Box2D vendored, the vehicle interface, generated terrain, the chariot driving on era 1 with fuel, coins, flips, crash/out-of-fuel, saved best distance and your music. Native tests for rules and terrain |
 | **2. Eras and shop** ✅ | All ten eras with their vehicles, palettes, landmarks and facts; unlocks; the shop with upgrades applied to the physics; story cards |
 | **3. Leaderboard and polish** ✅ | Global per-era leaderboard (nickname, server-validated distances), gamepad and touch controls, particles, screen shake, sounds per era |
+| **6. Stunts, restarts, phones** ✅ | Backflips and frontflips named, wheelies timed and paid by the second (balance-assisted: lean back pulls a wheelie that holds at ~40°, lean forward dips the nose), stunt pop-ups; runs end when you're stuck (gas on, not moving) or lying on your side, retry on gas after 0.6 s, R / Start restarts any time; on phones: fullscreen and landscape on Play with a rotate hint, gyro tilt leans (iOS permission on first touch), both thumbs together = gas + Turbo |
 | **5. Feel** ✅ | Haptics (`xl::rumble`: a tap when gas/brake go down, the engine on a gamepad's motors, thumps on landings, crashes, Turbo), a real HUD font (Lilita One baked by stb_truetype into an atlas, `font.h` + `text.h`, outlined and shadowed), landmarks in three parallax layers with a signboard (a hazed silhouette behind the road, the monument, translucent colonnades/gates/lanterns sweeping past in front), and the desktop's volume slider reaching the game and its music through `host.volume` |
 | **4. Pixar look and real controls** ✅ | JyotiRath gets a face on every vehicle (`feel.h`: eyes, brows and mouth react to flying, speed, Turbo, landings and crashes; blinks), squash-and-stretch, soft shading with outlines and glints (`art.h`), a sun, clouds and haze, shaded ground, dust/smoke/sparkle particles, Turbo flame and speed streaks, and a post-process pass (`shaders/turbo-trails.glsl`: bloom, grade, vignette). Lean and Turbo split off the gas key |

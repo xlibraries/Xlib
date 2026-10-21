@@ -81,7 +81,7 @@ bool take_pickups(std::vector<Pickup>& items, float x, float y, float radius, in
 
 } // namespace
 
-void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, bool chassis_hit, float impact, const RunInput& in, float dt, float road_length) {
+void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, bool chassis_hit, float impact, const RunInput& in, float dt, float road_length, int front_grounded) {
     run.events.clear();
     if (run.state != RunState::Ready && run.state != RunState::Driving) return;
     if (run.state == RunState::Ready && in.throttle != 0) run.state = RunState::Driving;
@@ -105,6 +105,7 @@ void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, boo
             run.flips++;
             run.coins += COINS_PER_FLIP;
             run.turbo += TURBO_PER_FLIP;
+            run.last_flip_backward = run.air_rotation > 0;   // anticlockwise: the nose went up and over
             run.air_rotation -= std::copysign(TWO_PI, run.air_rotation);
             run.events.push_back(RunEvent::Flip);
         }
@@ -114,6 +115,23 @@ void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, boo
     }
     run.airborne = !grounded;
     if (!grounded) run.turbo += TURBO_PER_AIR_SECOND * dt;
+
+    // wheelies: the front wheel up while rolling along; paid by the second once it's over
+    const bool front_up = grounded && (front_grounded < 0 ? false : front_grounded == 0) && std::fabs(pose.vx) > 1.5f;
+    if (front_up) run.wheelie_time += dt;
+    else if (run.wheelie_time > 0) {
+        if (run.wheelie_time >= WHEELIE_MIN_SECONDS) {
+            run.coins += static_cast<int>(run.wheelie_time) * COINS_PER_WHEELIE_SECOND;
+            run.turbo += 0.08f * run.wheelie_time;
+            run.last_wheelie = run.wheelie_time;
+            run.events.push_back(RunEvent::Wheelie);
+        }
+        run.wheelie_time = 0;
+    }
+
+    // stuck: no movement for a while with the gas on, or lying tipped over
+    const bool trying = in.throttle != 0 || std::fabs(pose.angle) > 1.0f;
+    run.stuck_time = std::fabs(pose.vx) < 0.4f && trying ? run.stuck_time + dt : 0.0f;
 
     // pickups near the chassis
     int n = 0;
@@ -136,6 +154,7 @@ void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, boo
     // how the run ends
     const bool upside_down = std::cos(pose.angle) < -0.2f;
     if (chassis_hit && upside_down) { run.state = RunState::Crashed; run.events.push_back(RunEvent::Crash); }
+    else if (run.stuck_time >= STUCK_SECONDS) { run.state = RunState::Crashed; run.events.push_back(RunEvent::Stuck); }
     else if (run.fuel <= 0 && std::fabs(pose.vx) < 0.3f) { run.state = RunState::OutOfFuel; run.events.push_back(RunEvent::OutOfFuel); }
     else if (pose.x >= road_length - 25.0f) { run.state = RunState::Finished; run.events.push_back(RunEvent::Finished); }
 }
