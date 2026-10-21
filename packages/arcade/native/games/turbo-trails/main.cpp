@@ -1,6 +1,6 @@
 // Turbo Trails: the game around physics.h / terrain.h / rules.h / eras.h / feel.h. Drawn with sokol_gl in metres
 // (the camera maps the world to the window) into an offscreen texture, then a post-process pass (bloom, speed blur,
-// grade, vignette) puts it on screen with the HUD (sokol_gl + sokol_debugtext) on top. Synthesized sound through
+// grade, vignette) puts it on screen with the HUD (sokol_gl, text from the baked font in text.h) on top. Synthesized sound through
 // xl_audio.h. The page's side panel (src/turbo-trails/Panel.tsx) reads the state through tt_state_json and drives
 // the era/shop.
 #define SOKOL_IMPL
@@ -9,7 +9,6 @@
 #include "sokol_glue.h"
 #include "sokol_log.h"
 #include "sokol_gl.h"
-#include "sokol_debugtext.h"
 #define XL_IMPL
 #include "xl.h"
 #define XL_AUDIO_IMPL
@@ -21,11 +20,14 @@
 #include "rules.h"
 #include "terrain.h"
 #include "art.h"
+#include "text.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -104,6 +106,9 @@ struct {
     std::vector<Particle> particles;
     sgl_pipeline blend, hud_blend;
     sgl_context hud;                  // drawn in the swapchain pass, after the post-process
+    txt::Text text;                   // the HUD font
+    bool touch = false;               // the visitor is playing by touch (haptics go to the phone too)
+    float last_throttle = 0;          // for press feedback
     // the offscreen scene and the pass that puts it on screen
     sg_image scene_color, scene_depth;
     sg_view scene_color_att, scene_depth_att, scene_tex;
@@ -243,6 +248,29 @@ void breathe(const Era& e, const Input& in, bool grounded, bool ended, float dt)
     st.particles.erase(std::remove_if(st.particles.begin(), st.particles.end(), [](const Particle& p) { return p.life <= 0; }), st.particles.end());
 }
 
+/** Haptics: a tap when gas/brake go down, the engine's rumble on a gamepad while they're held, thumps on landings. */
+void haptics(const Input& in, bool grounded, bool ended, float impact, float dt) {
+    static float engine_timer = 0;
+    const float t = ended ? 0 : in.throttle;
+    if ((t != 0) != (st.last_throttle != 0) || (t * st.last_throttle < 0)) {
+        if (t != 0) xl::rumble(0.5f, 0.3f, 40, st.touch);   // pressed: a short tap
+    }
+    st.last_throttle = t;
+    for (RunEvent ev : st.run.events) {
+        if (ev == RunEvent::Landing) xl::rumble(std::min(1.0f, impact / 9.0f), 0.4f, 140, st.touch);
+        else if (ev == RunEvent::Crash) xl::rumble(1, 1, 400, st.touch);
+        else if (ev == RunEvent::Turbo) xl::rumble(0.3f, 0.9f, 250, st.touch);
+        else if (ev == RunEvent::Flip) xl::rumble(0.2f, 0.6f, 120, st.touch);
+    }
+    // the engine: a steady rumble on the pad's motors while driving (phones only get the taps and thumps)
+    engine_timer -= dt;
+    if (t != 0 && !ended && engine_timer <= 0) {
+        engine_timer = 0.09f;
+        const float speed = std::fabs(st.pose.vx);
+        xl::rumble((grounded ? 0.12f : 0.04f) * std::fabs(t) + 0.25f * st.feel.boost_glow, 0.2f * std::fabs(t) + std::min(0.5f, speed * 0.02f), 110, false);
+    }
+}
+
 // ---------- Drawing (world units; the modelview maps metres to pixels) ----------
 
 void draw_pickups(const Era& e, float left, float right) {
@@ -301,61 +329,42 @@ void draw_hud(const Era& e, float w, float h) {
     art::up_sign = -1;
     { art::Pt bolt[7] = { { b.x + 6 * s, b.y - 22 * s }, { b.x - 12 * s, b.y + 3 * s }, { b.x - 1 * s, b.y + 3 * s }, { b.x - 7 * s, b.y + 22 * s }, { b.x + 12 * s, b.y - 4 * s }, { b.x + 1 * s, b.y - 4 * s }, { b.x + 6 * s, b.y - 22 * s } }; art::fill(bolt, 7, { 1.0f, 0.75f, 0.25f }, 0.3f, -0.1f, ready); }
     art::up_sign = 1;
-    sgl_set_context(sgl_default_context());
 
-    // text layout (8 px cells at half resolution): labels on the bars, coins under them, distance and best in the
-    // middle, flips on the right; nothing overlaps the window's own badge in the top-right corner
-    const float cols = w / s * 0.5f / 8.0f;
-    sdtx_canvas(w / s * 0.5f, h / s * 0.5f);
-    sdtx_origin(1.25f, 0.65f);
-    sdtx_color3f(1, 1, 1);
-    sdtx_printf("%s", e.electric ? "CHARGE" : "FUEL");
-    sdtx_pos(tx / s / 16 + 0.3f, 0.65f);
-    sdtx_puts("TURBO");
-    sdtx_pos(1, 2.3f);
-    sdtx_color3f(1.0f, 0.82f, 0.2f);
-    sdtx_printf("$%d", st.progress.coins + st.run.coins);
-    // distance and best, centred under the bars (clear of the coins on the left and the window badge top-right)
-    char dist[48];
-    std::snprintf(dist, sizeof dist, "%d m", static_cast<int>(st.run.distance));
-    sdtx_pos(cols / 2 - std::strlen(dist) / 2.0f, 2.3f);
-    sdtx_color3f(1, 1, 1);
-    sdtx_puts(dist);
-    std::snprintf(dist, sizeof dist, "best %d m", st.progress.best[st.era_index]);
-    sdtx_pos(cols / 2 - std::strlen(dist) / 2.0f, 3.4f);
-    sdtx_color3f(0.8f, 0.85f, 0.95f);
-    sdtx_puts(dist);
+    // text: labels on the bars, coins under them, distance and best in the middle; nothing overlaps the window's
+    // own badge in the top-right corner
+    sgl_set_context(st.hud);
+    const txt::Text& T = st.text;
+    const Rgb white = { 1, 1, 1 }, gold = { 1.0f, 0.85f, 0.3f }, pale = { 0.82f, 0.88f, 1.0f };
+    T.draw(e.electric ? "CHARGE" : "FUEL", bx + 8 * s, by - 2 * s, 14 * s, white);
+    T.draw("TURBO", tx + 8 * s, by - 2 * s, 14 * s, white);
+    T.draw("$" + std::to_string(st.progress.coins + st.run.coins), bx, by + bh + 8 * s, 20 * s, gold);
+    T.draw(std::to_string(static_cast<int>(st.run.distance)) + " m", w / 2, by + bh + 4 * s, 28 * s, white, txt::CENTRE);
+    T.draw("best " + std::to_string(st.progress.best[st.era_index]) + " m", w / 2, by + bh + 36 * s, 14 * s, pale, txt::CENTRE);
+    if (st.run.flips > 0 && st.run.state == RunState::Driving) T.draw("FLIPS " + std::to_string(st.run.flips), w / 2, by + bh + 54 * s, 16 * s, { 1.0f, 0.55f, 0.85f }, txt::CENTRE);
 
-    const float rows = h / s * 0.5f / 8.0f;
-    const char* msg = nullptr;
-    char line[96];
-    if (st.run.state == RunState::Ready) msg = xl::focused() || xl::gamepad().connected ? "GAS TO GO: -> or D" : "CLICK TO PLAY";
-    else if (st.run.state == RunState::Crashed) { std::snprintf(line, sizeof line, "CRASHED!  +$%d   gas to retry", st.earned); msg = line; }
-    else if (st.run.state == RunState::OutOfFuel) { std::snprintf(line, sizeof line, "OUT OF %s!  +$%d   gas to retry", e.electric ? "CHARGE" : "FUEL", st.earned); msg = line; }
-    else if (st.run.state == RunState::Finished) { std::snprintf(line, sizeof line, "ROAD COMPLETE!  +$%d   gas to retry", st.earned); msg = line; }
-    if (msg) {
-        sdtx_pos(cols / 2 - std::strlen(msg) / 2.0f, rows * 0.45f);
-        const float p = 0.7f + 0.3f * std::sin(st.time * 4);
-        sdtx_color3f(p, p, 1.0f);
-        sdtx_puts(msg);
-        if (st.run.state == RunState::Ready && msg[0] == 'G') {
-            const char* keys = "LEAN: ^ v    TURBO: SPACE";
-            sdtx_pos(cols / 2 - std::strlen(keys) / 2.0f, rows * 0.45f + 1.3f);
-            sdtx_color3f(0.75f, 0.8f, 0.95f);
-            sdtx_puts(keys);
-        }
+    std::string msg;
+    if (st.run.state == RunState::Ready) msg = xl::focused() || xl::gamepad().connected ? "GAS TO GO: \x1a or D" : "CLICK TO PLAY";
+    else if (st.run.state == RunState::Crashed) msg = "CRASHED!  +$" + std::to_string(st.earned) + "   gas to retry";
+    else if (st.run.state == RunState::OutOfFuel) msg = std::string("OUT OF ") + (e.electric ? "CHARGE" : "FUEL") + "!  +$" + std::to_string(st.earned) + "   gas to retry";
+    else if (st.run.state == RunState::Finished) msg = "ROAD COMPLETE!  +$" + std::to_string(st.earned) + "   gas to retry";
+    if (!msg.empty()) {
+        if (msg[0] == 'G') msg = "GAS TO GO: right arrow or D";
+        const float p = 0.75f + 0.25f * std::sin(st.time * 4);
+        T.draw(msg, w / 2, h * 0.4f, 26 * s, { p, p, 1.0f }, txt::CENTRE);
+        if (st.run.state == RunState::Ready && msg[0] == 'G') T.draw("LEAN: up / down      TURBO: space", w / 2, h * 0.4f + 34 * s, 16 * s, pale, txt::CENTRE);
     }
+    // the landmark's name and fact, bottom-left, for a few seconds
     if (st.run.landmark_timer > 0 && !st.banner.empty()) {
         const float a = std::min(1.0f, st.run.landmark_timer);
-        sdtx_pos(1, rows - 2.2f);
-        sdtx_color3f(a, a * 0.9f, a * 0.5f);
-        sdtx_puts(st.banner.substr(0, static_cast<size_t>(cols) - 2).c_str());
+        const size_t colon = st.banner.find(':');
+        const std::string name = st.banner.substr(0, colon), fact = colon == std::string::npos ? "" : st.banner.substr(colon + 2);
+        const std::vector<std::string> lines = T.wrap(fact, 14 * s, std::min(w - 160 * s, 620 * s));
+        float y = h - (34 + 18 * lines.size()) * s - 12 * s;
+        T.draw(name, bx, y, 22 * s, e.accent, txt::LEFT, a);
+        y += 30 * s;
+        for (const std::string& line : lines) { T.draw(line, bx, y, 14 * s, white, txt::LEFT, a); y += 18 * s; }
     }
-    if (st.run.flips > 0 && st.run.state == RunState::Driving) {
-        sdtx_pos(cols / 2 - 3.5f, 4.5f);
-        sdtx_color3f(1.0f, 0.5f, 0.8f);
-        sdtx_printf("FLIPS %d", st.run.flips);
-    }
+    sgl_set_context(sgl_default_context());
 }
 
 /** (Re)creates the offscreen scene target at the framebuffer's size. */
@@ -438,6 +447,7 @@ void frame() {
     engine_level = engine_level * 0.9f + (motor_on && has_fuel && in.throttle != 0 && !ended ? 1.0f : 0.15f) * 0.1f * (1 + 0.5f * st.feel.boost_glow);
     engine_pitch = (engine.base + speed * engine.per_speed + std::fabs(in.throttle) * engine.base * 0.4f) * (1 + 0.35f * st.feel.boost_glow);
     breathe(e, in, grounded, ended, dt);
+    haptics(in, grounded, ended, impact, dt);
 
     // camera: lead the vehicle, keep the ground in the lower half, shake on hard landings
     const float w = sapp_widthf(), h = sapp_heightf();
@@ -463,12 +473,14 @@ void frame() {
     sgl_translate(w / 2, h / 2, 0);
     sgl_scale(st.scale, -st.scale, 1);           // y up, metres
     sgl_translate(-cam_x, -cam_y, 0);
+    art::draw_landmarks_far(st.era_index, e, st.terrain, left, right, cam_x, st.time);
     art::draw_ground(e, st.terrain, left, right);
-    art::draw_landmarks(st.era_index, e, st.terrain, left, right, st.time);
+    art::draw_landmarks(st.era_index, e, st.terrain, left, right, st.time, st.text);
     draw_pickups(e, left, right);
     art::draw_shadow(st.terrain, st.pose.x, st.spec.chassis_w * 0.7f, st.pose.y - st.terrain.height(st.pose.x) - st.spec.wheel_r + st.spec.wheel_y);
     art::draw_vehicle(st.era_index, e, st.pose, st.spec, st.time, speed, st.feel.mood, st.feel.blink, st.feel.squash, st.feel.boost_glow);
     draw_particles();
+    art::draw_landmarks_near(st.era_index, e, st.terrain, left, right, cam_x, st.time);
     draw_hud(e, w, h);
 
     sg_pass scene = {};
@@ -499,7 +511,6 @@ void frame() {
     sg_apply_uniforms(UB_fs_params, SG_RANGE(params));
     sg_draw(0, 3, 1);
     sgl_context_draw(st.hud);
-    sdtx_draw();
     sg_end_pass();
     sg_commit();
     mix_audio();
@@ -520,6 +531,7 @@ void event(const sapp_event* ev) {
         case SAPP_EVENTTYPE_MOUSE_DOWN:
         case SAPP_EVENTTYPE_MOUSE_UP: {
             const bool down = ev->type == SAPP_EVENTTYPE_MOUSE_DOWN;
+            st.touch = false;
             st.pointer_gas = st.pointer_brake = st.pointer_turbo = false;
             if (!down) break;
             if (in_turbo_button(ev->mouse_x, ev->mouse_y)) st.pointer_turbo = true;
@@ -529,6 +541,7 @@ void event(const sapp_event* ev) {
         }
         case SAPP_EVENTTYPE_TOUCHES_BEGAN:
         case SAPP_EVENTTYPE_TOUCHES_MOVED: {
+            st.touch = true;
             st.pointer_gas = st.pointer_brake = st.pointer_turbo = false;
             for (int i = 0; i < ev->num_touches; i++) {
                 if (in_turbo_button(ev->touches[i].pos_x, ev->touches[i].pos_y)) st.pointer_turbo = true;
@@ -569,10 +582,11 @@ void init() {
     hud.max_commands = 1 << 12;
     st.hud = sgl_make_context(&hud);
     st.hud_blend = sgl_context_make_pipeline(st.hud, &pip);
-    sdtx_desc_t text = {};
-    text.fonts[0] = sdtx_font_oric();
-    text.logger.func = slog_func;
-    sdtx_setup(&text);
+    {   // the HUD font, embedded in the build (see build-native.mjs)
+        std::ifstream in("/font.ttf", std::ios::binary);
+        std::vector<uint8_t> ttf((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        st.text.setup(ttf, 44);
+    }
 
     // the post-process pass: a full-screen triangle sampling the scene
     sg_pipeline_desc post = {};
@@ -595,7 +609,7 @@ void init() {
 void cleanup() {
     st.world.reset();
     xl::audio_shutdown();
-    sdtx_shutdown();
+    st.text.shutdown();
     sgl_shutdown();
     sg_shutdown();
 }

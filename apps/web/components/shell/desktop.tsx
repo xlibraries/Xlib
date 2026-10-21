@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState, type MouseEvent as ReactMouseEvent, type Ref } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type Ref } from 'react';
 import type { Host } from '@xlibraries/app-sdk';
 import apps, { type AppConfig } from '../../apps.config';
 import { trackEvent } from '../../lib/analytics';
 import { emptyWindows, folderId, recordOpen, windowReducer } from '../../lib/window-manager';
 import { DEFAULT_SETTINGS, type SiteSettings } from '../../lib/site-settings';
+import { levelToVolume, readSoundLevel, subscribeSoundLevel } from '../../lib/sound-level';
 import Banner from '../util/banner';
 import DefaultMenu from '../context-menus/default';
 import DesktopMenu from '../context-menus/desktop-menu';
@@ -99,7 +100,9 @@ export default function Desktop({ wallpaper, setWallpaper, extraApps, ref }: Des
     const onOverlap = useCallback((id: string | null, hide: boolean) => dispatch({ type: 'overlap', id, hide }), []);
 
     // What every app gets from the desktop (packages/app-sdk's Host); the window adds close()
-    const host: Omit<Host, 'close'> = useMemo(() => ({ openApp, addFolder, wallpaper, setWallpaper, track: trackEvent }), [openApp, addFolder, wallpaper, setWallpaper]);
+    const soundLevel = useSyncExternalStore(subscribeSoundLevel, readSoundLevel, () => 75);
+    const volume = levelToVolume(soundLevel);
+    const host: Omit<Host, 'close'> = useMemo(() => ({ openApp, addFolder, wallpaper, setWallpaper, track: trackEvent, volume }), [openApp, addFolder, wallpaper, setWallpaper, volume]);
 
     // Right-click: the desktop menu on empty desktop, the default menu elsewhere; any click hides them
     useEffect(() => {

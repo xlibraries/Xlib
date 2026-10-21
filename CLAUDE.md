@@ -25,7 +25,8 @@ The restructuring plan is in `docs/restructure-plan.md`.
   Node built-ins and `@xlibraries/app-sdk`** – never the site or another app package. The site imports
   packages only through their entry points. `apps/web/tests/unit/boundaries.test.ts` enforces this.
 - `packages/app-sdk` – the contract: every app is a component taking `{ host }` (`openApp`, `addFolder`,
-  `wallpaper`/`setWallpaper`, `track`). Apps get what they need from `host`, not by importing the shell.
+  `wallpaper`/`setWallpaper`, `track`, `volume` – the top bar's slider, `lib/sound-level.ts`). Apps get what they
+  need from `host`, not by importing the shell.
 - Packages ship TypeScript source (no build step); the site compiles them via `transpilePackages`.
 
 ## Commands (repo root)

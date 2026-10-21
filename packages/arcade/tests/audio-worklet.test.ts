@@ -15,7 +15,6 @@ beforeAll(() => {
     g.sampleRate = 48000;
     g.AudioWorkletProcessor = class { port = { onmessage: null, postMessage: (m: unknown) => reports.push(m) }; };
     g.registerProcessor = (name: string, cls: typeof Ctor) => { expect(name).toBe('xl-audio'); Ctor = cls; };
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
     new Function(readFileSync(new URL('../native/runtime/xl-audio-worklet.js', import.meta.url), 'utf8'))();
 });
 

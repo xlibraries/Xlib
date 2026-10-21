@@ -50,7 +50,7 @@ const storage = {
     set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } },
 };
 
-export function TurboTrailsPanel({ instance, baseUrl, leaderboardUrl }: PanelProps) {
+export function TurboTrailsPanel({ instance, baseUrl, leaderboardUrl, volume = 1 }: PanelProps) {
     const game = instance as unknown as GameInstance;
     const [state, setState] = useState<State | null>(null);
     const [music, setMusic] = useState(() => { try { return localStorage.getItem(MUSIC_KEY) !== 'off'; } catch { return true; } });
@@ -76,7 +76,10 @@ export function TurboTrailsPanel({ instance, baseUrl, leaderboardUrl }: PanelPro
         return () => clearInterval(timer);
     }, [read]);
 
-    // Music: an <audio> loop per era (only the Chariots era has a track so far), started on the first click
+    // Music: an <audio> loop per era (only the Chariots era has a track so far), started on the first click; its
+    // level follows the desktop's volume slider
+    const volumeRef = useRef(volume);
+    useEffect(() => { volumeRef.current = volume; if (audio.current) audio.current.volume = 0.5 * volume; }, [volume]);
     const era = state?.era ?? 0;
     const track = ERAS[era]?.music;
     useEffect(() => {
@@ -85,7 +88,7 @@ export function TurboTrailsPanel({ instance, baseUrl, leaderboardUrl }: PanelPro
         if (!music || !track) return;
         const el = new Audio(`${baseUrl}/turbo-trails/${track}`);
         el.loop = true;
-        el.volume = 0.5;
+        el.volume = 0.5 * volumeRef.current;
         audio.current = el;
         const start = () => { el.play().catch(() => { }); };
         start();

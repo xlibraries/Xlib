@@ -12,6 +12,8 @@ export interface PanelProps {
     baseUrl: string;
     /** The site's leaderboard endpoint (GET ?game&board, POST { game, board, name, score }), if it has one. */
     leaderboardUrl?: string;
+    /** The desktop's master volume, 0..1 (a panel's own music follows it). */
+    volume?: number;
 }
 
 export interface GameInfo {
