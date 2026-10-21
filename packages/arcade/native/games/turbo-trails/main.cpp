@@ -402,24 +402,35 @@ void frame() {
         st.end_timer += dt;
         if (st.end_timer > 1.2f && in.throttle > 0) start_run();
     }
-    const bool motor_on = st.run.state == RunState::Driving || (st.run.state == RunState::Ready && in.throttle != 0);
+    // physics and rules in fixed steps, as many as real time asks for (so a slow frame rate doesn't slow the
+    // world down), capped so a long stall doesn't fast-forward it
+    static float accumulator = 0;
+    accumulator = std::min(accumulator + dt, DT * 6);
+    bool motor_on = false, grounded = true;
+    float impact = 0;
+    while (accumulator >= DT) {
+        accumulator -= DT;
+        const bool over = st.run.state == RunState::Crashed || st.run.state == RunState::OutOfFuel || st.run.state == RunState::Finished;
+        motor_on = st.run.state == RunState::Driving || (st.run.state == RunState::Ready && in.throttle != 0);
+        const bool has_fuel = st.run.fuel > 0;
+        DriveInput drive;
+        drive.throttle = over ? 0 : in.throttle;
+        drive.lean = over ? 0 : in.lean;
+        drive.boost = st.run.boosting ? 1.0f : 0.0f;
+        drive.motor_on = motor_on && has_fuel;
+        st.world->drive(drive);
+        st.world->step(DT);
+        st.pose = st.world->pose();
+        grounded = st.world->wheel_grounded(0) || st.world->wheel_grounded(1);
+        impact = std::max(impact, st.world->landing_impact());
+        RunInput rin;
+        rin.throttle = over || !has_fuel ? 0 : in.throttle;
+        rin.lean = in.lean;
+        rin.boost = in.turbo && !over;
+        update_run(st.run, st.terrain, st.pose, grounded, st.world->chassis_hit(), st.world->landing_impact(), rin, DT, e.terrain.length);
+        handle_events();
+    }
     const bool has_fuel = st.run.fuel > 0;
-    DriveInput drive;
-    drive.throttle = ended ? 0 : in.throttle;
-    drive.lean = ended ? 0 : in.lean;
-    drive.boost = st.run.boosting ? 1.0f : 0.0f;
-    drive.motor_on = motor_on && has_fuel;
-    st.world->drive(drive);
-    st.world->step(DT);
-    st.pose = st.world->pose();
-    const bool grounded = st.world->wheel_grounded(0) || st.world->wheel_grounded(1);
-    const float impact = st.world->landing_impact();
-    RunInput rin;
-    rin.throttle = ended || !has_fuel ? 0 : in.throttle;
-    rin.lean = in.lean;
-    rin.boost = in.turbo && !ended;
-    update_run(st.run, st.terrain, st.pose, grounded, st.world->chassis_hit(), impact, rin, DT, e.terrain.length);
-    handle_events();
     update_feel(st.feel, st.run, st.pose, grounded, impact, dt, st.time);
 
     // engine sound and the particles
