@@ -65,9 +65,12 @@ things work.
   into modules with `physics: true`), and `EngineView` (the React canvas host). Apps that ship C++ modules depend
   on it; it imports no app.
 - `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
-  solver, parts, the Uno on avr8js, the bench loop) under a React bench. Templates ship their sketches with compiled
-  hexes (`templates/`, bundled into `src/templates/generated.ts` by `pnpm sync:templates`; the unit tests check it's
-  current). `services/arduino-compiler/` is the `arduino-cli` image that compiles them (`pnpm compile:templates`,
+  solver, parts, the Uno on avr8js, the Pi's header, the bench loop) under a React bench. The bench runs in a worker
+  (`runtime/`); the Raspberry Pi runs Python on Pyodide (vendored to `public/vendor/pyodide/`) with `python/`
+  (`gpiozero`, `RPi.GPIO`, simulated `time`) bundled by `pnpm sync:python` (the unit tests check it's current).
+  `time.sleep` steps the bench and, with JSPI, suspends Python so messages arrive mid-sleep; the unit tests need
+  Node 24's `--experimental-wasm-jspi` (set in its vitest config). Templates ship their sketches with compiled hexes (`templates/`, bundled into
+  `src/templates/generated.ts` by `pnpm sync:templates`; the unit tests check it's current). `services/arduino-compiler/` is the `arduino-cli` image that compiles them (`pnpm compile:templates`,
   needs Docker) and, in phase 4, the compile service; CI recompiles the templates and fails on drift
   (`.github/workflows/bot-lab-templates.yml`).
 - `packages/arcade` – the games, built on the engine for WebGPU and WebGL2 (`docs/arcade-plan.md`). Build with

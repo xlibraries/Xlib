@@ -21,7 +21,7 @@ bench.
 | 2 | **One engine for the repo**: rendering in C++/sokol, physics in **Jolt** (C++, MIT), as an independent package the Arcade and Bot Lab both use | `packages/engine` (`@xlibraries/engine`): today's `native/runtime`, the build pipeline, the vendored libraries, the React canvas host, plus Jolt compiled into the same WebAssembly module as sokol: one build, one memory, no Rust toolchain. |
 | 3 | **Boards in v1: both**: Arduino Uno (AVR) and Raspberry Pi (Python, Linux-style) | Plus the Raspberry Pi Pico (`rp2040js` running MicroPython) as a cheap extra, since it costs little once the AVR path exists; drop it if you'd rather keep the list short. |
 | 4 | **Free building** from the parts library; templates and challenges are examples, not the only paths | Any combination that's electrically valid runs; the physics takes whatever mechanism you assemble. |
-| 5 | **Saving: this device + share links**; accounts later ([#47](https://github.com/xlibraries/Xlib/issues/47)) | localStorage + JSON export/import; share links store the project in Redis under a short id (`/api/bot-lab/share`). |
+| 5 | **Saving: this device + share links**; accounts later ([#53](https://github.com/xlibraries/Xlib/issues/53)) | localStorage + JSON export/import; share links store the project in Redis under a short id (`/api/bot-lab/share`). |
 | 6 | **Challenges and free play** | Each template carries a goal and a timer; free play has neither. |
 | 7 | **Name: `bot-lab`** for now, renamed later from the admin panel | App display names become a Site Settings field (`/xlib`), so this and any app can be renamed without a deploy. |
 | 8 | **Circuit-level electronics from the start**, not only behavioural parts | A modified-nodal-analysis (MNA) solver, Falstad-style, in TypeScript: DC and transient, companion models for C/L/diodes/transistors, with complex parts (boards, motors, servos, drivers) as **macro models** that stamp into the same matrix (a DC motor is R + L + a back-EMF source + a mechanical port to the physics). Rules that teach (polarity, two outputs on one net, a motor on a logic pin, sag and cut-off, overload = magic smoke) fall out of the solver instead of being special cases. |
@@ -43,8 +43,27 @@ Pi in Bot Lab is that:
   editing via the editor, `gpio readall`, `i2cdetect -y 1`, a `/home/pi` with the project's files.
 - **Time is simulated**: `time.sleep`, `time.monotonic` and `gpiozero`'s background threads follow the simulation
   clock, so a script behaves the same at any frame rate and can be single-stepped with the rest of the world.
+  (`gpiozero`'s threaded helpers such as `blink()` and `when_pressed` run on the simulation's scheduler, serviced
+  while the script sleeps; Pyodide has no real threads.)
+- **The board**: 3.3 V logic on the 40-pin header (BCM numbering, the pins people use: GPIO2–27, 3V3, 5V, GND),
+  ~16 mA per pin, pull-ups/downs on request, software PWM at the frequency the library asks for (100 Hz LEDs,
+  50 Hz servos). No ADC, as on the real board: an MCP3008 over SPI comes with the sensors.
 - Not in scope: C programs on the Pi, the desktop, networking. (Those can come as `wiringPi`-style shims later if
   wanted.)
+
+### The runtime: a worker, and Python that suspends
+
+The bench, the emulated boards and the Pi's Python all run off the main thread, in a Web Worker, so the page stays
+smooth. The app talks to it with `postMessage` (load project, run, stop, set a prop, send serial) and the worker
+streams snapshots back (time, part states, net voltages, serial lines, Python output, warnings) about 30 times a
+second. The same runtime serves the Uno and the Pi; the unit tests keep driving `Bench` directly.
+
+Python's `time.sleep()` runs the bench for that long, and a script must keep to real time, hear button presses and
+stop mid-sleep. With **JSPI** (WebAssembly stack switching, in Chromium browsers) a sleep advances the bench and then
+suspends Python on a timer until the wall clock catches up; the worker's event loop runs meanwhile, so messages
+arrive. Without JSPI the script runs synchronously with busy-wait pacing, inputs wait until it ends, and Stop
+replaces the worker. A `SharedArrayBuffer` stop word was the first design, but it needs cross-origin isolation, which
+the desktop can't have (the Music app embeds YouTube) and which a frame can't have unless its embedder does.
 
 ### The compile service (Cloud Run)
 
@@ -202,7 +221,8 @@ body, one C++ mesh/collider description in the world. Adding a part never touche
 | **1. The engine package** ✅ | `packages/engine`: runtime, build pipeline with the dist stamp, third-party, `EngineView`; the Arcade moved onto it with no visible change; CI rebuilds both |
 | **2. Physics in the engine** ✅ | Jolt v5.6.0 vendored and compiled into physics modules' wasm; `xl_physics.h` (bodies: box/sphere/capsule/cylinder/mesh/height field; hinges and sliders with velocity and position motors; ray casts; contacts; deterministic) with doctest coverage; the Arcade's 3D showcase uses it: a kinematic car knocks a pyramid of crates down the island's height field |
 | **3. The bench and the solver** ✅ | `packages/bot-lab`: `sim/circuit/mna.ts` (MNA, backward Euler, Newton for diodes), parts (Uno, battery, resistor, capacitor, LED, button, potentiometer, LDR, servo), the bench loop at 4.8 kHz with the Uno on avr8js (pin modes, PWM duty, pulse widths, ADC, serial), rules (burnt LEDs, overloaded pins), templates with committed hexes (Blink, Button, Servo sweep, Hello serial, RC), the bench UI (drag parts, click pins to wire, inspector, code, serial monitor, multimeter), projects on this device. Instruments beyond the multimeter (scope) and the remaining parts come with later phases |
-| **4. Real code** | Committed sketches are compiled in CI by `.github/workflows/bot-lab-templates.yml` with the same image (done in phase 3). Live builds of a visitor's sketch: the compile service on Cloud Run and `/api/bot-lab/compile` (or, if we stay off cloud accounts, a GitHub Actions job per build with about a minute's latency — to decide); the editor builds and flashes; errors mapped to lines. The Raspberry Pi: Pyodide in a worker, `gpiozero`/`RPi.GPIO`/`smbus2`/`pigpio` over the nets, simulated time, the Pi terminal. The Pico via rp2040js + MicroPython with a REPL |
+| **4a. The Raspberry Pi** ✅ | The runtime worker that runs the bench for both boards and streams snapshots to the app; `boards/pi.ts` (40-pin header, 3.3 V logic, pulls, software PWM and servo pulses); Python on Pyodide (pinned, vendored) with Bot Lab's `gpiozero` (LED, PWMLED, Button with callbacks, Servo, AngularServo, Motor, Robot, pause) and `RPi.GPIO` over the nets, `time.sleep` advancing the simulation (no threads: blinks and button watchers run on a scheduler serviced while the script sleeps), with JSPI a sleep suspends Python until the clock catches up, so button presses and Stop arrive mid-sleep (without it: busy-wait pacing, and Stop restarts the worker); Pi templates (Blink, Button, Servo sweep); the console in the Monitor tab |
+| **4b. Real builds** | Committed sketches are compiled in CI by `.github/workflows/bot-lab-templates.yml` with the same image (done in phase 3). Live builds of a visitor's sketch: the compile service on Cloud Run and `/api/bot-lab/compile` (or, if we stay off cloud accounts, a GitHub Actions job per build with about a minute's latency — to decide); the editor builds and flashes; errors mapped to lines. `smbus2`/`pigpio` and the Pi terminal; the Pico via rp2040js + MicroPython with a REPL |
 | **5. Mechanisms and the line follower** | The C++ world: assembling a project's mechanism (chassis, wheels, gears, motors as joints), sensors by ray cast, the track editor; the line-follower template and challenge |
 | **6. Arm and conveyor** | Servo joints with torque limits, gripper contacts, cubes, conveyor; the pick-and-place template and challenge |
 | **7. Flight** | BLDC/ESC/propeller thrust and torque, IMU with noise, wind; PID template with live gains and plots; the quadcopter challenge |

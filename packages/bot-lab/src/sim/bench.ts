@@ -4,15 +4,15 @@
 // load). Rules that teach come from the numbers: a pin over 40 mA, an LED over its rating, drivers fighting.
 import { Capacitor, Diode, GROUND, Netlist, Resistor, Switch, VoltageSource, type Node, type Solution } from './circuit/mna';
 import { Uno, UNO_CLOCK, type PinActivity } from './boards/uno';
+import { PI_GPIO, PI_LOGIC_VOLTS, PI_PIN_MAX_AMPS, PI_PIN_OUT_OHMS, PI_PULL_OHMS, PiBoard } from './boards/pi';
 import { CATALOG, LED_MODELS } from './parts/catalog';
 import { nets, type PinRef, type Project } from './project';
 
 export const TICK = 1 / 4800;           // the electrical step
 const CYCLES_PER_TICK = Math.round(UNO_CLOCK * TICK);
-const PIN_OUT_OHMS = 40;                 // an AVR pin's output stage
-const PIN_MAX_AMPS = 0.04;
-const PULLUP_OHMS = 35_000;
-const LOGIC_HIGH = 3.0, LOGIC_LOW = 1.5;
+const UNO_PIN_OUT_OHMS = 40;             // an AVR pin's output stage
+const UNO_PIN_MAX_AMPS = 0.04;
+const UNO_PULLUP_OHMS = 35_000;
 const SERVO_MIN_US = 544, SERVO_MAX_US = 2400;
 
 export interface Warning { part: string; text: string; smoke?: boolean }
@@ -30,11 +30,31 @@ export interface PartState {
     dead?: boolean;
 }
 
-interface PinDriver { pin: number; source: VoltageSource; pullup: Resistor | null; node: Node; activity?: PinActivity; mode: 'output' | 'input' | 'input_pullup' }
+/** One board pin on the bench: a source behind an output stage, pull resistors, and how to talk to the board about it. */
+interface PinDriver {
+    board: 'uno' | 'pi';
+    name: string;
+    source: VoltageSource;
+    stage: Resistor;
+    pullup: Resistor;
+    pulldown: Resistor;
+    node: Node;
+    activity?: PinActivity;
+    mode: 'output' | 'input' | 'input_pullup';
+    pulled: 'up' | 'down' | 'none';
+    logicVolts: number;
+    outOhms: number;
+    maxAmps: number;
+    read(): PinActivity;
+    feed(high: boolean, volts: number): void;
+}
 
 export class Bench {
     readonly net = new Netlist();
+    /** The Uno, when the project has one with a sketch */
     readonly board: Uno | null;
+    /** The Raspberry Pi, when the project has one (its Python runtime drives it) */
+    readonly pi: PiBoard | null;
     readonly nodeOf = new Map<string, Node>();   // "part.pin" → node
     readonly warnings: Warning[] = [];
     readonly states = new Map<string, PartState>();
@@ -57,7 +77,8 @@ export class Bench {
             const node = grounded ? GROUND : this.net.node();
             for (const k of group) this.nodeOf.set(k, node);
         }
-        this.board = project.parts.some(p => p.kind === 'uno') && project.code.hex ? new Uno(project.code.hex) : null;
+        this.board = project.parts.some(p => p.kind === 'uno') && project.code.board === 'uno' && project.code.hex ? new Uno(project.code.hex) : null;
+        this.pi = project.parts.some(p => p.kind === 'pi') ? new PiBoard() : null;
         for (const part of project.parts) this.place(part.id, part.kind, part.props);
     }
 
@@ -80,15 +101,23 @@ export class Bench {
             case 'uno': {
                 this.net.add(new VoltageSource(n('5V'), GROUND, 5));
                 this.net.add(new VoltageSource(n('3V3'), GROUND, 3.3));
+                const board = this.board;
                 for (let pin = 0; pin < 20; pin++) {
                     const name = pin < 14 ? `D${pin}` : `A${pin - 14}`;
-                    const node = n(name);
-                    // every pin: a source behind the output stage; as an input, the source is switched to high-impedance
-                    const source = this.net.add(new VoltageSource(this.net.node(), GROUND, 0));
-                    const stage = this.net.add(new Resistor(source.a, node, PIN_OUT_OHMS));
-                    const pullup = new Resistor(node, n('5V'), PULLUP_OHMS);
-                    this.drivers.push({ pin, source, pullup, node, mode: 'input' });
-                    stage.ohms = 1e9;   // starts as an input
+                    this.driver('uno', name, n(name), n('5V'), 5, UNO_PIN_OUT_OHMS, UNO_PIN_MAX_AMPS, UNO_PULLUP_OHMS,
+                        () => board ? board.pin(pin) : { mode: 'input', high: false, duty: 0, pulseUs: 0, periodUs: 0 },
+                        (high, volts) => { if (!board) return; if (pin >= 14) board.setAnalog(pin - 14, volts); if (volts > 3.0) board.setDigital(pin, true); else if (volts < 1.5) board.setDigital(pin, false); });
+                }
+                break;
+            }
+            case 'pi': {
+                this.net.add(new VoltageSource(n('5V'), GROUND, 5));
+                this.net.add(new VoltageSource(n('3V3'), GROUND, PI_LOGIC_VOLTS));
+                const pi = this.pi!;
+                for (const bcm of PI_GPIO) {
+                    const name = `GPIO${bcm}`;
+                    this.driver('pi', name, n(name), n('3V3'), PI_LOGIC_VOLTS, PI_PIN_OUT_OHMS, PI_PIN_MAX_AMPS, PI_PULL_OHMS,
+                        () => pi.activity(bcm), (high, volts) => { if (volts > 2.0) pi.setInput(bcm, true); else if (volts < 0.8) pi.setInput(bcm, false); else void high; });
                 }
                 break;
             }
@@ -121,6 +150,13 @@ export class Bench {
         }
     }
 
+    /** A board pin: a source behind an output stage (high impedance while an input), with pull resistors held aside. */
+    private driver(board: 'uno' | 'pi', name: string, node: Node, rail: Node, logicVolts: number, outOhms: number, maxAmps: number, pullOhms: number, read: () => PinActivity, feed: (high: boolean, volts: number) => void) {
+        const source = this.net.add(new VoltageSource(this.net.node(), GROUND, 0));
+        const stage = this.net.add(new Resistor(source.a, node, 1e9));
+        this.drivers.push({ board, name, source, stage, pullup: new Resistor(node, rail, pullOhms), pulldown: new Resistor(node, GROUND, pullOhms), node, mode: 'input', pulled: 'none', logicVolts, outOhms, maxAmps, read, feed });
+    }
+
     /** Changes a part's property live (a knob turned, a button pressed, a resistor retyped). */
     setProp(id: string, key: string, value: number | string | boolean) {
         const part = this.project.parts.find(p => p.id === id);
@@ -137,42 +173,33 @@ export class Bench {
     /** One electrical step: the board runs, the net settles, the parts react. */
     tick() {
         const dt = TICK;
-        if (this.board) {
-            this.board.run(CYCLES_PER_TICK);
-            for (const d of this.drivers) {
-                const a = this.board.pin(d.pin);
-                d.activity = a;
-                const stage = this.net.elements.find(e => e instanceof Resistor && e.a === d.source.a) as Resistor;
-                if (a.mode === 'output') {
-                    stage.ohms = PIN_OUT_OHMS;
-                    d.source.volts = a.high ? 5 : 0;
-                } else {
-                    stage.ohms = 1e9;
-                }
-                if (a.mode === 'input_pullup' && d.mode !== 'input_pullup') this.net.add(d.pullup!);
-                if (a.mode !== 'input_pullup' && d.mode === 'input_pullup') this.net.remove(d.pullup!);
-                d.mode = a.mode;
+        this.board?.run(CYCLES_PER_TICK);
+        this.pi?.run(dt);
+        for (const d of this.drivers) {
+            const a = d.read();
+            d.activity = a;
+            if (a.mode === 'output') { d.stage.ohms = d.outOhms; d.source.volts = a.high ? d.logicVolts : 0; }
+            else d.stage.ohms = 1e9;
+            // pull resistors come and go with the pin's configuration
+            const pulled = a.mode === 'input_pullup' ? 'up' : d.board === 'pi' && a.mode === 'input' && this.pi?.pull(Number(d.name.slice(4))) === 'down' ? 'down' : 'none';
+            if (pulled !== d.pulled) {
+                if (d.pulled === 'up') this.net.remove(d.pullup); else if (d.pulled === 'down') this.net.remove(d.pulldown);
+                if (pulled === 'up') this.net.add(d.pullup); else if (pulled === 'down') this.net.add(d.pulldown);
+                d.pulled = pulled;
             }
+            d.mode = a.mode;
         }
         this.solution = this.net.step(dt, this.solution ?? undefined);
         const v = this.solution.v;
         this.time += dt;
 
-        if (this.board) {
-            for (const d of this.drivers) {
-                if (d.mode === 'output') continue;
-                const volts = v[d.node];
-                if (d.pin >= 14) this.board.setAnalog(d.pin - 14, volts);
-                if (volts > LOGIC_HIGH) this.board.setDigital(d.pin, true);
-                else if (volts < LOGIC_LOW) this.board.setDigital(d.pin, false);
-            }
-        }
+        for (const d of this.drivers) if (d.mode !== 'output') d.feed(v[d.node] > d.logicVolts * 0.6, v[d.node]);
         // parts
         for (const led of this.leds) {
             const amps = led.diode.current(v);
             const state = this.states.get(led.part) ?? {};
             state.amps = amps;
-            state.brightness = this.dead.has(led.part) ? 0 : Math.max(0, Math.min(1, amps / 0.02));
+            state.brightness = this.dead.has(led.part) ? 0 : ledBrightness(amps);
             if (amps > 0.05) led.hot += dt; else led.hot = Math.max(0, led.hot - dt);
             if (led.hot > 0.05 && !this.dead.has(led.part)) { this.dead.add(led.part); this.warn(led.part, `${led.part}: ${Math.round(amps * 1000)} mA through an LED rated 20 mA. It burnt out; add a resistor and replace it.`, true); }
             state.dead = this.dead.has(led.part);
@@ -191,15 +218,19 @@ export class Bench {
         for (const r of this.resistors) this.states.set(r.part, { amps: r.r.current(v), volts: v[r.r.a] - v[r.r.b] });
         for (const b of this.sources) this.states.set(b.part, { amps: -this.solution.current(b.source), volts: b.source.volts });
         // pins over their limit
-        if (this.board) for (const d of this.drivers) {
+        for (const d of this.drivers) {
             if (d.mode !== 'output') continue;
             const amps = Math.abs(this.solution.current(d.source));
-            if (amps > PIN_MAX_AMPS) this.warn('uno', `Pin ${d.pin < 14 ? 'D' + d.pin : 'A' + (d.pin - 14)} is sourcing ${Math.round(amps * 1000)} mA; an Uno pin is rated 40 mA.`);
+            if (amps > d.maxAmps) this.warn(d.board, `Pin ${d.name} is sourcing ${Math.round(amps * 1000)} mA; a${d.board === 'uno' ? 'n Uno' : ' Pi'} pin is rated ${Math.round(d.maxAmps * 1000)} mA.`);
         }
     }
 
-    /** Runs the bench for `seconds` of simulated time. */
-    run(seconds: number) { for (let i = 0; i < Math.round(seconds / TICK); i++) this.tick(); }
+    private pending = 0;
+    /** Runs the bench for `seconds` of simulated time; slivers shorter than a tick carry over, so time always advances. */
+    run(seconds: number) {
+        this.pending += Math.max(0, seconds);
+        while (this.pending >= TICK - 1e-12) { this.tick(); this.pending -= TICK; }
+    }
 
     /** The voltage on a pin, volts. */
     volts(ref: PinRef): number { return this.solution ? this.solution.v[this.node(ref)] : 0; }
@@ -214,3 +245,9 @@ export class Bench {
 
 /** An LDR: 1 kΩ in full light, 100 kΩ in the dark (log-linear). */
 export function ldrOhms(light: number) { return 1000 * Math.pow(100, 1 - Math.max(0, Math.min(1, light))); }
+
+/** How bright an LED looks at `amps`, 0–1 (1 at its rated 20 mA). Eyes respond roughly to the square root of light
+ *  output, so 5 mA from a 3.3 V pin through 220 Ω reads as clearly lit (about half), as it does on a real bench. */
+export function ledBrightness(amps: number): number {
+    return Math.sqrt(Math.max(0, Math.min(1, amps / 0.02)));
+}

@@ -12,7 +12,9 @@ const config: NextConfig = {
     poweredByHeader: false,
     transpilePackages: WORKSPACE_PACKAGES,
     async headers() {
-        return [{ source: '/:path*', headers: securityHeaders({ dev: process.env.NODE_ENV !== 'production' }) }];
+        return [
+            { source: '/:path*', headers: securityHeaders({ dev: process.env.NODE_ENV !== 'production' }) },
+        ];
     },
     async redirects() {
         return [

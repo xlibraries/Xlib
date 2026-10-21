@@ -116,8 +116,22 @@ solves the net (modified nodal analysis, backward-Euler companions for C and L, 
 level, PWM duty and pulse width, and `bench.ts` ties them together at 4800 steps a second: the board's pins become
 sources in the net, the net is solved, the result feeds the board's inputs and the parts (LED brightness, servo
 angle, currents), and the teaching rules fire from the numbers (an LED over its rating burns out, a pin over 40 mA
-warns). `project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links. `BotLab.tsx`
-draws it. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.
+warns). `boards/pi.ts` is the Raspberry Pi's header (3.3 V logic, pull-ups, software PWM and servo pulses).
+`project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links; `boardOf` says which
+board the code runs on. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.
+
+The simulation doesn't run on the page's thread. `runtime/client.ts` starts a worker (`runtime/worker.ts`); the app
+sends commands (load, run, stop, set a prop, serial) and gets snapshots back (`runtime/protocol.ts`) about 30 times
+a second, which `BotLab.tsx` draws. The Uno runs in real time on a timer. The Raspberry Pi runs Python on Pyodide
+(vendored to `/vendor/pyodide/`, loaded only when a Pi project runs): `runtime/pi.ts` registers a `_bench` module
+and installs `python/` (`gpiozero`, `RPi.GPIO`, and `_bench_time`, which makes `time.sleep` advance the bench),
+bundled into `src/runtime/python-generated.ts` by `pnpm sync:python`. Background blinks and button callbacks run on a
+scheduler serviced during sleeps, not on threads. Where the browser has JSPI (WebAssembly stack switching), a sleep
+steps the bench and then suspends Python until the wall clock catches up, so the worker keeps reading messages:
+button presses and Stop arrive mid-sleep. Without JSPI the script runs synchronously with busy-wait pacing, inputs
+wait, and Stop replaces the worker. (A `SharedArrayBuffer` would need the whole desktop to be cross-origin isolated,
+which the Music app's YouTube embed rules out; a frame can't be isolated on its own.) The unit tests run Node with
+`--experimental-wasm-jspi`, so CI uses Node 24.
 
 ## Photo Drop (`packages/photo-drop`)
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Bench, ldrOhms } from '../src/sim/bench';
-import { addPart, connect, disconnect, emptyProject, loadProjects, nets, parseProject, removePart, saveProjects } from '../src/sim/project';
+import { Bench, ldrOhms, ledBrightness } from '../src/sim/bench';
+import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets, parseProject, removePart, saveProjects } from '../src/sim/project';
 import { TEMPLATES, template } from '../src/templates';
 import { CATALOG, defaultProps } from '../src/sim/parts/catalog';
 
@@ -60,6 +60,46 @@ describe('projects', () => {
                 expect(CATALOG[part.kind].pins.some(pin => pin.id === ref.pin), `${t.id}: ${ref.part}.${ref.pin}`).toBe(true);
             }
         }
+    });
+});
+
+describe('the board that runs the code', () => {
+    it('is the Pi only when the bench has a Pi and no Uno', () => {
+        const p = emptyProject();
+        expect(boardOf(p)).toBe('uno');
+        addPart(p, 'pi', 0, 0);
+        expect(boardOf(p)).toBe('pi');
+        addPart(p, 'uno', 0, 0);
+        expect(boardOf(p)).toBe('uno');
+    });
+
+    it('every Pi template runs Python on the Pi and every Uno template a sketch on the Uno', () => {
+        for (const t of TEMPLATES) {
+            const p = t.build();
+            expect(p.code.board).toBe(boardOf(p));
+            if (p.code.board === 'pi') expect(p.code.sketch).toMatch(/^from gpiozero import|^import RPi/m);
+            else if (p.parts.some(x => x.kind === 'uno')) expect(p.code.hex).not.toBe('');
+        }
+    });
+});
+
+describe('LED brightness', () => {
+    it('follows the square root of current up to the rating, and is dark below zero', () => {
+        expect(ledBrightness(0)).toBe(0);
+        expect(ledBrightness(-0.001)).toBe(0);
+        expect(ledBrightness(0.005)).toBeCloseTo(0.5, 5);
+        expect(ledBrightness(0.02)).toBe(1);
+        expect(ledBrightness(0.04)).toBe(1);
+    });
+
+    it('a Pi pin (3.3 V) through 220 Ω lights the LED visibly, though with less current than the Uno', () => {
+        const b = new Bench(template('pi_blink')!.build());
+        b.pi!.setMode(17, 'output', 'none');
+        b.pi!.write(17, true);
+        b.run(0.05);
+        expect(b.state('led1').amps).toBeGreaterThan(0.004);
+        expect(b.state('led1').amps).toBeLessThan(0.008);
+        expect(b.state('led1').brightness).toBeGreaterThan(0.5);
     });
 });
 
