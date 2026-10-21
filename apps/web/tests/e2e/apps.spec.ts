@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { type Page } from '@playwright/test';
 import { expect, openApp, openDesktop, runCommand, test } from './helpers';
 
@@ -510,6 +512,49 @@ test.describe('Bot Lab', () => {
         await page.reload();
         const again = await openApp(page, 'bot-lab');
         await expect(again.locator('li').filter({ hasText: 'Blink' })).toContainText('2 parts');
+    });
+
+    test('Build: compiler errors point at their line, and a successful build is what the Uno runs', async ({ page }) => {
+        // the compile service is mocked: errors for the first build, then the Hello serial template's hex
+        const helloHex = readFileSync(join(process.cwd(), '../../packages/bot-lab/templates/hello_serial/hello_serial.hex'), 'utf8');   // tests run from apps/web
+        const sent: string[] = [];
+        await page.route('**/api/bot-lab/compile', async route => {
+            const { sketch } = route.request().postDataJSON() as { sketch: string };
+            sent.push(sketch);
+            await route.fulfill({ json: sent.length === 1
+                ? { ok: false, errors: [{ line: 3, column: 3, severity: 'error', message: "'pinMod' was not declared in this scope" }] }
+                : { ok: true, hex: helloHex, size: 1830, warnings: [] } });
+        });
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Blink An LED/ }).click();
+        await lab.getByRole('tab', { name: 'code' }).click();
+        await expect(lab.getByTestId('code-note')).toContainText('The Uno runs this build');
+        const editor = lab.getByLabel('Sketch');
+        await editor.fill('// edited\nvoid setup() {\n  pinMod(13, OUTPUT);\n}\nvoid loop() {}\n');
+        await expect(lab.getByTestId('code-note')).toContainText('changed since its last build');
+        await lab.getByRole('button', { name: 'Build' }).click();
+        await expect(lab.getByRole('status')).toHaveText('1 error');
+        await lab.getByTestId('build-errors').getByRole('button', { name: /line 3:.*pinMod/ }).click();
+        // the cursor jumps to line 3 (from its column to the end of the line)
+        const selected = await editor.evaluate(el => { const t = el as HTMLTextAreaElement; return t.value.slice(t.selectionStart, t.selectionEnd); });
+        expect(selected).toBe('pinMod(13, OUTPUT);');
+        await editor.fill('void setup() { Serial.begin(9600); }\nvoid loop() {}\n');
+        await lab.getByRole('button', { name: 'Build' }).click();
+        await expect(lab.getByRole('status')).toContainText('Built: 1830 of 32256 bytes');
+        await expect(lab.getByTestId('code-note')).toContainText('The Uno runs this build');
+        expect(sent).toHaveLength(2);
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        await expect(lab.getByTestId('serial')).toContainText('hello from the bench', { timeout: 10_000 });
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        // the build is saved with the project
+        await lab.getByRole('button', { name: '← Projects' }).click();
+        await page.reload();
+        const again = await openApp(page, 'bot-lab');
+        await again.locator('li').filter({ hasText: 'Blink' }).getByRole('button').first().click();
+        await again.getByRole('tab', { name: 'code' }).click();
+        await expect(again.getByTestId('code-note')).toContainText('The Uno runs this build');
     });
 
     test('the Raspberry Pi runs Python: gpiozero blinks the LED, Stop ends a sleeping script, the console shows prints', async ({ page }) => {

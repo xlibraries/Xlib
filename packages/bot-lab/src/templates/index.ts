@@ -1,5 +1,6 @@
 // The templates: ready-wired projects with a sketch and its compiled hex, so the first click is "Run".
 import { addPart, connect, emptyProject, type Project } from '../sim/project';
+import { sketchHash } from '../compile';
 import { TEMPLATE_CODE } from './generated';
 
 export interface Template {
@@ -9,7 +10,7 @@ export interface Template {
     build(): Project;
 }
 
-const code = (name: string) => ({ board: 'uno' as const, sketch: TEMPLATE_CODE[name].sketch, hex: TEMPLATE_CODE[name].hex });
+const code = (name: string) => ({ board: 'uno' as const, sketch: TEMPLATE_CODE[name].sketch, hex: TEMPLATE_CODE[name].hex, builtFrom: sketchHash(TEMPLATE_CODE[name].sketch) });
 
 export const TEMPLATES: Template[] = [
     {

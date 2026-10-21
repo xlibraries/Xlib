@@ -1,6 +1,7 @@
 // @xlibraries/bot-lab: an electronics and robotics simulator for the desktop. The app is createBotLab(); the
 // simulation (sim/) is headless and usable on its own.
-export { createBotLab } from './BotLab';
+export { createBotLab, type BotLabOptions } from './BotLab';
+export { buildIsStale, parseCompileResult, sketchHash, UNO_FLASH, type CompileMessage, type CompileResult, type Compiler } from './compile';
 export { Bench, TICK } from './sim/bench';
 export { CATALOG, LED_MODELS, type PartSpec, type PinSpec } from './sim/parts/catalog';
 export { Uno, UNO_CLOCK } from './sim/boards/uno';

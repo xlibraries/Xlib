@@ -9,10 +9,16 @@ import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets
 import { RuntimeClient } from './runtime/client';
 import type { Snapshot } from './runtime/protocol';
 import { TEMPLATES } from './templates';
+import { buildIsStale, sketchHash, UNO_FLASH, type CompileMessage, type Compiler } from './compile';
 
 const GRID = 16;   // px per grid unit on the bench
 
-export function createBotLab(): ComponentType<AppProps> {
+export interface BotLabOptions {
+    /** Builds Arduino sketches (the site's compile endpoint). Without it, the Uno runs only the templates' builds. */
+    compile?: Compiler;
+}
+
+export function createBotLab(options: BotLabOptions = {}): ComponentType<AppProps> {
     return function BotLab({ host }: AppProps) {
         const [projects, setProjects] = useState<Saved[]>([]);
         const [current, setCurrent] = useState<Saved | null>(null);
@@ -33,7 +39,7 @@ export function createBotLab(): ComponentType<AppProps> {
         };
         const remove = (id: string) => persist(projects.filter(s => s.id !== id));
 
-        if (current) return <Workbench key={current.id} saved={current} onChange={update} onBack={() => setCurrent(null)} />;
+        if (current) return <Workbench key={current.id} saved={current} compile={options.compile} onChange={update} onBack={() => setCurrent(null)} />;
         return (
             <div className="h-full w-full overflow-y-auto p-4 text-white" style={{ background: 'radial-gradient(ellipse at top, #0f2a22, #0a1410 70%)' }}>
                 <div className="text-xl font-bold tracking-wide">Bot Lab</div>
@@ -72,7 +78,7 @@ type Tab = 'parts' | 'code' | 'monitor';
 
 const EMPTY: Snapshot = { type: 'snapshot', time: 0, running: false, states: {}, volts: {}, serial: [], console: [], warnings: [] };
 
-function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Project) => void; onBack: () => void }) {
+function Workbench({ saved, compile, onChange, onBack }: { saved: Saved; compile?: Compiler; onChange: (p: Project) => void; onBack: () => void }) {
     const [project, setProject] = useState<Project>(saved.project);
     const [snap, setSnap] = useState<Snapshot>(EMPTY);
     const [error, setError] = useState<string | null>(null);
@@ -202,7 +208,7 @@ function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Pr
                     </div>
                     <div className="flex-grow min-h-0 overflow-y-auto p-3 text-sm">
                         {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onRemove={id => { const next = structuredClone(project); removePart(next, id); change(next); setSelected(null); }} />}
-                        {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} onChange={sketch => change({ ...project, code: { ...project.code, sketch } })} />}
+                        {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} compile={compile} onChange={code => change({ ...project, code: { ...project.code, ...code } })} />}
                         {tab === 'monitor' && <MonitorTab snap={snap} board={board} project={project} nets={netList} onSerial={text => client.current?.send({ type: 'serial', text })} />}
                     </div>
                 </div>
@@ -317,16 +323,73 @@ function PartsTab({ project, selected, onAdd, onProp, onRemove }: { project: Pro
     );
 }
 
-function CodeTab({ project, board, running, snap, onChange }: { project: Project; board: Board; running: boolean; snap: Snapshot; onChange: (sketch: string) => void }) {
+type Build = { state: 'idle' } | { state: 'building' } | { state: 'built'; size: number; warnings: CompileMessage[] } | { state: 'failed'; errors: CompileMessage[]; log?: string } | { state: 'unavailable'; message: string };
+
+function CodeTab({ project, board, running, snap, compile, onChange }: { project: Project; board: Board; running: boolean; snap: Snapshot; compile?: Compiler; onChange: (code: Partial<Project['code']>) => void }) {
+    const [build, setBuild] = useState<Build>({ state: 'idle' });
+    const editor = useRef<HTMLTextAreaElement>(null);
     const hasBoard = project.parts.some(p => p.kind === 'uno' || p.kind === 'pi');
+    const stale = buildIsStale(project.code);
     const note = !hasBoard ? 'Add an Arduino Uno or a Raspberry Pi to run code.'
         : board === 'pi' ? (snap.finished ? 'The script ended. Run starts it again.' : 'Python on the Raspberry Pi: gpiozero, RPi.GPIO and time work as on the real board. Run starts the script; Stop ends it.')
-            : project.code.hex ? 'The Uno runs this sketch’s last build. Building edited sketches needs the compiler (coming next); until then the templates’ builds run as shipped.'
-                : 'No build yet: the compiler is coming next; start from a template to run one of its sketches.';
+            : !compile ? (project.code.hex ? 'The Uno runs this sketch\u2019s last build. Building edited sketches needs the compile service, which isn\u2019t set up here.' : 'No build yet, and the compile service isn\u2019t set up here: start from a template to run one of its sketches.')
+                : !project.code.hex ? 'Build the sketch to run it on the Uno.'
+                    : stale ? 'The sketch changed since its last build: Run uses the old build until you build again.'
+                        : 'The Uno runs this build. Edit the sketch, then Build.';
+
+    const runBuild = async () => {
+        if (!compile) return;
+        const sketch = project.code.sketch;
+        setBuild({ state: 'building' });
+        try {
+            const r = await compile(sketch);
+            if ('errors' in r) setBuild({ state: 'failed', errors: r.errors, log: r.log });
+            else {
+                onChange({ hex: r.hex, builtFrom: sketchHash(sketch) });
+                setBuild({ state: 'built', size: r.size, warnings: r.warnings });
+            }
+        } catch (err) {
+            setBuild({ state: 'unavailable', message: (err as Error).message || 'the compile service could not be reached' });
+        }
+    };
+
+    /** Puts the cursor on a message's line (and column) in the editor. */
+    const goTo = (m: CompileMessage) => {
+        const el = editor.current;
+        if (!el || m.line < 1) return;
+        const lines = project.code.sketch.split('\n');
+        const start = lines.slice(0, m.line - 1).reduce((n, l) => n + l.length + 1, 0);
+        const lineLength = lines[m.line - 1]?.length ?? 0;
+        el.focus();
+        el.setSelectionRange(start + Math.max(0, Math.min(lineLength, m.column - 1)), start + lineLength);
+        el.scrollTop = Math.max(0, (m.line - 4) * 16);   // text-xs lines are 16 px
+    };
+
+    const message = (m: CompileMessage, i: number) => (
+        <li key={i}>
+            <button type="button" onClick={() => goTo(m)} className={'text-left w-full font-mono hover:underline ' + (m.severity === 'error' ? 'text-red-300' : 'text-yellow-200')} data-line={m.line}>
+                {m.line > 0 ? `line ${m.line}: ` : ''}{m.message}
+            </button>
+        </li>
+    );
+
     return (
         <div className="h-full flex flex-col gap-2">
-            <div className="text-xs text-gray-300">{note}</div>
-            <textarea value={project.code.sketch} onChange={e => onChange(e.target.value)} spellCheck={false} readOnly={running} aria-label={board === 'pi' ? 'Python script' : 'Sketch'} className="flex-grow min-h-[16rem] font-mono text-xs bg-black bg-opacity-40 rounded p-2 outline-none" />
+            <div className="text-xs text-gray-300" data-testid="code-note">{note}</div>
+            {board === 'uno' && hasBoard && compile && (
+                <div className="flex items-center gap-2 text-xs">
+                    <button type="button" onClick={runBuild} disabled={running || build.state === 'building' || !project.code.sketch.trim()} className="px-3 py-1 rounded-full bg-emerald-500 text-black font-semibold disabled:opacity-40">
+                        {build.state === 'building' ? 'Building\u2026' : 'Build'}
+                    </button>
+                    {running && <span className="text-gray-400">Stop the bench to build.</span>}
+                    {build.state === 'built' && <span className="text-emerald-200" role="status">Built: {build.size} of {UNO_FLASH} bytes ({Math.round(build.size / UNO_FLASH * 100)}%){build.warnings.length ? `, ${build.warnings.length} warning${build.warnings.length > 1 ? 's' : ''}` : ''}. Press Run.</span>}
+                    {build.state === 'failed' && <span className="text-red-300" role="status">{build.errors.length} error{build.errors.length > 1 ? 's' : ''}</span>}
+                    {build.state === 'unavailable' && <span className="text-yellow-200" role="status">Couldn\u2019t build: {build.message}</span>}
+                </div>
+            )}
+            <textarea ref={editor} value={project.code.sketch} onChange={e => onChange({ sketch: e.target.value })} spellCheck={false} readOnly={running} aria-label={board === 'pi' ? 'Python script' : 'Sketch'} className="flex-grow min-h-[16rem] font-mono text-xs leading-4 bg-black bg-opacity-40 rounded p-2 outline-none" />
+            {build.state === 'failed' && <ul className="text-xs space-y-1 max-h-40 overflow-y-auto" data-testid="build-errors">{build.errors.map(message)}</ul>}
+            {build.state === 'built' && build.warnings.length > 0 && <ul className="text-xs space-y-1 max-h-32 overflow-y-auto" data-testid="build-warnings">{build.warnings.map(message)}</ul>}
         </div>
     );
 }

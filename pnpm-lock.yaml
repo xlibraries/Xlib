@@ -298,6 +298,8 @@ importers:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
+  services/arduino-compiler: {}
+
 packages:
 
   '@alloc/quick-lru@5.2.0':
