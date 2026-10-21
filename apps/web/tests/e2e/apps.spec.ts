@@ -648,10 +648,11 @@ test.describe('Arcade', () => {
         await page.keyboard.press('KeyN');
         const before = await frames();
         await expect.poll(frames).toBeGreaterThan(before + 20);
-        // the crates by the road run on the engine's physics: stacked at first, knocked down when the car gets there
+        // the crates by the road run on the engine's physics: a pyramid the car knocks down every lap. The car drives
+        // in wall-clock time, so on a slow machine it may already have passed by now; only the outcome is asserted
         type Showcase = { xlGame: { _showcase_crate_height(i: number): number; _showcase_car_to_crates(): number } };
         const top = () => game.evaluate(el => (el as unknown as Showcase).xlGame._showcase_crate_height(9));
-        expect(await top()).toBeGreaterThan(0.9);
+        expect(await top()).toBeGreaterThan(0);   // resting on something, not fallen through the island
         await expect.poll(() => game.evaluate(el => (el as unknown as Showcase).xlGame._showcase_car_to_crates()), { timeout: 110_000 }).toBeLessThan(2);
         await expect.poll(top, { timeout: 20_000 }).toBeLessThan(0.6);
     });
