@@ -10,7 +10,8 @@
 //
 // Usage: node scripts/build-native.mjs [game ...]
 import { execFileSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -108,6 +109,30 @@ function checkEmscripten() {
     }
 }
 
+/** Every file a build depends on (the games, runtime, shaders, fonts, vendored libraries, this script), sorted. */
+export function sourceFiles(root = ROOT) {
+    const out = [];
+    const walk = (dir) => {
+        for (const name of readdirSync(join(root, dir)).sort()) {
+            const rel = `${dir}/${name}`;
+            if (statSync(join(root, rel)).isDirectory()) walk(rel); else out.push(rel);
+        }
+    };
+    walk('native');
+    walk('third_party');
+    out.push('scripts/build-native.mjs');
+    return out;
+}
+
+/** A hash of every build input; written to dist/ by a full build, checked by the unit tests. */
+export function sourcesHash(root = ROOT) {
+    const hash = createHash('sha256');
+    for (const file of sourceFiles(root)) { hash.update(file); hash.update('\0'); hash.update(readFileSync(join(root, file))); hash.update('\0'); }
+    return hash.digest('hex');
+}
+
+export const STAMP = 'dist/sources.sha256';
+
 async function main() {
     const games = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(GAMES);
     checkEmscripten();
@@ -132,6 +157,10 @@ async function main() {
         if (GAMES[game].assets) cpSync(join(ROOT, 'native', GAMES[game].assets), join(ROOT, 'dist', game), { recursive: true });
         cpSync(join(ROOT, 'native/runtime/xl-audio-worklet.js'), join(ROOT, 'dist', game, 'xl-audio-worklet.js'));
     }
+    // a full build stamps dist/ with its inputs; a partial one leaves the stamp stale on purpose, so the unit tests
+    // keep failing until every game has been rebuilt (a change to the shared runtime touches them all)
+    if (games.length === Object.keys(GAMES).length) writeFileSync(join(ROOT, STAMP), sourcesHash() + '\n');
+    else console.log('▶ partial build: dist/sources.sha256 not updated; run a full build before committing');
     console.log('✓ built', games.join(', '));
 }
 

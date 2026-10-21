@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'node:fs';
-import { BACKENDS, GAMES, emArgs, shdcBinaryPath } from '../scripts/build-native.mjs';
+import { existsSync, readFileSync } from 'node:fs';
+import { BACKENDS, GAMES, STAMP, emArgs, shdcBinaryPath, sourceFiles, sourcesHash } from '../scripts/build-native.mjs';
 import { GAMES as REGISTERED } from '../src/games';
 
 describe('build-native', () => {
@@ -45,6 +45,16 @@ describe('build-native', () => {
         expect(GAMES['turbo-trails'].sources).toContain('games/turbo-trails/feel.cpp');
         expect(args.join(' ')).toContain('--embed-file native/fonts/LilitaOne-Regular.ttf@/font.ttf');   // the HUD font
         for (const f of ['chariots-bg.mp3', 'chariots-wheel.mp3']) expect(existsSync(new URL(`../dist/turbo-trails/${f}`, import.meta.url)), f).toBe(true);
+    });
+
+    it('has builds that match the sources (rebuild every game after changing native/, third_party/ or the script)', () => {
+        const files = sourceFiles();
+        expect(files).toContain('native/runtime/xl.h');
+        expect(files).toContain('third_party/sokol/sokol_gfx.h');
+        expect(files).toContain('scripts/build-native.mjs');
+        const stamp = new URL(`../${STAMP}`, import.meta.url);
+        expect(existsSync(stamp), 'dist/sources.sha256: run a full `pnpm build:native`').toBe(true);
+        expect(readFileSync(stamp, 'utf8').trim(), 'native sources changed since the committed builds: run a full `pnpm build:native`').toBe(sourcesHash());
     });
 
     it('knows where sokol-shdc lives for each platform', () => {

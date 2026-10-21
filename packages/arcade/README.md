@@ -12,7 +12,7 @@ native/games/<id>/        each game's C++ (one sokol_main per game)
 native/shaders/*.glsl     shaders, written once (sokol-shdc annotated GLSL), cross-compiled to GLSL ES 3.0 + WGSL
 third_party/              sokol headers and HandmadeMath, pinned (see Versions)
 scripts/build-native.mjs  sokol-shdc + em++ → dist/<id>/{webgpu,webgl2}.{js,wasm}
-dist/                     committed build output (CI rebuilds and checks it matches)
+dist/                     committed build output (CI rebuilds and checks it matches; sources.sha256 stamps the inputs)
 src/                      React: the Arcade launcher, GameView (canvas host), backend detection
 ```
 
@@ -45,7 +45,8 @@ source ~/emsdk/emsdk_env.sh            # Emscripten 6.0.11 (see Versions)
 pnpm --filter @xlibraries/arcade build:native
 ```
 
-`sokol-shdc` is downloaded (pinned) into `.tools/` on first use. Commit the updated `dist/`; CI rebuilds it with the
+`sokol-shdc` is downloaded (pinned) into `.tools/` on first use. Build every game (no arguments) before committing: the
+runtime headers are shared, and the unit tests compare `dist/sources.sha256` against the sources. Commit the updated `dist/`; CI rebuilds it with the
 same toolchain and fails if it differs.
 
 ## Testing game logic
