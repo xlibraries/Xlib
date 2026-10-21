@@ -1,6 +1,6 @@
 // Keeps packages/* independent, so any of them can move to its own repo (as a git submodule or a published
 // package) without changes: a package may import only its own files, its declared dependencies, Node built-ins
-// and @xlibraries/app-sdk. The site may import packages only through their public entry points.
+// and the library packages @xlibraries/app-sdk and @xlibraries/engine (which themselves import no app package). The site may import packages only through their public entry points.
 import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { builtinModules } from 'node:module';
@@ -10,6 +10,8 @@ const ROOT = resolve(__dirname, '../../../..');
 const PACKAGES = join(ROOT, 'packages');
 const SITE = join(ROOT, 'apps/web');
 const SOURCE = /\.(m?[jt]sx?)$/;
+// packages other packages may build on; they must not import app packages themselves
+const LIBRARIES = ['@xlibraries/app-sdk', '@xlibraries/engine'];
 
 function sourceFiles(dir: string): string[] {
     if (!existsSync(dir)) return [];
@@ -36,7 +38,7 @@ describe('package boundaries', () => {
     });
 
     for (const dir of packageDirs) {
-        it(`${dir} imports only itself, its dependencies and @xlibraries/app-sdk`, () => {
+        it(`${dir} imports only itself, its dependencies and the library packages`, () => {
             const root = join(PACKAGES, dir);
             const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
             const declared = new Set([pkg.name, ...Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies, ...pkg.devDependencies })]);
@@ -51,7 +53,7 @@ describe('package boundaries', () => {
                         continue;
                     } else {
                         const name = packageName(spec);
-                        if (name.startsWith('@xlibraries/') && name !== pkg.name && name !== '@xlibraries/app-sdk') {
+                        if (name.startsWith('@xlibraries/') && name !== pkg.name && !LIBRARIES.includes(name)) {
                             problems.push(`${where}: imports another app package, ${name}`);
                         } else if (!declared.has(name)) {
                             problems.push(`${where}: '${name}' isn't declared in package.json`);

@@ -19,7 +19,7 @@ describe('build-native', () => {
             expect(args).toContain('-sDYNAMIC_EXECUTION=0');
             expect(args.slice(-2)).toEqual(['-o', `dist/hello/${args.includes('-DSOKOL_WGPU') ? 'webgpu' : 'webgl2'}.js`]);
         }
-        expect(() => emArgs('nope', 'webgl2')).toThrow(/unknown game/);
+        expect(() => emArgs('nope', 'webgl2')).toThrow(/unknown module/);
     });
 
     it('has committed builds for every game and backend', () => {
@@ -31,9 +31,8 @@ describe('build-native', () => {
         }
     });
 
-    it('ships the audio worklet beside every build, and no longer sokol_audio', () => {
+    it('ships the audio worklet beside every build', () => {
         for (const game of Object.keys(GAMES)) expect(existsSync(new URL(`../dist/${game}/xl-audio-worklet.js`, import.meta.url)), game).toBe(true);
-        expect(existsSync(new URL('../third_party/sokol/sokol_audio.h', import.meta.url))).toBe(false);
     });
 
     it('ships Turbo Trails with Box2D compiled in and its music beside the build', () => {
@@ -43,14 +42,17 @@ describe('build-native', () => {
         expect(GAMES['turbo-trails'].cFlags).toContain('-DBOX2D_DISABLE_SIMD');
         expect(GAMES['turbo-trails'].shaders).toEqual(['shaders/turbo-trails.glsl']);   // the post-process pass
         expect(GAMES['turbo-trails'].sources).toContain('games/turbo-trails/feel.cpp');
-        expect(args.join(' ')).toContain('--embed-file native/fonts/LilitaOne-Regular.ttf@/font.ttf');   // the HUD font
+        expect(GAMES['turbo-trails'].text).toBe(true);                        // the engine's text renderer
+        expect(args.join(' ')).toContain('LilitaOne-Regular.ttf@/LilitaOne-Regular.ttf');   // the HUD font, embedded
+        expect(args.join(' ')).toContain('xl_font.cpp');
         for (const f of ['chariots-bg.mp3', 'chariots-wheel.mp3']) expect(existsSync(new URL(`../dist/turbo-trails/${f}`, import.meta.url)), f).toBe(true);
     });
 
     it('has builds that match the sources (rebuild every game after changing native/, third_party/ or the script)', () => {
         const files = sourceFiles();
-        expect(files).toContain('native/runtime/xl.h');
-        expect(files).toContain('third_party/sokol/sokol_gfx.h');
+        expect(files).toContain('engine/native/runtime/xl.h');            // the engine's inputs count too
+        expect(files).toContain('engine/third_party/sokol/sokol_gfx.h');
+        expect(files).toContain('native/games/breakout/main.cpp');
         expect(files).toContain('scripts/build-native.mjs');
         const stamp = new URL(`../${STAMP}`, import.meta.url);
         expect(existsSync(stamp), 'dist/sources.sha256: run a full `pnpm build:native`').toBe(true);

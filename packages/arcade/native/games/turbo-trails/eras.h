@@ -4,10 +4,11 @@
 #include <cstdint>
 #include "physics.h"
 #include "terrain.h"
+#include "xl_color.h"
 
 namespace tt {
 
-struct Rgb { float r, g, b; };
+using Rgb = xl::Rgb;
 
 struct Landmark { const char* name; const char* fact; };
 

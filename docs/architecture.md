@@ -88,15 +88,24 @@ folders the explorer shows (`lib/file-tree.ts` resolves paths). The UI is `compo
 `Explorer`, the `SimplifiedView` and the `Resume` viewer. The resume preview renders `public/files/Aman-Agrawal-Resume.pdf` with
 pdf.js from `public/vendor/`, loaded as a native module (bundling pdf.js through Next's dev server crashes).
 
+## Engine (`packages/engine`)
+
+The shared C++20/[sokol](https://github.com/floooh/sokol) engine, a library package (it imports no app; apps
+with C++ modules depend on it). Modules are compiled by Emscripten twice, for WebGPU (`SOKOL_WGPU`,
+emdawnwebgpu) and WebGL2 (`SOKOL_GLES3`); shaders are written once and cross-compiled by `sokol-shdc`
+(`scripts/build.mjs`, pinned toolchain, reproducible paths, a `dist/sources.sha256` stamp over every input). The
+runtime (`native/runtime/`): `xl.h` bridges the page (focus: keys reach a module only while its canvas is focused,
+sokol's page-wide listeners let everything through; pause while hidden; gamepad; a phone's tilt; haptics; saved
+values; `sapp_quit()` on close), `xl_audio.h` plays sound through an AudioWorklet with a GainNode the desktop's
+volume slider drives, `xl_text.h` draws TrueType text (stb_truetype, Lilita One embedded). `EngineView` (React)
+picks the backend (WebGPU if an adapter exists), loads the matching build on its own canvas and drives the bridge.
+The security policy allows `'wasm-unsafe-eval'` for this. `scripts/test.mjs` runs a consumer's graphics-free code
+under doctest with the system compilers.
+
 ## Arcade (`packages/arcade`)
 
-Games are C++20 on [sokol](https://github.com/floooh/sokol), compiled by Emscripten twice, for WebGPU
-(`SOKOL_WGPU`, emdawnwebgpu) and WebGL2 (`SOKOL_GLES3`); shaders are written once and cross-compiled by
-`sokol-shdc`. The compiled `dist/` is committed (CI rebuilds and diffs it) and copied to `/arcade/` by
-`scripts/vendor.mjs`. `GameView` picks the backend (WebGPU if an adapter exists), loads the matching module with
-its own canvas, and drives the runtime bridge (`native/runtime/xl.h`): focus (keys reach a game only while its
-canvas is focused; sokol's page-wide key listeners are set to let everything through), pause while the window is
-hidden, and `sapp_quit()` on close. The security policy allows `'wasm-unsafe-eval'` for this. Plan:
+The games, on the engine: `native/games/*` and their panels, Box2D vendored for Turbo Trails. The compiled
+`dist/` is committed (CI rebuilds and diffs it) and copied to `/arcade/` by `scripts/vendor.mjs`. Plan:
 [arcade-plan.md](arcade-plan.md).
 
 ## Photo Drop (`packages/photo-drop`)

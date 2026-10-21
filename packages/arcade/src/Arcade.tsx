@@ -1,10 +1,9 @@
 // The Arcade app: a launcher of games, each opened in a GameView. The renderer can be left on Auto (WebGPU when
 // available, else WebGL2) or forced; the choice is remembered on this device.
-import { useState, type ComponentType } from 'react';
+import { Suspense, useState, type ComponentType } from 'react';
 import type { AppProps } from '@xlibraries/app-sdk';
-import { type BackendChoice } from './backend';
+import { EngineView, type BackendChoice } from '@xlibraries/engine';
 import { GAMES, type GameInfo } from './games';
-import { GameView } from './GameView';
 
 export interface ArcadeConfig {
     /** Where dist/ is served, e.g. "/arcade" */
@@ -39,7 +38,13 @@ export function createArcade({ baseUrl, games = GAMES, leaderboardUrl }: ArcadeC
             try { localStorage.setItem('arcade-backend', next); } catch { /* storage blocked */ }
         };
 
-        if (playing) return <GameView game={playing} baseUrl={baseUrl} leaderboardUrl={leaderboardUrl} choice={choice} volume={host.volume} onBack={() => setPlaying(null)} />;
+        if (playing) {
+            const Panel = playing.Panel;
+            return (
+                <EngineView id={playing.id} title={playing.title} baseUrl={baseUrl} choice={choice} volume={host.volume} onBack={() => setPlaying(null)} backLabel="← Games"
+                    renderPanel={Panel && ((instance, backend) => <Suspense fallback={null}><Panel instance={instance} backend={backend} baseUrl={baseUrl} leaderboardUrl={leaderboardUrl} volume={host.volume} /></Suspense>)} />
+            );
+        }
 
         return (
             <div className="h-full w-full overflow-y-auto p-4 text-white" style={{ background: 'radial-gradient(ellipse at top, #2b1f4f, #120d22 70%)' }}>

@@ -65,7 +65,9 @@ Timeline*.json
 packages/photo-drop/backend/.clasp.json
 packages/photo-drop/backend/config.gs
 
-# arcade build tools and intermediate files
+# engine/arcade build tools and intermediate files
+packages/engine/.tools/
+packages/engine/build/
 packages/arcade/.tools/
 packages/arcade/build/
 apps/web/public/arcade/

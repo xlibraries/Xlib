@@ -1,11 +1,12 @@
-// Hosts one game: picks the backend, loads its WebAssembly build, and connects it to the window (keyboard focus,
-// pause while hidden, fullscreen). Closing the view shuts the game down and releases its GPU resources.
-import { Suspense, useEffect, useId, useRef, useState } from 'react';
+// Hosts one engine module (a C++/sokol program built by scripts/build.mjs): picks the backend, loads its
+// WebAssembly build, and connects it to the window (keyboard focus, pause while hidden, gamepad, the desktop's
+// volume, a phone's tilt, fullscreen). Closing the view shuts the module down and releases its GPU resources.
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { BACKEND_LABEL, pickBackend, type Backend, type BackendChoice } from './backend';
-import type { GameInfo } from './games';
 import { NO_PAD, readPad, samePad } from './gamepad';
 
-interface GameInstance {
+/** The exports every module has (from xl.h); apps add their own. */
+export interface EngineInstance {
     _xl_set_focused(focused: number): void;
     _xl_set_paused(paused: number): void;
     _xl_quit(): void;
@@ -38,27 +39,32 @@ export function tiltLean(pitch: number | null, baseline: number | null): number 
     return Math.max(-1, Math.min(1, (pitch - baseline) / 22));
 }
 
-type CreateGame = (options: Record<string, unknown>) => Promise<GameInstance>;
+type CreateModule = (options: Record<string, unknown>) => Promise<EngineInstance>;
 
 type Status = { kind: 'loading' } | { kind: 'running'; backend: Backend } | { kind: 'error'; message: string };
 
-export interface GameViewProps {
-    game: GameInfo;
+export interface EngineViewProps {
+    /** The module's name: dist/<id>/ holds its builds */
+    id: string;
+    title: string;
+    /** Where dist/ is served, e.g. "/arcade" */
     baseUrl: string;
-    leaderboardUrl?: string;
     choice: BackendChoice;
     /** The desktop's master volume, 0..1 */
     volume?: number;
     onBack: () => void;
+    backLabel?: string;
+    /** Something beside the canvas once the module runs (an app's panel), given the running instance */
+    renderPanel?: (instance: EngineInstance, backend: Backend) => ReactNode;
 }
 
-export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, onBack }: GameViewProps) {
+export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, backLabel = '← Back', renderPanel }: EngineViewProps) {
     const canvasId = 'arcade-' + useId().replace(/[^a-zA-Z0-9]/g, '');
     const canvas = useRef<HTMLCanvasElement>(null);
     const frame = useRef<HTMLDivElement>(null);
-    const instance = useRef<GameInstance | null>(null);
+    const instance = useRef<EngineInstance | null>(null);
     const [status, setStatus] = useState<Status>({ kind: 'loading' });
-    const [running, setRunning] = useState<GameInstance | null>(null);
+    const [running, setRunning] = useState<EngineInstance | null>(null);
     const [fps, setFps] = useState(0);
     const [padConnected, setPadConnected] = useState(false);
     const [portrait, setPortrait] = useState(false);
@@ -69,14 +75,14 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
         (async () => {
             const backend = await pickBackend(choice);
             if (!backend) throw new Error(choice === 'auto' ? 'This browser supports neither WebGPU nor WebGL2.' : `This browser doesn't support ${BACKEND_LABEL[choice]}.`);
-            const base = `${baseUrl}/${game.id}`;
-            const module = (await import(/* webpackIgnore: true */ `${base}/${backend}.js`)) as { default: CreateGame };
+            const base = `${baseUrl}/${id}`;
+            const module = (await import(/* webpackIgnore: true */ `${base}/${backend}.js`)) as { default: CreateModule };
             const created = await module.default({
-                arguments: [`--canvas=#${canvasId}`, `--game=${game.id}`],
+                arguments: [`--canvas=#${canvasId}`, `--game=${id}`],
                 canvas: canvas.current,
                 locateFile: (path: string) => `${base}/${path}`,
-                print: (text: string) => console.log(`[${game.id}]`, text),
-                printErr: (text: string) => console.warn(`[${game.id}]`, text),
+                print: (text: string) => console.log(`[${id}]`, text),
+                printErr: (text: string) => console.warn(`[${id}]`, text),
                 onStats: ({ frames, fps: rate }: { frames: number; fps: number }) => {
                     if (disposed) return;
                     setFps(Math.round(rate));
@@ -96,7 +102,7 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
             instance.current?._xl_quit();
             instance.current = null;
         };
-    }, [game.id, baseUrl, choice, canvasId]);
+    }, [id, baseUrl, choice, canvasId]);
 
     // The desktop's volume slider reaches the game's audio (and again once it has loaded)
     useEffect(() => { running?.xlSetVolume?.(volume); }, [running, volume]);
@@ -176,14 +182,13 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
 
     const setFocused = (focused: boolean) => instance.current?._xl_set_focused(focused ? 1 : 0);
 
-    const Panel = game.Panel;
     const view = (
-        <div ref={frame} className="relative h-full w-full bg-black" data-game={game.id} data-backend={status.kind === 'running' ? status.backend : ''} data-frames="0">
+        <div ref={frame} className="relative h-full w-full bg-black" data-game={id} data-backend={status.kind === 'running' ? status.backend : ''} data-frames="0">
             <canvas
                 ref={canvas}
                 id={canvasId}
                 tabIndex={0}
-                aria-label={game.title}
+                aria-label={title}
                 // sokol prevents the default mouse action, which would stop the canvas taking focus: do it here
                 onPointerDownCapture={() => canvas.current?.focus()}
                 onFocus={() => setFocused(true)}
@@ -194,9 +199,9 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
             <div className="absolute top-2 right-2 flex items-center gap-1.5 text-xs">
                 {status.kind === 'running' && <span className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white">{padConnected ? '🎮 · ' : ''}{BACKEND_LABEL[status.backend]} · {fps} fps</span>}
                 <button type="button" onClick={() => frame.current?.requestFullscreen?.()} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80" aria-label="Fullscreen">⛶</button>
-                <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80">← Games</button>
+                <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80">{backLabel}</button>
             </div>
-            {status.kind === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm pointer-events-none">Loading {game.title}…</div>}
+            {status.kind === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm pointer-events-none">Loading {title}…</div>}
             {portrait && status.kind === 'running' && (
                 <div data-testid="rotate-hint" className="absolute inset-x-0 bottom-10 flex justify-center pointer-events-none">
                     <div className="px-4 py-2 rounded-full bg-black bg-opacity-70 text-white text-sm">🔄 Turn your phone sideways to play</div>
@@ -204,21 +209,19 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
             )}
             {status.kind === 'error' && (
                 <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-gray-200">
-                    <div>Couldn&apos;t start {game.title}: {status.message}</div>
-                    <button type="button" onClick={onBack} className="px-3 py-1 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20">Back to games</button>
+                    <div>Couldn&apos;t start {title}: {status.message}</div>
+                    <button type="button" onClick={onBack} className="px-3 py-1 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20">{backLabel.replace(/^← /, '') || 'Back'}</button>
                 </div>
             )}
         </div>
     );
 
-    if (!Panel) return view;
+    if (!renderPanel) return view;
     return (
         <div className="h-full w-full flex flex-col md:flex-row">
             <div className="flex-grow min-h-0 md:min-w-0 h-1/2 md:h-full">{view}</div>
             <div className="h-1/2 md:h-full md:w-2/5 md:max-w-md border-t md:border-t-0 md:border-l border-black">
-                {running && status.kind === 'running'
-                    ? <Suspense fallback={null}><Panel instance={running} backend={status.backend} baseUrl={baseUrl} leaderboardUrl={leaderboardUrl} volume={volume} /></Suspense>
-                    : <div className="h-full" style={{ background: '#16121f' }} />}
+                {running && status.kind === 'running' ? renderPanel(running, status.backend) : <div className="h-full" style={{ background: '#16121f' }} />}
             </div>
         </div>
     );

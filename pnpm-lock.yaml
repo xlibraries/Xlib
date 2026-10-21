@@ -135,6 +135,9 @@ importers:
       '@xlibraries/app-sdk':
         specifier: workspace:^
         version: link:../app-sdk
+      '@xlibraries/engine':
+        specifier: workspace:^
+        version: link:../engine
     devDependencies:
       '@types/node':
         specifier: ^25.3.3
@@ -176,6 +179,24 @@ importers:
       '@types/sanitize-html':
         specifier: 2.16.0
         version: 2.16.0
+      react:
+        specifier: ^19.2.9
+        version: 19.2.9
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/engine:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.3
+        version: 25.3.3
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
       react:
         specifier: ^19.2.9
         version: 19.2.9
