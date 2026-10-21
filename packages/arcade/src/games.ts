@@ -33,7 +33,7 @@ export const GAMES: GameInfo[] = [
         id: 'turbo-trails',
         title: 'Turbo Trails',
         description: 'Drive the history of transport: ten eras from an Indus Valley chariot to a Tokyo hover car. Hills, fuel, flips, coins and a shop.',
-        controls: '→/D or right half: gas · ←/A or left half: brake · gamepad triggers',
+        controls: '→/D gas · ←/A brake · ↑/W ↓/S lean · Space Turbo · touch: halves + the Turbo button · gamepad: triggers, stick, A',
         art: 'linear-gradient(180deg, #ffc46b 0%, #ff8a3d 45%, #b4652e 46%, #6b3a1c 100%)',
         Panel: TurboTrailsPanel,
     },

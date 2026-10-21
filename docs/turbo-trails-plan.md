@@ -26,8 +26,9 @@ the USA canyons are steep, Japan is smooth.
 
 ## Mechanics (from the prototype, kept as-is unless noted)
 
-- **Controls**: gas and brake/reverse (→/←, A/D, touch halves of the screen, gamepad triggers); in the air
-  the same keys tilt the vehicle. Mouse/touch: right half gas, left half brake.
+- **Controls**: gas →/D, brake/reverse ←/A, lean back/forward ↑/↓ (W/S): a wheelie on the ground, rotation in the
+  air; Turbo on Space, from a meter filled by coins, flips and air time. Mouse/touch: right half gas, left half
+  brake, the lightning button is Turbo. Gamepad: triggers, stick or d-pad to lean, A for Turbo.
 - **Fuel**: a tank that drains while the motor runs; fuel cans on the road refill it. Out of fuel or landing
   on the roof = run over, coins banked.
 - **Coins**: 10 per 100 m, 50 per flip, 100 per hidden collectible (one "treasure" per era, off the main
@@ -71,3 +72,4 @@ flowchart LR
 | **1. Driving** ✅ | Box2D vendored, the vehicle interface, generated terrain, the chariot driving on era 1 with fuel, coins, flips, crash/out-of-fuel, saved best distance and your music. Native tests for rules and terrain |
 | **2. Eras and shop** ✅ | All ten eras with their vehicles, palettes, landmarks and facts; unlocks; the shop with upgrades applied to the physics; story cards |
 | **3. Leaderboard and polish** ✅ | Global per-era leaderboard (nickname, server-validated distances), gamepad and touch controls, particles, screen shake, sounds per era |
+| **4. Pixar look and real controls** ✅ | JyotiRath gets a face on every vehicle (`feel.h`: eyes, brows and mouth react to flying, speed, Turbo, landings and crashes; blinks), squash-and-stretch, soft shading with outlines and glints (`art.h`), a sun, clouds and haze, shaded ground, dust/smoke/sparkle particles, Turbo flame and speed streaks, and a post-process pass (`shaders/turbo-trails.glsl`: bloom, grade, vignette). Lean and Turbo split off the gas key |

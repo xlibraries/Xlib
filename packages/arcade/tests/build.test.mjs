@@ -41,6 +41,8 @@ describe('build-native', () => {
         expect(args).toContain('-Ithird_party/box2d/include');
         expect(args).toContain('build/obj/x.o');
         expect(GAMES['turbo-trails'].cFlags).toContain('-DBOX2D_DISABLE_SIMD');
+        expect(GAMES['turbo-trails'].shaders).toEqual(['shaders/turbo-trails.glsl']);   // the post-process pass
+        expect(GAMES['turbo-trails'].sources).toContain('games/turbo-trails/feel.cpp');
         for (const f of ['chariots-bg.mp3', 'chariots-wheel.mp3']) expect(existsSync(new URL(`../dist/turbo-trails/${f}`, import.meta.url)), f).toBe(true);
     });
 
