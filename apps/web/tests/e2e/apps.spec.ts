@@ -581,6 +581,12 @@ test.describe('Arcade', () => {
         await page.keyboard.press('KeyN');
         const before = await frames();
         await expect.poll(frames).toBeGreaterThan(before + 20);
+        // the crates by the road run on the engine's physics: stacked at first, knocked down when the car gets there
+        type Showcase = { xlGame: { _showcase_crate_height(i: number): number; _showcase_car_to_crates(): number } };
+        const top = () => game.evaluate(el => (el as unknown as Showcase).xlGame._showcase_crate_height(9));
+        expect(await top()).toBeGreaterThan(0.9);
+        await expect.poll(() => game.evaluate(el => (el as unknown as Showcase).xlGame._showcase_car_to_crates()), { timeout: 60_000 }).toBeLessThan(2);
+        await expect.poll(top, { timeout: 15_000 }).toBeLessThan(0.6);
     });
 
     test('Turbo Trails: the chariot drives, burns fuel, the panel shows eras and a shop', async ({ page }) => {

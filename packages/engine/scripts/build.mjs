@@ -41,6 +41,33 @@ const BACKEND_FLAGS = {
     webgpu: ['-DSOKOL_WGPU', '--use-port=emdawnwebgpu'],
 };
 
+/** Jolt Physics (third_party/jolt): compiled once per toolchain into the engine's build/obj, linked into modules with `physics: true`. */
+export const JOLT_DEFINES = ['-DJPH_OBJECT_LAYER_BITS=32', '-DJPH_DISABLE_CUSTOM_ALLOCATOR', '-DJPH_CROSS_PLATFORM_DETERMINISTIC', '-DNDEBUG'];
+export const JOLT_INCLUDE = `-isystem${join(ENGINE_ROOT, 'third_party/jolt')}`;
+
+/** Jolt's sources: every .cpp under Jolt/ (the ObjectStream readers and writers compile to nothing without JPH_OBJECT_STREAM). */
+export function joltSources() {
+    const out = [];
+    const walk = (dir) => { for (const name of readdirSync(join(ENGINE_ROOT, dir)).sort()) { const rel = `${dir}/${name}`; if (statSync(join(ENGINE_ROOT, rel)).isDirectory()) walk(rel); else if (name.endsWith('.cpp')) out.push(rel); } };
+    walk('third_party/jolt/Jolt');
+    return out;
+}
+
+/** Compiles Jolt with em++ once (objects are reused while the sources are older), returning the object paths. */
+export function compileJolt(run) {
+    const outDir = join(ENGINE_ROOT, 'build/obj/jolt');
+    mkdirSync(outDir, { recursive: true });
+    const objects = [];
+    for (const src of joltSources()) {
+        const obj = join(outDir, src.replace('third_party/jolt/Jolt/', '').replace(/[\/]/g, '_').replace(/\.cpp$/, '.o'));
+        let fresh = false;
+        try { fresh = statSync(obj).mtimeMs > statSync(join(ENGINE_ROOT, src)).mtimeMs; } catch { /* not built yet */ }
+        if (!fresh) run('em++', ['-std=c++20', '-O2', '-fno-exceptions', '-fno-rtti', `-ffile-prefix-map=${ENGINE_ROOT}=engine`, JOLT_INCLUDE, ...JOLT_DEFINES, '-c', join(ENGINE_ROOT, src), '-o', obj], ENGINE_ROOT);
+        objects.push(obj);
+    }
+    return objects;
+}
+
 /** Include and path-mapping flags for a consumer at `root` (paths stay reproducible across machines). */
 export function includeFlags(root) {
     return [
@@ -53,15 +80,16 @@ export function includeFlags(root) {
  * The em++ arguments for one module and backend; `objects` are precompiled C sources. A module: `sources` (relative
  * to <root>/native), `shaders`, optional `flags`, `cSources`/`cFlags` (a C library compiled separately),
  * `assets` (a folder copied beside the build), `text` (link the engine's font renderer), `fonts` (engine fonts
- * embedded as /<name>).
+ * embedded as /<name>), `physics` (link Jolt and the engine's xl_physics).
  */
 export function emArgs(root, modules, name, backend, objects = []) {
     const spec = modules[name];
     if (!spec) throw new Error(`unknown module: ${name}`);
     if (!BACKEND_FLAGS[backend]) throw new Error(`unknown backend: ${backend}`);
-    const runtime = spec.text ? [join(ENGINE_ROOT, 'native/runtime/xl_font.cpp')] : [];
+    const runtime = [...(spec.text ? [join(ENGINE_ROOT, 'native/runtime/xl_font.cpp')] : []), ...(spec.physics ? [join(ENGINE_ROOT, 'native/runtime/xl_physics.cpp')] : [])];
+    const physics = spec.physics ? [JOLT_INCLUDE, ...JOLT_DEFINES] : [];
     const fonts = (spec.fonts ?? []).flatMap(f => ['--embed-file', `${join(ENGINE_ROOT, 'native/fonts', f)}@/${f}`]);
-    return [...COMMON, ...includeFlags(root), ...BACKEND_FLAGS[backend], ...(spec.flags ?? []), ...fonts, ...spec.sources.map(s => `native/${s}`), ...runtime, ...objects, '-o', `dist/${name}/${backend}.js`];
+    return [...COMMON, ...includeFlags(root), ...BACKEND_FLAGS[backend], ...physics, ...(spec.flags ?? []), ...fonts, ...spec.sources.map(s => `native/${s}`), ...runtime, ...objects, '-o', `dist/${name}/${backend}.js`];
 }
 
 /** Compiles a module's C sources (e.g. Box2D) once into build/obj/<name>/, returning the object paths. */
@@ -142,9 +170,10 @@ export async function build({ root, modules, only = [] }) {
     const names = only.length ? only : Object.keys(modules);
     checkEmscripten();
     const shdc = await ensureShdc();
-    const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit' });
+    const run = (cmd, args, cwd = root) => execFileSync(cmd, args, { cwd, stdio: 'inherit' });
 
     mkdirSync(join(root, 'build/gen'), { recursive: true });
+    const jolt = names.some(n => modules[n]?.physics) ? (console.log('▶ Jolt (cached objects reused)'), compileJolt(run)) : [];
     for (const name of names) {
         const spec = modules[name];
         if (!spec) throw new Error(`unknown module: ${name}`);
@@ -155,7 +184,7 @@ export async function build({ root, modules, only = [] }) {
         }
         rmSync(join(root, 'dist', name), { recursive: true, force: true });
         mkdirSync(join(root, 'dist', name), { recursive: true });
-        const objects = compileC(root, spec, run);
+        const objects = [...compileC(root, spec, run), ...(spec.physics ? jolt : [])];
         for (const backend of BACKENDS) {
             console.log(`▶ em++ ${name} (${backend})`);
             run('em++', emArgs(root, modules, name, backend, objects));

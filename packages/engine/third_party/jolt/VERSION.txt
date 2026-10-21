@@ -1,0 +1,4 @@
+Jolt Physics v5.6.0 (https://github.com/jrouwe/JoltPhysics), MIT. The Jolt/ source tree as released, minus the
+CMake/natvis files and the .hlsl compute shaders. Compiled by the engine's build pipeline (scripts/build.mjs) and test harness
+(scripts/test.mjs) with -fno-exceptions -fno-rtti, JPH_OBJECT_LAYER_BITS=32, JPH_DISABLE_CUSTOM_ALLOCATOR,
+JPH_CROSS_PLATFORM_DETERMINISTIC and NDEBUG (no JPH_OBJECT_STREAM: the ObjectStream readers and writers compile to nothing).
