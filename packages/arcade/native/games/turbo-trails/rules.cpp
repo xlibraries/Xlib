@@ -91,6 +91,12 @@ void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, boo
     if (in.throttle != 0) run.fuel = std::max(0.0f, run.fuel - std::fabs(in.throttle) * dt / FUEL_SECONDS);
     run.distance = std::max(run.distance, pose.x);
 
+    // Turbo: spent while the key is held and the meter has anything in it
+    const bool boosting = in.boost && run.turbo > 0;
+    if (boosting && !run.boosting) run.events.push_back(RunEvent::Turbo);
+    run.boosting = boosting;
+    if (boosting) run.turbo = std::max(0.0f, run.turbo - dt / TURBO_SECONDS);
+
     // flips: full rotations while airborne
     if (!grounded) {
         if (!run.airborne) run.air_rotation = 0;
@@ -98,6 +104,7 @@ void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, boo
         if (std::fabs(run.air_rotation) >= TWO_PI * 0.9f) {
             run.flips++;
             run.coins += COINS_PER_FLIP;
+            run.turbo += TURBO_PER_FLIP;
             run.air_rotation -= std::copysign(TWO_PI, run.air_rotation);
             run.events.push_back(RunEvent::Flip);
         }
@@ -106,16 +113,18 @@ void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, boo
         if (impact > 4.0f) run.events.push_back(RunEvent::Landing);
     }
     run.airborne = !grounded;
+    if (!grounded) run.turbo += TURBO_PER_AIR_SECOND * dt;
 
     // pickups near the chassis
     int n = 0;
-    if (take_pickups(terrain.coins, pose.x, pose.y, 1.1f, n)) { run.coins += COINS_ROAD * n; run.events.push_back(RunEvent::Coin); }
+    if (take_pickups(terrain.coins, pose.x, pose.y, 1.1f, n)) { run.coins += COINS_ROAD * n; run.turbo += TURBO_PER_COIN * n; run.events.push_back(RunEvent::Coin); }
     n = 0;
     if (take_pickups(terrain.fuel, pose.x, pose.y, 1.3f, n)) { run.fuel = 1.0f; run.events.push_back(RunEvent::Fuel); }
     if (!terrain.treasure.taken) {
         const float dx = terrain.treasure.x - pose.x, dy = terrain.treasure.y - pose.y;
-        if (dx * dx + dy * dy <= 1.5f * 1.5f) { terrain.treasure.taken = true; run.coins += COINS_TREASURE; run.events.push_back(RunEvent::Treasure); }
+        if (dx * dx + dy * dy <= 1.5f * 1.5f) { terrain.treasure.taken = true; run.coins += COINS_TREASURE; run.turbo = 1.0f; run.events.push_back(RunEvent::Treasure); }
     }
+    run.turbo = std::min(1.0f, run.turbo);
     if (run.next_landmark < static_cast<int>(terrain.landmarks.size()) && pose.x >= terrain.landmarks[run.next_landmark].x) {
         run.last_landmark_index = terrain.landmarks[run.next_landmark].index;
         run.landmark_timer = 4.0f;
