@@ -666,6 +666,63 @@ test.describe('Arcade', () => {
         expect(Math.max(...effects.map(e => e.weakMagnitude))).toBeGreaterThan(0.1);
     });
 
+    test('Turbo Trails: leaning back pulls a wheelie, and R restarts', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play Turbo Trails' }).click();
+        const game = page.locator('[data-game="turbo-trails"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 25_000 }).toBeGreaterThan(10);
+        const state = () => game.evaluate(el => {
+            const g = (el as unknown as { xlGame: { _tt_state_json(): number; UTF8ToString(p: number): string; _free(p: number): void } }).xlGame;
+            const ptr = g._tt_state_json(); const text = g.UTF8ToString(ptr); g._free(ptr);
+            return JSON.parse(text) as { run: { state: number; distance: number; wheelie: number; stunt: string } };
+        });
+        await game.locator('canvas').click();
+        await page.keyboard.down('ArrowRight');
+        await expect.poll(async () => (await state()).run.distance).toBeGreaterThan(5);
+        await page.keyboard.down('ArrowUp');                                                        // lean back: the front wheel comes up
+        await expect.poll(async () => (await state()).run.wheelie, { timeout: 5_000 }).toBeGreaterThan(3);   // tenths of a second
+        await page.keyboard.up('ArrowUp');
+        await page.keyboard.up('ArrowRight');
+        await page.keyboard.press('r');
+        await expect.poll(async () => (await state()).run).toMatchObject({ state: 0, distance: 0, wheelie: 0 });
+    });
+
+    test.describe('on a phone', () => {
+        test.use({ hasTouch: true, viewport: { width: 420, height: 800 } });
+
+        test('Turbo Trails asks for landscape, boosts with both thumbs, and leans with the gyro', async ({ page }) => {
+            await openDesktop(page, { 'arcade-backend': 'webgl2' });
+            const arcade = await openApp(page, 'arcade');
+            await arcade.getByRole('button', { name: 'Play Turbo Trails' }).click();
+            const game = page.locator('[data-game="turbo-trails"]');
+            await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 25_000 }).toBeGreaterThan(10);
+            await expect(page.getByTestId('rotate-hint')).toBeVisible();
+            await page.setViewportSize({ width: 800, height: 420 });
+            await expect(page.getByTestId('rotate-hint')).toBeHidden();
+
+            const state = () => game.evaluate(el => {
+                const g = (el as unknown as { xlGame: { _tt_state_json(): number; UTF8ToString(p: number): string; _free(p: number): void; _tt_fill_turbo(): void } }).xlGame;
+                const ptr = g._tt_state_json(); const text = g.UTF8ToString(ptr); g._free(ptr);
+                return JSON.parse(text) as { lean: number; run: { state: number; boosting: boolean } };
+            });
+            const box = (await game.locator('canvas').boundingBox())!;
+            await page.touchscreen.tap(box.x + box.width * 0.7, box.y + box.height * 0.5);   // focus (and the gyro's first touch)
+            await game.evaluate(el => (el as unknown as { xlGame: { _tt_fill_turbo(): void } }).xlGame._tt_fill_turbo());
+            // two thumbs, one on each half: gas and Turbo together
+            const cdp = await page.context().newCDPSession(page);
+            const points = [{ x: box.x + box.width * 0.2, y: box.y + box.height * 0.5, id: 1 }, { x: box.x + box.width * 0.8, y: box.y + box.height * 0.5, id: 2 }];
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: points });
+            await expect.poll(async () => (await state()).run.boosting).toBe(true);
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            await expect.poll(async () => (await state()).run.boosting).toBe(false);
+            // the gyro: the first reading is level, tilting from there leans
+            await page.evaluate(() => { window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { beta: 40, gamma: 10 })); });
+            await page.evaluate(() => { window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { beta: 40, gamma: 32 })); });
+            await expect.poll(async () => (await state()).lean).toBe(100);
+        });
+    });
+
     test('Turbo Trails: unlocked eras switch the world, locked ones stay locked, the shop sells upgrades', async ({ page }) => {
         await openDesktop(page, { 'arcade-backend': 'webgl2', 'arcade:turbo-trails:progress': 'v1;coins=650;unlocked=3' });
         const arcade = await openApp(page, 'arcade');

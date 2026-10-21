@@ -13,14 +13,16 @@ constexpr int ERA_COUNT = 10;
 constexpr int UPGRADE_KINDS = 4;          // engine, suspension, tyres, chassis
 constexpr int UPGRADE_TIERS = 4;
 constexpr int UPGRADE_PRICES[UPGRADE_TIERS] = { 300, 400, 550, 750 };
-constexpr int COINS_PER_100M = 10, COINS_PER_FLIP = 50, COINS_TREASURE = 100, COINS_ROAD = 5;
+constexpr int COINS_PER_100M = 10, COINS_PER_FLIP = 50, COINS_TREASURE = 100, COINS_ROAD = 5, COINS_PER_WHEELIE_SECOND = 10;
+constexpr float WHEELIE_MIN_SECONDS = 1.0f;   // shorter ones don't count
+constexpr float STUCK_SECONDS = 2.0f;         // not moving this long (with gas on, or tipped over) ends the run
 constexpr float FUEL_SECONDS = 24.0f;    // a full tank at full throttle
 // Turbo: a meter filled by coins, flips and air time, spent by holding the boost key
 constexpr float TURBO_SECONDS = 2.5f;    // a full meter lasts this long
 constexpr float TURBO_PER_COIN = 0.08f, TURBO_PER_FLIP = 0.5f, TURBO_PER_AIR_SECOND = 0.15f;
 
 enum class RunState { Ready, Driving, OutOfFuel, Crashed, Finished };
-enum class RunEvent { Coin, Fuel, Flip, Treasure, Landmark, Crash, OutOfFuel, Landing, Finished, Turbo };
+enum class RunEvent { Coin, Fuel, Flip, Treasure, Landmark, Crash, OutOfFuel, Landing, Finished, Turbo, Wheelie, Stuck };
 
 struct Run {
     RunState state = RunState::Ready;
@@ -31,6 +33,10 @@ struct Run {
     int coins = 0;                     // earned this run (road coins, flips, treasure)
     int flips = 0;
     float air_rotation = 0;            // accumulated while airborne, for flips
+    bool last_flip_backward = true;    // the latest Flip event: nose went up (backflip) or down (frontflip)
+    float wheelie_time = 0;            // seconds the front wheel has been up on the current wheelie
+    float last_wheelie = 0;            // length of the latest Wheelie event
+    float stuck_time = 0;              // seconds without moving while trying to
     bool airborne = false;
     int next_landmark = 0;
     int last_landmark_index = -1;      // for showing its name
@@ -57,8 +63,9 @@ int unlock_distance(int era);
 
 struct RunInput { float throttle = 0; float lean = 0; bool boost = false; };
 
-/** Advances a run by dt using the vehicle's state after the physics step. */
-void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, bool chassis_hit, float impact, const RunInput& in, float dt, float road_length);
+/** Advances a run by dt using the vehicle's state after the physics step. `front_grounded` (0/1) lets wheelies
+ *  count; -1 means the same as `grounded`. */
+void update_run(Run& run, Terrain& terrain, const Pose& pose, bool grounded, bool chassis_hit, float impact, const RunInput& in, float dt, float road_length, int front_grounded = -1);
 /** Banks the run into progress (distance coins, unlocks, best). Returns coins earned in total. */
 int finish_run(Progress& p, int era, const Run& run);
 
