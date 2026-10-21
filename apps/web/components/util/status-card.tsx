@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import SmallArrow from './small-arrow';
 import { screenBrightness } from '../../lib/display';
+import { readSoundLevel, writeSoundLevel } from '../../lib/sound-level';
 
 type StatusCardProps = {
 	visible: boolean;
@@ -27,7 +28,7 @@ export default function StatusCard({ visible, toggleVisible, lockScreen, shutDow
 
 	useEffect(() => {
 		/* eslint-disable react-hooks/set-state-in-effect -- localStorage is only readable after mount (not during SSR) */
-		setSoundState(stored('sound-level', 75));
+		setSoundState(readSoundLevel());
 		const level = stored('brightness-level', 100);
 		setBrightnessState(level);
 		/* eslint-enable react-hooks/set-state-in-effect */
@@ -56,7 +57,7 @@ export default function StatusCard({ visible, toggleVisible, lockScreen, shutDow
 
 	const setSound = (level: number) => {
 		setSoundState(level);
-		try { localStorage.setItem('sound-level', String(level)); } catch { /* storage blocked */ }
+		writeSoundLevel(level);   // every open app follows (host.volume)
 	};
 
 	return (

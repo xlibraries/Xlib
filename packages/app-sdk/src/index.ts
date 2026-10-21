@@ -20,6 +20,8 @@ export interface Host {
     setWallpaper(name: string): void;
     /** Record an analytics event. A no-op when analytics are off. */
     track(event: AnalyticsEvent): void;
+    /** The desktop's master volume (the slider in the top bar), 0..1. Apps that make sound scale theirs by it. */
+    readonly volume: number;
 }
 
 /** Props every app receives from its window. */

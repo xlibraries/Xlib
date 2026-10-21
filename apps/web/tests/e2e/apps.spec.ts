@@ -631,6 +631,41 @@ test.describe('Arcade', () => {
         await page.keyboard.up('ArrowRight');
     });
 
+    test('Turbo Trails: the desktop volume slider sets the game volume, and gas rumbles a gamepad', async ({ page }) => {
+        // a fake pad with a rumble motor that records what the game asks of it
+        await page.addInitScript(() => {
+            const effects: unknown[] = [];
+            (window as unknown as { __effects: unknown[] }).__effects = effects;
+            navigator.getGamepads = () => [{
+                connected: true, id: 'test pad', index: 0, mapping: 'standard', timestamp: 0, axes: [0, 0, 0, 0],
+                buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+                vibrationActuator: { playEffect: (type: string, params: unknown) => { effects.push({ type, ...(params as object) }); return Promise.resolve('complete'); } },
+            } as unknown as Gamepad];
+        });
+        await openDesktop(page, { 'arcade-backend': 'webgl2', 'sound-level': '20' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play Turbo Trails' }).click();
+        const game = page.locator('[data-game="turbo-trails"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 25_000 }).toBeGreaterThan(10);
+        type Audio = { xlGame: { xlAudio?: { gain: { gain: { value: number } } }; xlVolume?: number } };
+        await game.locator('canvas').click();
+        await expect.poll(() => game.evaluate(el => (el as unknown as Audio).xlGame.xlAudio?.gain.gain.value)).toBeCloseTo(0.2, 2);
+        // move the slider in the top bar's status card: the game follows live
+        await page.locator('#status-bar').click();
+        await page.locator('input[name="headphone_range"]').fill('60');
+        await expect.poll(() => game.evaluate(el => (el as unknown as Audio).xlGame.xlAudio?.gain.gain.value)).toBeCloseTo(0.6, 2);
+        await page.keyboard.press('Escape');
+
+        await game.locator('canvas').click();
+        await page.keyboard.down('ArrowRight');
+        await page.waitForTimeout(700);
+        await page.keyboard.up('ArrowRight');
+        const effects = await page.evaluate(() => (window as unknown as { __effects: { type: string; strongMagnitude: number; weakMagnitude: number; duration: number }[] }).__effects);
+        expect(effects.length).toBeGreaterThan(3);                 // the press tap, then the engine's rumble every ~90 ms
+        expect(effects.every(e => e.type === 'dual-rumble' && e.duration > 0)).toBe(true);
+        expect(Math.max(...effects.map(e => e.weakMagnitude))).toBeGreaterThan(0.1);
+    });
+
     test('Turbo Trails: unlocked eras switch the world, locked ones stay locked, the shop sells upgrades', async ({ page }) => {
         await openDesktop(page, { 'arcade-backend': 'webgl2', 'arcade:turbo-trails:progress': 'v1;coins=650;unlocked=3' });
         const arcade = await openApp(page, 'arcade');
