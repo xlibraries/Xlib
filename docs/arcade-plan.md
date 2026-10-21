@@ -19,14 +19,14 @@ flowchart TB
     subgraph engine["packages/engine (@xlibraries/engine) — shared by every app with C++ modules"]
         view["src/EngineView.tsx<br/>canvas host: load, focus, pause, gamepad,<br/>volume, tilt, fullscreen"]
         pick["src/backend.ts<br/>WebGPU if an adapter exists, else WebGL2"]
-        runtime["native/runtime/<br/>xl.h (page bridge) · xl_audio.h (worklet) ·<br/>xl_text.h (TrueType text)"]
+        runtime["native/runtime/<br/>xl.h (page bridge) · xl_audio.h (worklet) ·<br/>xl_text.h (TrueType text) · xl_physics.h (Jolt)"]
         buildpipe["scripts/build.mjs · scripts/test.mjs<br/>sokol-shdc + em++, dist stamp; doctest harness"]
         third["third_party/<br/>sokol · HandmadeMath · stb · doctest (pinned)"]
     end
 
     subgraph pkg["packages/arcade (@xlibraries/arcade)"]
         launcher["src/Arcade.tsx<br/>launcher: cards, backend badge, panels"]
-        games["native/games/<br/>breakout · playground · showcase · turbo-trails"]
+        games["native/games/<br/>breakout · playground · showcase (crates on Jolt) · turbo-trails"]
         shaders["native/shaders/*.glsl<br/>written once (sokol-shdc annotated GLSL)"]
         box2d["third_party/box2d (Turbo Trails)"]
         dist[("dist/&lt;game&gt;/{webgpu,webgl2}.{js,wasm}<br/>committed build output")]

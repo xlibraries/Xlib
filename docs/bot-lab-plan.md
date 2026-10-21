@@ -199,8 +199,8 @@ body, one C++ mesh/collider description in the world. Adding a part never touche
 | | What you get |
 | --- | --- |
 | **0. Plan** | This document; sizes measured (Jolt wasm, Pyodide, rp2040js + MicroPython); the Cloud Run project set up |
-| **1. The engine package** | `packages/engine`: runtime, build pipeline with the dist stamp, third-party, `EngineView`; the Arcade moved onto it with no visible change; CI rebuilds both |
-| **2. Physics in the engine** | Jolt in the wasm, a C++ scene API (bodies, joints, motors, ray casts) with doctest coverage; the Arcade's 3D showcase uses it as proof |
+| **1. The engine package** ✅ | `packages/engine`: runtime, build pipeline with the dist stamp, third-party, `EngineView`; the Arcade moved onto it with no visible change; CI rebuilds both |
+| **2. Physics in the engine** ✅ | Jolt v5.6.0 vendored and compiled into physics modules' wasm; `xl_physics.h` (bodies: box/sphere/capsule/cylinder/mesh/height field; hinges and sliders with velocity and position motors; ray casts; contacts; deterministic) with doctest coverage; the Arcade's 3D showcase uses it: a kinematic car knocks a pyramid of crates down the island's height field |
 | **3. The bench and the solver** | Bot Lab app; `sim/circuit` MNA with the bench parts and instruments; schematic wiring UI; the Uno via avr8js with committed hexes (Blink, Button, Servo sweep); serial monitor; save/load; headless tests for every element and rule |
 | **4. Real code** | The compile service on Cloud Run and `/api/bot-lab/compile`; the editor builds and flashes; errors mapped to lines. The Raspberry Pi: Pyodide in a worker, `gpiozero`/`RPi.GPIO`/`smbus2`/`pigpio` over the nets, simulated time, the Pi terminal. The Pico via rp2040js + MicroPython with a REPL |
 | **5. Mechanisms and the line follower** | The C++ world: assembling a project's mechanism (chassis, wheels, gears, motors as joints), sensors by ray cast, the track editor; the line-follower template and challenge |

@@ -230,4 +230,11 @@ std::vector<Vertex> build_car() {
     return car;
 }
 
+std::vector<Vertex> build_crate() {
+    std::vector<Vertex> crate;
+    push_box(crate, { 0, 0, 0 }, { 0.16f, 0.16f, 0.16f }, rgba(0.72f, 0.5f, 0.28f));
+    for (float x : { -0.17f, 0.17f }) push_box(crate, { x, 0, 0 }, { 0.01f, 0.17f, 0.03f }, rgba(0.5f, 0.33f, 0.18f));   // the bands
+    return crate;
+}
+
 } // namespace showcase

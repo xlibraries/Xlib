@@ -7,8 +7,9 @@ a library package: apps build on it, it imports no app.
 native/runtime/     xl.h (page bridge: focus, pause, gamepad, tilt, haptics, saved values, frame stats),
                     xl_audio.h + xl-audio-worklet.js (sound through an AudioWorklet, the desktop's volume),
                     xl_font.h/.cpp + xl_text.h (TrueType text through sokol_gl), xl_color.h
+                    xl_physics.h/.cpp (rigid bodies, joints with motors, ray casts, contacts over Jolt; deterministic)
 native/fonts/       Lilita One (OFL)
-third_party/        sokol · HandmadeMath · stb_truetype · doctest (pinned)
+third_party/        sokol · HandmadeMath · stb_truetype · doctest · Jolt Physics v5.6.0 (pinned)
 scripts/build.mjs   the build pipeline: sokol-shdc + em++ for WebGPU and WebGL2, reproducible, dist stamp
 scripts/test.mjs    the native test harness (system compilers + doctest)
 src/                EngineView (React canvas host: backend pick, focus, pause, gamepad, volume, tilt, fullscreen,
@@ -25,7 +26,9 @@ build({ root: ROOT, modules: MODULES, only: process.argv.slice(2) });
 ```
 
 A module lists `sources` and `shaders` (relative to `native/`), optionally `flags`, a C library (`cSources`,
-`cFlags`), `assets` copied beside the build, `text: true` to link the text renderer and `fonts` to embed. The
+`cFlags`), `assets` copied beside the build, `text: true` to link the text renderer, `fonts` to embed, and
+`physics: true` to link Jolt and `xl_physics` (Jolt is compiled once per toolchain into `build/obj/jolt`, with
+`JPH_CROSS_PLATFORM_DETERMINISTIC`, no RTTI or exceptions). The
 engine's headers are on the include path (`#include "xl.h"`, `"sokol_app.h"`, `"xl_text.h"`). A full build writes
 `dist/sources.sha256` over every input, the consumer's and the engine's; the consumer's unit tests compare it, so a
 change here fails every consumer's verify until it rebuilds. CI rebuilds with the pinned Emscripten

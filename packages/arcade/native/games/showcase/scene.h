@@ -40,6 +40,8 @@ float raw_height(uint32_t seed, float x, float z);
 Scene build_scene(uint32_t seed);
 /** The car, built around the origin facing +X, about 1 unit long. */
 std::vector<Vertex> build_car();
+/** A wooden crate, 0.32 units a side, centred on the origin. */
+std::vector<Vertex> build_crate();
 
 uint32_t rgba(float r, float g, float b, bool emissive = false);
 
