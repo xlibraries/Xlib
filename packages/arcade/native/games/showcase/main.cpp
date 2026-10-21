@@ -28,6 +28,7 @@ namespace {
 constexpr float DAY_SECONDS = 70.0f;
 
 constexpr int CRATES = 10;
+constexpr float PHYSICS_DT = 1.0f / 120.0f;
 
 struct {
     Scene scene;
@@ -172,9 +173,15 @@ void frame() {
     const float heading = std::atan2(-car_d.z, car_d.x);
     const float pitch_car = std::asin(std::max(-1.0f, std::min(1.0f, car_d.y)));
     const HMM_Mat4 car_model = HMM_MulM4(HMM_MulM4(HMM_Translate(v3(car_p)), HMM_Rotate_RH(heading, HMM_V3(0, 1, 0))), HMM_Rotate_RH(pitch_car, HMM_V3(0, 0, 1)));
-    // physics: the car body follows the drawn car; the crates do what crates do
-    st.physics->move_kinematic(st.car_body, { car_p.x, car_p.y + 0.22f, car_p.z }, xl::phys::euler(heading, pitch_car, 0), std::max(dt, 1e-3f));
-    st.physics->step(std::min(dt, 0.05f), 2);
+    // physics: the car body follows the drawn car; the crates do what crates do. Fixed 1/120 s steps however fast
+    // the frames come (a stack of crates needs small steps; a stalled tab mustn't fast-forward)
+    static float accumulator = 0;
+    accumulator = std::min(accumulator + dt, 8 * PHYSICS_DT);
+    while (accumulator >= PHYSICS_DT) {
+        accumulator -= PHYSICS_DT;
+        st.physics->move_kinematic(st.car_body, { car_p.x, car_p.y + 0.22f, car_p.z }, xl::phys::euler(heading, pitch_car, 0), PHYSICS_DT);
+        st.physics->step(PHYSICS_DT, 1);
+    }
     // a crate that fell into the sea comes back to the stack on the next lap
     for (int i = 0; i < CRATES; i++) if (st.physics->pose(st.crates[i]).position.y < WATER_LEVEL - 2) {
         const V3 at = st.scene.road.at(st.crate_s);
