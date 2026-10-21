@@ -1,24 +1,23 @@
-// Text with the baked HUD font (font.h), drawn as textured quads through sokol_gl in whatever coordinate system is
-// current: pixels on the HUD (y down), metres in the world (y up: pass ydir = -1). Included by main.cpp only.
+// Text with a baked font (xl_font.h), drawn as textured quads through sokol_gl in whatever coordinate system is
+// current: pixels on a HUD (y down), metres in a world (y up: pass ydir = -1). Include after sokol_gl.h.
 #pragma once
 #include <cstdio>
 #include <string>
 #include <vector>
 #ifndef SOKOL_GL_INCLUDED
-#error "include sokol_gl.h before text.h"
+#error "include sokol_gl.h before xl_text.h"
 #endif
-#include "eras.h"
-#include "font.h"
+#include "xl_color.h"
+#include "xl_font.h"
 
+namespace xl {
 namespace txt {
-
-using tt::Rgb;
 
 enum Align { LEFT = -1, CENTRE = 0, RIGHT = 1 };
 
 struct Text {
     static constexpr Align CENTRE = txt::CENTRE, LEFT = txt::LEFT, RIGHT = txt::RIGHT;
-    tt::Font font;
+    Font font;
     sg_image image = {};
     sg_view view = {};
     sg_sampler sampler = {};
@@ -55,7 +54,7 @@ struct Text {
         sgl_begin_quads();
         sgl_c4f(c.r, c.g, c.b, a);
         for (char ch : s) {
-            const tt::Glyph& g = font.glyph(ch);
+            const Glyph& g = font.glyph(ch);
             const float x0 = pen + g.x0 * k, x1 = pen + g.x1 * k, y0 = y + g.y0 * k * ydir, y1 = y + g.y1 * k * ydir;
             sgl_v2f_t2f(x0, y0, g.u0, g.v0); sgl_v2f_t2f(x1, y0, g.u1, g.v0); sgl_v2f_t2f(x1, y1, g.u1, g.v1); sgl_v2f_t2f(x0, y1, g.u0, g.v1);
             pen += g.advance * k;
@@ -97,3 +96,4 @@ struct Text {
 };
 
 } // namespace txt
+} // namespace xl

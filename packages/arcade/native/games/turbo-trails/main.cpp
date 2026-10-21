@@ -1,6 +1,6 @@
 // Turbo Trails: the game around physics.h / terrain.h / rules.h / eras.h / feel.h. Drawn with sokol_gl in metres
 // (the camera maps the world to the window) into an offscreen texture, then a post-process pass (bloom, speed blur,
-// grade, vignette) puts it on screen with the HUD (sokol_gl, text from the baked font in text.h) on top. Synthesized sound through
+// grade, vignette) puts it on screen with the HUD (sokol_gl, text from the engine's baked font) on top. Synthesized sound through
 // xl_audio.h. The page's side panel (src/turbo-trails/Panel.tsx) reads the state through tt_state_json and drives
 // the era/shop.
 #define SOKOL_IMPL
@@ -20,7 +20,7 @@
 #include "rules.h"
 #include "terrain.h"
 #include "art.h"
-#include "text.h"
+#include "xl_text.h"
 
 #include <algorithm>
 #include <cmath>
@@ -109,7 +109,7 @@ struct {
     std::vector<Particle> particles;
     sgl_pipeline blend, hud_blend;
     sgl_context hud;                  // drawn in the swapchain pass, after the post-process
-    txt::Text text;                   // the HUD font
+    xl::txt::Text text;               // the HUD font
     bool touch = false;               // the visitor is playing by touch (haptics go to the phone too)
     float last_throttle = 0;          // for press feedback
     // the offscreen scene and the pass that puts it on screen
@@ -344,20 +344,20 @@ void draw_hud(const Era& e, float w, float h) {
     // text: labels on the bars, coins under them, distance and best in the middle; nothing overlaps the window's
     // own badge in the top-right corner
     sgl_set_context(st.hud);
-    const txt::Text& T = st.text;
+    const xl::txt::Text& T = st.text;
     const Rgb white = { 1, 1, 1 }, gold = { 1.0f, 0.85f, 0.3f }, pale = { 0.82f, 0.88f, 1.0f };
     T.draw(e.electric ? "CHARGE" : "FUEL", bx + 8 * s, by - 2 * s, 14 * s, white);
     T.draw("TURBO", tx + 8 * s, by - 2 * s, 14 * s, white);
     T.draw("$" + std::to_string(st.progress.coins + st.run.coins), bx, by + bh + 8 * s, 20 * s, gold);
-    T.draw(std::to_string(static_cast<int>(st.run.distance)) + " m", w / 2, by + bh + 4 * s, 28 * s, white, txt::CENTRE);
-    T.draw("best " + std::to_string(st.progress.best[st.era_index]) + " m", w / 2, by + bh + 36 * s, 14 * s, pale, txt::CENTRE);
-    if (st.run.flips > 0 && st.run.state == RunState::Driving) T.draw("FLIPS " + std::to_string(st.run.flips), w / 2, by + bh + 54 * s, 16 * s, { 1.0f, 0.55f, 0.85f }, txt::CENTRE);
+    T.draw(std::to_string(static_cast<int>(st.run.distance)) + " m", w / 2, by + bh + 4 * s, 28 * s, white, xl::txt::CENTRE);
+    T.draw("best " + std::to_string(st.progress.best[st.era_index]) + " m", w / 2, by + bh + 36 * s, 14 * s, pale, xl::txt::CENTRE);
+    if (st.run.flips > 0 && st.run.state == RunState::Driving) T.draw("FLIPS " + std::to_string(st.run.flips), w / 2, by + bh + 54 * s, 16 * s, { 1.0f, 0.55f, 0.85f }, xl::txt::CENTRE);
 
     if (st.stunt_timer > 0 && !st.stunt.empty()) {
         const float k = std::min(1.0f, (1.8f - st.stunt_timer) * 6), pop = 1 + 0.35f * (1 - k) * (1 - k);
-        T.draw(st.stunt, w / 2, h * 0.26f, 34 * s * pop, { 1.0f, 0.9f, 0.3f }, txt::CENTRE, std::min(1.0f, st.stunt_timer * 3));
+        T.draw(st.stunt, w / 2, h * 0.26f, 34 * s * pop, { 1.0f, 0.9f, 0.3f }, xl::txt::CENTRE, std::min(1.0f, st.stunt_timer * 3));
     }
-    if (st.run.wheelie_time > 0.35f && st.run.state == RunState::Driving) { char t[32]; std::snprintf(t, sizeof t, "WHEELIE %.1fs", st.run.wheelie_time); T.draw(t, w / 2, h * 0.32f, 18 * s, e.accent, txt::CENTRE); }
+    if (st.run.wheelie_time > 0.35f && st.run.state == RunState::Driving) { char t[32]; std::snprintf(t, sizeof t, "WHEELIE %.1fs", st.run.wheelie_time); T.draw(t, w / 2, h * 0.32f, 18 * s, e.accent, xl::txt::CENTRE); }
     std::string msg;
     if (st.run.state == RunState::Ready) msg = xl::focused() || xl::gamepad().connected ? "GAS TO GO: \x1a or D" : "CLICK TO PLAY";
     else if (st.run.state == RunState::Crashed) msg = std::string(st.stunt == "STUCK!" ? "STUCK!" : "CRASHED!") + "  +$" + std::to_string(st.earned) + "   gas or R to retry";
@@ -366,8 +366,8 @@ void draw_hud(const Era& e, float w, float h) {
     if (!msg.empty()) {
         if (msg[0] == 'G') msg = "GAS TO GO: right arrow or D";
         const float p = 0.75f + 0.25f * std::sin(st.time * 4);
-        T.draw(msg, w / 2, h * 0.4f, 26 * s, { p, p, 1.0f }, txt::CENTRE);
-        if (st.run.state == RunState::Ready && msg[0] == 'G') T.draw("LEAN: up / down      TURBO: space", w / 2, h * 0.4f + 34 * s, 16 * s, pale, txt::CENTRE);
+        T.draw(msg, w / 2, h * 0.4f, 26 * s, { p, p, 1.0f }, xl::txt::CENTRE);
+        if (st.run.state == RunState::Ready && msg[0] == 'G') T.draw("LEAN: up / down      TURBO: space", w / 2, h * 0.4f + 34 * s, 16 * s, pale, xl::txt::CENTRE);
     }
     // the landmark's name and fact, bottom-left, for a few seconds
     if (st.run.landmark_timer > 0 && !st.banner.empty()) {
@@ -376,9 +376,9 @@ void draw_hud(const Era& e, float w, float h) {
         const std::string name = st.banner.substr(0, colon), fact = colon == std::string::npos ? "" : st.banner.substr(colon + 2);
         const std::vector<std::string> lines = T.wrap(fact, 14 * s, std::min(w - 160 * s, 620 * s));
         float y = h - (34 + 18 * lines.size()) * s - 12 * s;
-        T.draw(name, bx, y, 22 * s, e.accent, txt::LEFT, a);
+        T.draw(name, bx, y, 22 * s, e.accent, xl::txt::LEFT, a);
         y += 30 * s;
-        for (const std::string& line : lines) { T.draw(line, bx, y, 14 * s, white, txt::LEFT, a); y += 18 * s; }
+        for (const std::string& line : lines) { T.draw(line, bx, y, 14 * s, white, xl::txt::LEFT, a); y += 18 * s; }
     }
     sgl_set_context(sgl_default_context());
 }
@@ -603,7 +603,7 @@ void init() {
     st.hud = sgl_make_context(&hud);
     st.hud_blend = sgl_context_make_pipeline(st.hud, &pip);
     {   // the HUD font, embedded in the build (see build-native.mjs)
-        std::ifstream in("/font.ttf", std::ios::binary);
+        std::ifstream in("/LilitaOne-Regular.ttf", std::ios::binary);
         std::vector<uint8_t> ttf((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         st.text.setup(ttf, 44);
     }

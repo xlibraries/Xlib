@@ -1,4 +1,4 @@
-// A baked TrueType font for the HUD: stb_truetype renders the printable ASCII glyphs into one alpha atlas at a
+// A baked TrueType font for HUDs: stb_truetype renders the printable ASCII glyphs into one alpha atlas at a
 // fixed pixel size; the game uploads the atlas once and draws text as textured quads at any size (the atlas is
 // oversampled, so moderate scaling stays smooth). Graphics-free, so tests can bake the real font.
 #pragma once
@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace tt {
+namespace xl {
 
 struct Glyph {
     float u0, v0, u1, v1;      // atlas rectangle, 0..1
@@ -29,4 +29,4 @@ struct Font {
     float width(const std::string& text, float px) const;
 };
 
-} // namespace tt
+} // namespace xl

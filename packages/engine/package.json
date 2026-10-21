@@ -1,0 +1,38 @@
+{
+  "name": "@xlibraries/engine",
+  "version": "0.1.0",
+  "description": "The C++/sokol WebAssembly engine behind the Xlib desktop's real-time apps: runtime, build pipeline, vendored libraries and the React canvas host",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./build": "./scripts/build.mjs",
+    "./test": "./scripts/test.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "native",
+    "third_party",
+    "scripts",
+    "tests/native/main.cpp"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && node scripts/test.mjs",
+    "verify": "eslint . && tsc --noEmit && vitest run && node scripts/test.mjs",
+    "test:native": "node scripts/test.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.3.0",
+    "react": "^19.2.9",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  }
+}
