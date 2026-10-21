@@ -107,13 +107,18 @@ public:
             const float f = boost * spec_.boost_force * spec_.mass;
             b2Body_ApplyForceToCenter(chassis_, { rot.c * f, rot.s * f }, true);
         }
-        // leaning: anticlockwise is nose up. In the air it's the main control. On the ground leaning back takes real
-        // torque to lift the front off its suspension; leaning forward only presses the nose a little (pressing hard
-        // pole-vaults the vehicle over its front wheel)
+        // leaning: anticlockwise is nose up. In the air it's the main control. On the ground leaning back pulls a
+        // wheelie: a little balance assist steers the nose toward about 40 degrees (more with more lean) and holds
+        // it there instead of going over. Leaning forward dips the nose (and stops once the rear wheel lifts: a
+        // stoppie, never an endo).
         if (lean != 0) {
-            float torque = spec_.air_torque * 1.6f;
-            if (!airborne()) torque = lean > 0 ? spec_.air_torque * 0.8f + spec_.max_torque * 0.25f : touching_[0] > 0 ? spec_.air_torque * 0.4f : 0.0f;   // a stoppie, never an endo
-            b2Body_ApplyTorque(chassis_, lean * torque, true);
+            if (airborne()) b2Body_ApplyTorque(chassis_, lean * spec_.air_torque * 2.2f, true);
+            else if (lean > 0) {
+                const float cap = spec_.max_torque + spec_.air_torque * 1.5f + spec_.mass * 4.0f;   // heavy vehicles need more to lift the front
+                const float angle = b2Rot_GetAngle(b2Body_GetRotation(chassis_)), omega = b2Body_GetAngularVelocity(chassis_);
+                const float torque = std::max(-cap, std::min(cap, (0.7f * lean - angle) * cap * 6.0f - omega * cap * 0.6f));
+                b2Body_ApplyTorque(chassis_, torque, true);
+            } else if (touching_[0] > 0) b2Body_ApplyTorque(chassis_, lean * spec_.air_torque * 1.2f, true);
         }
         if (throttle == 0) return;
         if (airborne()) {

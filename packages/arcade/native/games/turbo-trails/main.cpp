@@ -103,6 +103,9 @@ struct {
     float time = 0, end_timer = 0;
     int earned = 0;                   // coins banked when the run ended
     std::string banner;               // landmark name shown briefly
+    std::string stunt;                // "BACKFLIP! +50" and friends, popping up for a moment
+    float stunt_timer = 0;
+    bool restart_key = false;         // R (or a gamepad's Start/Y) pressed this frame
     std::vector<Particle> particles;
     sgl_pipeline blend, hud_blend;
     sgl_context hud;                  // drawn in the swapchain pass, after the post-process
@@ -136,6 +139,8 @@ void start_run() {
     st.end_timer = 0;
     st.earned = 0;
     st.banner.clear();
+    st.stunt.clear();
+    st.stunt_timer = 0;
     st.particles.clear();
     st.cam_x = 0; st.cam_y = 0;
     st.state_version++;
@@ -172,7 +177,9 @@ Input read_input() {
         if (pad.down(xl::PAD_DOWN)) in.lean -= 1;
         if (in.lean == 0 && pad.ly != 0) in.lean = pad.ly;   // pull the stick back to lean back
         if (pad.down(xl::PAD_A) || pad.down(xl::PAD_RB)) in.turbo = true;
+        if (pad.pressed(xl::PAD_START) || pad.pressed(xl::PAD_Y)) st.restart_key = true;
     }
+    if (in.lean == 0) in.lean = xl::tilt();   // the phone's gyro
     in.throttle = std::max(-1.0f, std::min(1.0f, in.throttle));
     in.lean = std::max(-1.0f, std::min(1.0f, in.lean));
     return in;
@@ -197,13 +204,17 @@ void chassis_point(float lx, float ly, float& x, float& y) {
     y = st.pose.y + s * lx + c * ly;
 }
 
+void stunt(const std::string& text) { st.stunt = text; st.stunt_timer = 1.8f; }
+
 void handle_events() {
     const Era& e = era(st.era_index);
     for (RunEvent ev : st.run.events) {
         switch (ev) {
             case RunEvent::Coin: play(1200, 1800, 0.08f, 0.12f, 0); burst(st.pose.x, st.pose.y + 0.5f, { 1.0f, 0.9f, 0.4f }, 7, 2.5f, STAR); break;
             case RunEvent::Fuel: play(440, 880, 0.2f, 0.12f, 1); play(660, 1320, 0.25f, 0.08f, 1); burst(st.pose.x, st.pose.y + 0.3f, e.electric ? Rgb{ 0.4f, 0.9f, 1.0f } : Rgb{ 1.0f, 0.5f, 0.4f }, 10, 2.0f, STAR); break;
-            case RunEvent::Flip: play(523, 1046, 0.25f, 0.14f, 1); play(784, 1568, 0.3f, 0.1f, 1); burst(st.pose.x, st.pose.y, { 1.0f, 0.6f, 0.9f }, 16, 3.5f, STAR); break;
+            case RunEvent::Flip: play(523, 1046, 0.25f, 0.14f, 1); play(784, 1568, 0.3f, 0.1f, 1); burst(st.pose.x, st.pose.y, { 1.0f, 0.6f, 0.9f }, 16, 3.5f, STAR); stunt(std::string(st.run.last_flip_backward ? "BACKFLIP!" : "FRONTFLIP!") + " +$" + std::to_string(COINS_PER_FLIP)); break;
+            case RunEvent::Wheelie: play(392, 784, 0.2f, 0.12f, 1); play(588, 1176, 0.25f, 0.08f, 1); { char t[48]; std::snprintf(t, sizeof t, "WHEELIE %.1fs +$%d", st.run.last_wheelie, static_cast<int>(st.run.last_wheelie) * COINS_PER_WHEELIE_SECOND); stunt(t); } break;
+            case RunEvent::Stuck: play(200, 60, 0.6f, 0.12f, 1); stunt("STUCK!"); end_run(); break;
             case RunEvent::Treasure: for (int i = 0; i < 5; i++) play(523.0f * (1 + i * 0.2f), 523.0f * (1 + i * 0.2f), 0.2f + i * 0.08f, 0.1f, 1); burst(st.pose.x, st.pose.y + 0.5f, e.accent, 30, 4.0f, STAR); break;
             case RunEvent::Landmark: play(880, 880, 0.3f, 0.06f, 1); st.banner = std::string(e.landmarks[st.run.last_landmark_index].name) + ": " + e.landmarks[st.run.last_landmark_index].fact; break;
             case RunEvent::Landing: play(0, 0, 0.12f, 0.1f, 2); for (int i = 0; i < 2; i++) burst(st.pose.wheel_x[i], st.pose.wheel_y[i] - 0.2f, art::lit(e.ground_top, 0.25f), 7, 2.2f, PUFF); break;
@@ -342,11 +353,16 @@ void draw_hud(const Era& e, float w, float h) {
     T.draw("best " + std::to_string(st.progress.best[st.era_index]) + " m", w / 2, by + bh + 36 * s, 14 * s, pale, txt::CENTRE);
     if (st.run.flips > 0 && st.run.state == RunState::Driving) T.draw("FLIPS " + std::to_string(st.run.flips), w / 2, by + bh + 54 * s, 16 * s, { 1.0f, 0.55f, 0.85f }, txt::CENTRE);
 
+    if (st.stunt_timer > 0 && !st.stunt.empty()) {
+        const float k = std::min(1.0f, (1.8f - st.stunt_timer) * 6), pop = 1 + 0.35f * (1 - k) * (1 - k);
+        T.draw(st.stunt, w / 2, h * 0.26f, 34 * s * pop, { 1.0f, 0.9f, 0.3f }, txt::CENTRE, std::min(1.0f, st.stunt_timer * 3));
+    }
+    if (st.run.wheelie_time > 0.35f && st.run.state == RunState::Driving) { char t[32]; std::snprintf(t, sizeof t, "WHEELIE %.1fs", st.run.wheelie_time); T.draw(t, w / 2, h * 0.32f, 18 * s, e.accent, txt::CENTRE); }
     std::string msg;
     if (st.run.state == RunState::Ready) msg = xl::focused() || xl::gamepad().connected ? "GAS TO GO: \x1a or D" : "CLICK TO PLAY";
-    else if (st.run.state == RunState::Crashed) msg = "CRASHED!  +$" + std::to_string(st.earned) + "   gas to retry";
-    else if (st.run.state == RunState::OutOfFuel) msg = std::string("OUT OF ") + (e.electric ? "CHARGE" : "FUEL") + "!  +$" + std::to_string(st.earned) + "   gas to retry";
-    else if (st.run.state == RunState::Finished) msg = "ROAD COMPLETE!  +$" + std::to_string(st.earned) + "   gas to retry";
+    else if (st.run.state == RunState::Crashed) msg = std::string(st.stunt == "STUCK!" ? "STUCK!" : "CRASHED!") + "  +$" + std::to_string(st.earned) + "   gas or R to retry";
+    else if (st.run.state == RunState::OutOfFuel) msg = std::string("OUT OF ") + (e.electric ? "CHARGE" : "FUEL") + "!  +$" + std::to_string(st.earned) + "   gas or R to retry";
+    else if (st.run.state == RunState::Finished) msg = "ROAD COMPLETE!  +$" + std::to_string(st.earned) + "   gas or R to retry";
     if (!msg.empty()) {
         if (msg[0] == 'G') msg = "GAS TO GO: right arrow or D";
         const float p = 0.75f + 0.25f * std::sin(st.time * 4);
@@ -409,8 +425,10 @@ void frame() {
     const bool ended = st.run.state == RunState::Crashed || st.run.state == RunState::OutOfFuel || st.run.state == RunState::Finished;
     if (ended) {
         st.end_timer += dt;
-        if (st.end_timer > 1.2f && in.throttle > 0) start_run();
+        if (st.end_timer > 0.6f && in.throttle > 0) start_run();
     }
+    if (st.restart_key) { st.restart_key = false; start_run(); }
+    st.stunt_timer = std::max(0.0f, st.stunt_timer - dt);
     // physics and rules in fixed steps, as many as real time asks for (so a slow frame rate doesn't slow the
     // world down), capped so a long stall doesn't fast-forward it
     static float accumulator = 0;
@@ -436,7 +454,7 @@ void frame() {
         rin.throttle = over || !has_fuel ? 0 : in.throttle;
         rin.lean = in.lean;
         rin.boost = in.turbo && !over;
-        update_run(st.run, st.terrain, st.pose, grounded, st.world->chassis_hit(), st.world->landing_impact(), rin, DT, e.terrain.length);
+        update_run(st.run, st.terrain, st.pose, grounded, st.world->chassis_hit(), st.world->landing_impact(), rin, DT, e.terrain.length, st.world->wheel_grounded(1) ? 1 : 0);
         handle_events();
     }
     const bool has_fuel = st.run.fuel > 0;
@@ -526,6 +544,7 @@ void event(const sapp_event* ev) {
             if (ev->key_code == SAPP_KEYCODE_UP || ev->key_code == SAPP_KEYCODE_W) st.key_back = down;
             if (ev->key_code == SAPP_KEYCODE_DOWN || ev->key_code == SAPP_KEYCODE_S) st.key_fwd = down;
             if (ev->key_code == SAPP_KEYCODE_SPACE || ev->key_code == SAPP_KEYCODE_LEFT_SHIFT) st.key_turbo = down;
+            if (ev->key_code == SAPP_KEYCODE_R && down && !ev->key_repeat && xl::focused()) st.restart_key = true;
             break;
         }
         case SAPP_EVENTTYPE_MOUSE_DOWN:
@@ -548,6 +567,7 @@ void event(const sapp_event* ev) {
                 else if (ev->touches[i].pos_x > sapp_widthf() * 0.5f) st.pointer_gas = true;
                 else st.pointer_brake = true;
             }
+            if (st.pointer_gas && st.pointer_brake) { st.pointer_brake = false; st.pointer_turbo = true; }   // both halves: gas and Turbo
             break;
         }
         case SAPP_EVENTTYPE_TOUCHES_ENDED:
@@ -625,7 +645,8 @@ EMSCRIPTEN_KEEPALIVE char* tt_state_json() {
         + ",\"unlocked\":" + std::to_string(st.progress.unlocked) + ",\"coins\":" + std::to_string(st.progress.coins)
         + ",\"run\":{\"state\":" + std::to_string(static_cast<int>(st.run.state)) + ",\"distance\":" + std::to_string(static_cast<int>(st.run.distance))
         + ",\"coins\":" + std::to_string(st.run.coins) + ",\"flips\":" + std::to_string(st.run.flips)
-        + ",\"turbo\":" + std::to_string(static_cast<int>(st.run.turbo * 100)) + ",\"boosting\":" + (st.run.boosting ? "true" : "false") + "},\"best\":[";
+        + ",\"turbo\":" + std::to_string(static_cast<int>(st.run.turbo * 100)) + ",\"boosting\":" + (st.run.boosting ? "true" : "false")
+        + ",\"wheelie\":" + std::to_string(static_cast<int>(st.run.wheelie_time * 10)) + ",\"stunt\":\"" + st.stunt + "\"},\"lean\":" + std::to_string(static_cast<int>(xl::tilt() * 100)) + ",\"best\":[";
     for (int e = 0; e < ERA_COUNT; e++) s += (e ? "," : "") + std::to_string(st.progress.best[e]);
     s += "],\"upgrades\":[";
     for (int e = 0; e < ERA_COUNT; e++) {
