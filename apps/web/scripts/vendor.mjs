@@ -2,6 +2,7 @@
 // - public/vendor/: browser libraries from node_modules, so the site serves them itself (no CDN, and the
 //   security policy only has to allow 'self'). Versions come from package.json via the lockfile.
 // - public/arcade/: the Arcade's compiled games (@xlibraries/arcade dist/).
+// - public/vendor/pyodide/: CPython for Bot Lab's Raspberry Pi (from the bot-lab package's pyodide dependency).
 // - public/drop/: the Photo Drop page from @xlibraries/photo-drop, plus config.js made from this site's settings
 //   (content/photo-drop.json).
 // Runs on install (prepare), before dev and before every build.
@@ -13,6 +14,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(ROOT, 'package.json'));
 const pkgDir = (name) => dirname(require.resolve(`${name}/package.json`));
+/** A package's directory as seen from another workspace package (its own dependency). */
+const depDir = (pkg, name) => dirname(createRequire(join(pkgDir(pkg), 'package.json')).resolve(`${name}/package.json`));
 
 // The corrector's data ships in a dependency of the leaflet layer, not a direct dependency of ours
 function boundaryData() {
@@ -37,6 +40,8 @@ export function vendorFiles() {
         [boundaryData(), 'vendor/india-boundary/india_boundary_corrections.pmtiles'],
         [drop, 'drop'],
         [join(pkgDir('@xlibraries/arcade'), 'dist'), 'arcade'],
+        // Bot Lab's Raspberry Pi: CPython in WebAssembly (loaded only when a project has a Pi)
+        ...['pyodide.mjs', 'pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json'].map(f => [join(depDir('@xlibraries/bot-lab', 'pyodide'), f), `vendor/pyodide/${f}`]),
     ];
 }
 

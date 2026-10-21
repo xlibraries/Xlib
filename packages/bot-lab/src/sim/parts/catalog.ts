@@ -41,6 +41,8 @@ const side = (ids: string[], kinds: PinKind[], x: number, top = 0.1, bottom = 0.
 
 export const UNO_DIGITAL = Array.from({ length: 14 }, (_, i) => `D${i}`);
 export const UNO_ANALOG = Array.from({ length: 6 }, (_, i) => `A${i}`);
+/** The Raspberry Pi header pins Bot Lab wires (BCM numbers), left column then right. */
+export const PI_PINS = [2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21];
 
 export const CATALOG: Record<string, PartSpec> = {
     uno: {
@@ -51,6 +53,17 @@ export const CATALOG: Record<string, PartSpec> = {
             ...side(UNO_ANALOG, UNO_ANALOG.map(() => 'analog' as PinKind), 0, 0.5, 0.92),
             { id: '5V', label: '5V', kind: 'power', x: 0, y: 0.1 }, { id: '3V3', label: '3.3V', kind: 'power', x: 0, y: 0.2 },
             { id: 'GND', label: 'GND', kind: 'ground', x: 0, y: 0.3 }, { id: 'GND2', label: 'GND', kind: 'ground', x: 0, y: 0.4 },
+        ],
+        props: {},
+    },
+    pi: {
+        kind: 'pi', title: 'Raspberry Pi', group: 'board', width: 14, height: 16,
+        description: 'A Raspberry Pi running Python: gpiozero and RPi.GPIO on the 40-pin header, 3.3 V logic, about 16 mA a pin, no analog inputs.',
+        pins: [
+            ...side(PI_PINS.slice(0, 13).map(n => `GPIO${n}`), PI_PINS.slice(0, 13).map(() => 'digital' as PinKind), 0, 0.3, 0.95),
+            ...side(PI_PINS.slice(13).map(n => `GPIO${n}`), PI_PINS.slice(13).map(() => 'digital' as PinKind), 1, 0.3, 0.95),
+            { id: '3V3', label: '3.3V', kind: 'power', x: 0, y: 0.08 }, { id: '5V', label: '5V', kind: 'power', x: 1, y: 0.08 },
+            { id: 'GND', label: 'GND', kind: 'ground', x: 0, y: 0.18 }, { id: 'GND2', label: 'GND', kind: 'ground', x: 1, y: 0.18 },
         ],
         props: {},
     },

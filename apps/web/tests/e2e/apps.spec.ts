@@ -451,7 +451,7 @@ test.describe('Bot Lab', () => {
     test('Blink runs on the bench: the LED blinks, the multimeter reads the pin, wiring by clicking pins', async ({ page }) => {
         await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');
-        await lab.getByRole('button', { name: /^Blink/ }).click();
+        await lab.getByRole('button', { name: /^Blink An LED/ }).click();
         await expect(lab.getByTestId('bench')).toBeVisible();
         const led = lab.locator('[data-part="led1"]');
         await expect(led).toBeVisible();
@@ -477,7 +477,7 @@ test.describe('Bot Lab', () => {
     test('Button: pressing it on the bench lights the LED and the sketch prints to the serial monitor', async ({ page }) => {
         await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');
-        await lab.getByRole('button', { name: /^Button/ }).click();
+        await lab.getByRole('button', { name: /^Button(?! \(Raspberry)/ }).click();
         await lab.getByRole('button', { name: '▶ Run' }).click();
         await lab.getByRole('tab', { name: 'monitor' }).click();
         await expect(lab.getByTestId('serial')).toContainText('press the button', { timeout: 5_000 });
@@ -494,7 +494,7 @@ test.describe('Bot Lab', () => {
     test('an LED without a resistor burns out, with a warning; projects persist on this device', async ({ page }) => {
         await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');
-        await lab.getByRole('button', { name: /^Blink/ }).click();
+        await lab.getByRole('button', { name: /^Blink An LED/ }).click();
         // short the resistor out: wire the pin straight to the LED and remove the resistor
         await lab.locator('[data-part="uno1"] [data-pin="D13"]').click();
         await lab.locator('[data-part="led1"] [data-pin="a"]').click();
@@ -510,6 +510,58 @@ test.describe('Bot Lab', () => {
         await page.reload();
         const again = await openApp(page, 'bot-lab');
         await expect(again.locator('li').filter({ hasText: 'Blink' })).toContainText('2 parts');
+    });
+
+    test('the Raspberry Pi runs Python: gpiozero blinks the LED, Stop ends a sleeping script, the console shows prints', async ({ page }) => {
+        test.slow();   // CPython (Pyodide) loads in the runtime worker
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Blink \(Raspberry Pi\)/ }).click();
+        await expect(lab.locator('[data-part="pi1"]')).toBeVisible();
+        await lab.getByRole('tab', { name: 'code' }).click();
+        await expect(lab.getByLabel('Python script')).toHaveValue(/from gpiozero import LED/);
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const led = lab.locator('[data-part="led1"]');
+        const brightness = () => led.evaluate(el => Number((el as HTMLElement).dataset.brightness ?? 0));
+        // sample fast: the LED blinks with a 1 s period, the default 1 s poll would always see the same phase
+        await expect.poll(brightness, { timeout: 60_000, intervals: [50] }).toBeGreaterThan(0.5);
+        await expect.poll(brightness, { timeout: 10_000, intervals: [50] }).toBeLessThan(0.1);
+        await expect.poll(brightness, { timeout: 10_000, intervals: [50] }).toBeGreaterThan(0.5);
+        // Stop reaches the script inside its while True / sleep loop
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        await expect(lab.getByRole('button', { name: '▶ Run' })).toBeVisible({ timeout: 10_000 });
+        await expect(lab.getByTestId('bench')).toHaveAttribute('data-running', 'false');
+        // a second run is a fresh script on a fresh bench: prints land in the console, and the pin is driven again
+        await lab.getByLabel('Python script').fill('from gpiozero import LED\nfrom time import sleep\nled = LED(17)\nprint("hello from the pi")\nled.on()\nsleep(0.3)\nprint("value", led.value)\n');
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        await expect(lab.getByTestId('serial')).toContainText('hello from the pi', { timeout: 30_000 });
+        await expect(lab.getByTestId('serial')).toContainText('value 1', { timeout: 10_000 });
+        await expect(lab.getByText('The script ended. Run starts it again.')).toHaveCount(0);   // that note is on the Code tab
+        await lab.getByRole('tab', { name: 'code' }).click();
+        await expect(lab.getByText('The script ended. Run starts it again.')).toBeVisible({ timeout: 10_000 });
+        await expect.poll(brightness).toBeGreaterThan(0.5);   // the bench stays alive after the script ends
+    });
+
+    test('the Raspberry Pi Button template: a press reaches the script while it sits in pause()', async ({ page }) => {
+        test.slow();
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Button \(Raspberry Pi\)/ }).click();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        await expect(lab.getByTestId('serial')).toContainText('press the button', { timeout: 60_000 });
+        const led = () => lab.locator('[data-part="led1"]').evaluate(el => Number((el as HTMLElement).dataset.brightness ?? 0));
+        expect(await led()).toBeLessThan(0.1);
+        const button = lab.locator('[data-part="button1"] [data-button]');
+        const box = (await button.boundingBox())!;
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await expect.poll(led, { timeout: 5_000 }).toBeGreaterThan(0.5);
+        await page.mouse.up();
+        await expect.poll(led, { timeout: 5_000 }).toBeLessThan(0.1);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        await expect(lab.getByRole('button', { name: '▶ Run' })).toBeVisible({ timeout: 10_000 });
     });
 });
 

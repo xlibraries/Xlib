@@ -1,11 +1,13 @@
 // The Bot Lab app: a project list (templates and your saved projects), then the bench: parts and wires on the
-// left, Parts / Code / Monitor on the right, Run and Stop on top. The simulation itself is sim/bench.ts; this file
-// only draws it and forwards clicks.
+// left, Parts / Code / Monitor on the right, Run and Stop on top. The simulation runs in a worker
+// (runtime/client.ts → runtime/worker.ts with sim/bench.ts); this file draws its snapshots and forwards clicks.
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent } from 'react';
 import type { AppProps } from '@xlibraries/app-sdk';
-import { Bench, TICK, type PartState, type Warning } from './sim/bench';
+import { TICK, type PartState } from './sim/bench';
 import { CATALOG, GROUPS, LED_MODELS, type PartSpec } from './sim/parts/catalog';
-import { addPart, connect, disconnect, emptyProject, loadProjects, nets, removePart, samePin, saveProjects, type PartInstance, type PinRef, type Project, type Saved } from './sim/project';
+import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets, removePart, samePin, saveProjects, type Board, type PartInstance, type PinRef, type Project, type Saved } from './sim/project';
+import { RuntimeClient } from './runtime/client';
+import type { Snapshot } from './runtime/protocol';
 import { TEMPLATES } from './templates';
 
 const GRID = 16;   // px per grid unit on the bench
@@ -35,7 +37,7 @@ export function createBotLab(): ComponentType<AppProps> {
         return (
             <div className="h-full w-full overflow-y-auto p-4 text-white" style={{ background: 'radial-gradient(ellipse at top, #0f2a22, #0a1410 70%)' }}>
                 <div className="text-xl font-bold tracking-wide">Bot Lab</div>
-                <div className="text-xs text-gray-400 mb-4">Real parts on a bench, a circuit solver underneath, real Arduino code on an emulated chip.</div>
+                <div className="text-xs text-gray-400 mb-4">Real parts on a bench, a circuit solver underneath, real Arduino and Raspberry Pi code.</div>
                 <div className="text-sm font-semibold text-emerald-200 mb-2">Templates</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
                     {TEMPLATES.map(t => (
@@ -46,7 +48,7 @@ export function createBotLab(): ComponentType<AppProps> {
                     ))}
                     <button type="button" onClick={() => create(emptyProject('Untitled'))} className="text-left rounded-xl p-3 bg-white bg-opacity-5 hover:bg-opacity-10 border border-dashed border-white border-opacity-20">
                         <div className="font-semibold">Empty bench</div>
-                        <div className="text-xs text-gray-300 mt-1">Start from nothing: add parts, wire them, write a sketch.</div>
+                        <div className="text-xs text-gray-300 mt-1">Start from nothing: add parts, wire them, write a sketch or a Python script.</div>
                     </button>
                 </div>
                 {projects.length > 0 && <div className="text-sm font-semibold text-emerald-200 mb-2">Your projects</div>}
@@ -68,41 +70,37 @@ export function createBotLab(): ComponentType<AppProps> {
 
 type Tab = 'parts' | 'code' | 'monitor';
 
+const EMPTY: Snapshot = { type: 'snapshot', time: 0, running: false, states: {}, volts: {}, serial: [], console: [], warnings: [] };
+
 function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Project) => void; onBack: () => void }) {
     const [project, setProject] = useState<Project>(saved.project);
-    const [running, setRunning] = useState(false);
+    const [snap, setSnap] = useState<Snapshot>(EMPTY);
+    const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<Tab>('parts');
     const [selected, setSelected] = useState<string | null>(null);
     const [pending, setPending] = useState<PinRef | null>(null);
-    const [frame, setFrame] = useState(0);        // bumps when the bench has new readings to draw
-    const bench = useRef<Bench | null>(null);
+    const client = useRef<RuntimeClient | null>(null);
+    const running = snap.running;
+
+    // the runtime worker lives for the whole visit to this project; the current project is loaded into it on change
+    useEffect(() => {
+        const c = new RuntimeClient();
+        client.current = c;
+        c.start();
+        const offSnap = c.onSnapshot(setSnap);
+        const offErr = c.onError(setError);
+        return () => { offSnap(); offErr(); c.dispose(); client.current = null; };
+    }, []);
+    useEffect(() => { if (!running) client.current?.send({ type: 'load', project }); }, [project, running]);
 
     // every change is saved at once (projects are small); drags save on release
     const change = useCallback((next: Project, save = true) => {
+        next.code.board = boardOf(next);
         setProject(next);
         if (save) onChange(next);
     }, [onChange]);
 
-    // the simulation: a fresh bench on Run, stepped in real time (at most 50 ms per frame, so a slow tab stays sane)
-    useEffect(() => {
-        if (!running) { bench.current = null; return; }
-        bench.current = new Bench(structuredClone(project));
-        let raf = 0, last = performance.now();
-        const loop = (now: number) => {
-            raf = requestAnimationFrame(loop);
-            const b = bench.current;
-            if (!b) return;
-            const elapsed = Math.min(0.05, (now - last) / 1000);
-            last = now;
-            b.run(elapsed);
-            setFrame(f => f + 1);
-        };
-        raf = requestAnimationFrame(loop);
-        return () => cancelAnimationFrame(raf);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- the bench is built from the project at Run time only
-    }, [running]);
-
-    const live = (id: string): PartState => bench.current?.state(id) ?? {};
+    const live = (id: string): PartState => snap.states[id] ?? {};
     const spec = (p: PartInstance) => CATALOG[p.kind];
     const pinXY = (p: PartInstance, pin: string) => {
         const s = spec(p), ps = s.pins.find(x => x.id === pin)!;
@@ -121,8 +119,9 @@ function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Pr
         const next = structuredClone(project);
         const part = next.parts.find(p => p.id === id)!;
         part.props[key] = value;
-        change(next);
-        bench.current?.setProp(id, key, value);
+        setProject(next);
+        onChange(next);
+        client.current?.send({ type: 'setProp', id, key, value });   // reaches a running bench without reloading it
     };
     const add = (kind: string) => {
         const next = structuredClone(project);
@@ -152,31 +151,32 @@ function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Pr
     };
     const onPartPointerUp = () => { if (drag.current) onChange(project); drag.current = null; };
 
-    const warnings: Warning[] = bench.current?.warnings ?? [];
     const netList = useMemo(() => nets(project), [project]);
+    const board = boardOf(project);
 
     return (
         <div className="h-full w-full flex flex-col text-white" style={{ background: '#0b1511' }} data-testid="bot-lab">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-white border-opacity-10 text-sm">
                 <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20">← Projects</button>
                 <input value={project.name} onChange={e => change({ ...project, name: e.target.value.slice(0, 60) })} aria-label="Project name" className="bg-transparent font-semibold outline-none flex-grow min-w-0" />
+                {snap.loading && <span className="text-xs text-emerald-200">loading {snap.loading}…</span>}
                 {!running
-                    ? <button type="button" onClick={() => setRunning(true)} disabled={project.parts.length === 0} className="px-3 py-0.5 rounded-full bg-emerald-500 text-black font-semibold disabled:opacity-40">▶ Run</button>
-                    : <button type="button" onClick={() => setRunning(false)} className="px-3 py-0.5 rounded-full bg-red-500 text-black font-semibold">■ Stop</button>}
+                    ? <button type="button" onClick={() => client.current?.send({ type: 'run' })} disabled={project.parts.length === 0} className="px-3 py-0.5 rounded-full bg-emerald-500 text-black font-semibold disabled:opacity-40">▶ Run</button>
+                    : <button type="button" onClick={() => client.current?.send({ type: 'stop' })} className="px-3 py-0.5 rounded-full bg-red-500 text-black font-semibold">■ Stop</button>}
             </div>
             <div className="flex-grow min-h-0 flex flex-col md:flex-row">
-                <div className="flex-grow min-h-0 overflow-auto relative" style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-frame={frame}>
+                <div className="flex-grow min-h-0 overflow-auto relative" style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-time={snap.time.toFixed(2)}>
                     <svg width={Math.max(800, ...project.parts.map(p => (p.x + spec(p).width + 4) * GRID))} height={Math.max(500, ...project.parts.map(p => (p.y + spec(p).height + 4) * GRID))} className="block select-none" style={{ touchAction: 'none' }}>
                         {project.wires.map((w, i) => {
                             const a = byId(w.a.part), b = byId(w.b.part);
                             if (!a || !b) return null;
                             const pa = pinXY(a, w.a.pin), pb = pinXY(b, w.b.pin);
                             const net = netList.findIndex(n => n.includes(`${w.a.part}.${w.a.pin}`));
-                            const volts = bench.current?.volts(w.a) ?? 0;
+                            const volts = snap.volts[`${w.a.part}.${w.a.pin}`];
                             return (
                                 <g key={i} onClick={() => { const next = structuredClone(project); disconnect(next, w.a, w.b); change(next); }} className="cursor-pointer" data-wire={`${w.a.part}.${w.a.pin}-${w.b.part}.${w.b.pin}`}>
                                     <path d={`M${pa.x},${pa.y} C${pa.x + 40},${pa.y} ${pb.x - 40},${pb.y} ${pb.x},${pb.y}`} fill="none" stroke="#000" strokeWidth={5} strokeOpacity={0.5} />
-                                    <path d={`M${pa.x},${pa.y} C${pa.x + 40},${pa.y} ${pb.x - 40},${pb.y} ${pb.x},${pb.y}`} fill="none" stroke={wireColour(net, running ? volts : null)} strokeWidth={3} />
+                                    <path d={`M${pa.x},${pa.y} C${pa.x + 40},${pa.y} ${pb.x - 40},${pb.y} ${pb.x},${pb.y}`} fill="none" stroke={wireColour(net, running && volts !== undefined ? volts : null)} strokeWidth={3} />
                                 </g>
                             );
                         })}
@@ -187,9 +187,10 @@ function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Pr
                         ))}
                     </svg>
                     {pending && <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded bg-emerald-600 text-black">Wiring from {pending.part}.{pending.pin}: click another pin, or <button type="button" className="underline" onClick={() => setPending(null)}>cancel</button></div>}
-                    {warnings.length > 0 && (
+                    {(snap.warnings.length > 0 || error) && (
                         <div className="absolute bottom-2 left-2 right-2 space-y-1" role="alert">
-                            {warnings.slice(-3).map((w, i) => <div key={i} className={'text-xs px-2 py-1 rounded ' + (w.smoke ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black')}>{w.smoke ? '💨 ' : '⚠ '}{w.text}</div>)}
+                            {error && <div className="text-xs px-2 py-1 rounded bg-red-700 text-white">{error}</div>}
+                            {snap.warnings.slice(-3).map((w, i) => <div key={i} className={'text-xs px-2 py-1 rounded ' + (w.smoke ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black')}>{w.smoke ? '💨 ' : '⚠ '}{w.text}</div>)}
                         </div>
                     )}
                 </div>
@@ -201,8 +202,8 @@ function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Pr
                     </div>
                     <div className="flex-grow min-h-0 overflow-y-auto p-3 text-sm">
                         {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onRemove={id => { const next = structuredClone(project); removePart(next, id); change(next); setSelected(null); }} />}
-                        {tab === 'code' && <CodeTab project={project} running={running} onChange={sketch => change({ ...project, code: { ...project.code, sketch } })} />}
-                        {tab === 'monitor' && <MonitorTab bench={bench.current} project={project} nets={netList} />}
+                        {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} onChange={sketch => change({ ...project, code: { ...project.code, sketch } })} />}
+                        {tab === 'monitor' && <MonitorTab snap={snap} board={board} project={project} nets={netList} onSerial={text => client.current?.send({ type: 'serial', text })} />}
                     </div>
                 </div>
             </div>
@@ -224,11 +225,12 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
     const w = spec.width * GRID, h = spec.height * GRID, x = part.x * GRID, y = part.y * GRID;
     const led = part.kind === 'led' ? LED_MODELS[String(part.props.colour)] ?? LED_MODELS.red : null;
     const brightness = state.brightness ?? 0;
+    const isBoard = part.kind === 'uno' || part.kind === 'pi';
     return (
         <g transform={`translate(${x},${y})`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} className="cursor-move"
             data-part={part.id} data-kind={part.kind} data-brightness={state.brightness?.toFixed(2)} data-angle={state.angle?.toFixed(0)} data-dead={state.dead ? 'true' : undefined}>
-            <rect width={w} height={h} rx={8} fill={part.kind === 'uno' ? '#1f6f8b' : '#1a2b24'} stroke={selected ? '#9ff5d1' : '#2f4a3e'} strokeWidth={selected ? 2 : 1} />
-            <text x={w / 2} y={part.kind === 'uno' ? 18 : h / 2 + 4} textAnchor="middle" fill="#e6f7ef" fontSize={part.kind === 'uno' ? 13 : 11} fontWeight={600}>{spec.title}</text>
+            <rect width={w} height={h} rx={8} fill={part.kind === 'uno' ? '#1f6f8b' : part.kind === 'pi' ? '#8b2f5a' : '#1a2b24'} stroke={selected ? '#9ff5d1' : '#2f4a3e'} strokeWidth={selected ? 2 : 1} />
+            <text x={w / 2} y={isBoard ? 18 : h / 2 + 4} textAnchor="middle" fill="#e6f7ef" fontSize={isBoard ? 13 : 11} fontWeight={600}>{spec.title}</text>
             {part.kind === 'resistor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{ohms(Number(part.props.ohms))}</text>}
             {part.kind === 'capacitor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{farads(Number(part.props.farads))}</text>}
             {part.kind === 'battery' && <text x={w / 2} y={h - 6} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{part.props.volts} V</text>}
@@ -315,42 +317,43 @@ function PartsTab({ project, selected, onAdd, onProp, onRemove }: { project: Pro
     );
 }
 
-function CodeTab({ project, running, onChange }: { project: Project; running: boolean; onChange: (sketch: string) => void }) {
-    const hasBoard = project.parts.some(p => p.kind === 'uno');
+function CodeTab({ project, board, running, snap, onChange }: { project: Project; board: Board; running: boolean; snap: Snapshot; onChange: (sketch: string) => void }) {
+    const hasBoard = project.parts.some(p => p.kind === 'uno' || p.kind === 'pi');
+    const note = !hasBoard ? 'Add an Arduino Uno or a Raspberry Pi to run code.'
+        : board === 'pi' ? (snap.finished ? 'The script ended. Run starts it again.' : 'Python on the Raspberry Pi: gpiozero, RPi.GPIO and time work as on the real board. Run starts the script; Stop ends it.')
+            : project.code.hex ? 'The Uno runs this sketch’s last build. Building edited sketches needs the compiler (coming next); until then the templates’ builds run as shipped.'
+                : 'No build yet: the compiler is coming next; start from a template to run one of its sketches.';
     return (
         <div className="h-full flex flex-col gap-2">
-            <div className="text-xs text-gray-300">
-                {!hasBoard ? 'Add an Arduino Uno to run a sketch.'
-                    : project.code.hex ? 'The board runs this sketch’s last build. Building edited sketches needs the compiler (coming next); until then the templates’ builds run as shipped.'
-                        : 'No build yet: the compiler is coming next; start from a template to run one of its sketches.'}
-            </div>
-            <textarea value={project.code.sketch} onChange={e => onChange(e.target.value)} spellCheck={false} readOnly={running} aria-label="Sketch" className="flex-grow min-h-[16rem] font-mono text-xs bg-black bg-opacity-40 rounded p-2 outline-none" />
+            <div className="text-xs text-gray-300">{note}</div>
+            <textarea value={project.code.sketch} onChange={e => onChange(e.target.value)} spellCheck={false} readOnly={running} aria-label={board === 'pi' ? 'Python script' : 'Sketch'} className="flex-grow min-h-[16rem] font-mono text-xs bg-black bg-opacity-40 rounded p-2 outline-none" />
         </div>
     );
 }
 
-function MonitorTab({ bench, project, nets: netList }: { bench: Bench | null; project: Project; nets: string[][] }) {
+function MonitorTab({ snap, board, project, nets: netList, onSerial }: { snap: Snapshot; board: Board; project: Project; nets: string[][]; onSerial: (text: string) => void }) {
     const [input, setInput] = useState('');
-    const serial = bench?.board?.serial ?? [];
+    const lines = board === 'pi' ? snap.console : snap.serial;
     const scroller = useRef<HTMLDivElement>(null);
-    useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [serial.length]);
+    useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [lines.length]);
     return (
         <div className="space-y-3">
             <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Serial monitor</div>
-                <div ref={scroller} data-testid="serial" className="h-40 overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap">{serial.length ? serial.join('\n') : bench ? '' : 'Run the project to see what the sketch prints.'}</div>
-                <form onSubmit={e => { e.preventDefault(); bench?.board?.write(input); setInput(''); }} className="flex gap-1 mt-1">
-                    <input value={input} onChange={e => setInput(e.target.value)} placeholder="send a line" aria-label="Send to serial" className="flex-grow bg-black bg-opacity-40 rounded px-2 py-1 text-xs" disabled={!bench?.board} />
-                    <button type="submit" className="text-xs px-2 rounded bg-white bg-opacity-10" disabled={!bench?.board}>send</button>
-                </form>
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{board === 'pi' ? 'Console' : 'Serial monitor'}</div>
+                <div ref={scroller} data-testid="serial" className="h-40 overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap">{lines.length ? lines.join('\n') : snap.running ? '' : 'Run the project to see what the code prints.'}</div>
+                {board === 'uno' && (
+                    <form onSubmit={e => { e.preventDefault(); onSerial(input); setInput(''); }} className="flex gap-1 mt-1">
+                        <input value={input} onChange={e => setInput(e.target.value)} placeholder="send a line" aria-label="Send to serial" className="flex-grow bg-black bg-opacity-40 rounded px-2 py-1 text-xs" disabled={!snap.running} />
+                        <button type="submit" className="text-xs px-2 rounded bg-white bg-opacity-10" disabled={!snap.running}>send</button>
+                    </form>
+                )}
             </div>
             <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Multimeter · {bench ? `t = ${bench.time.toFixed(2)} s` : 'stopped'}</div>
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Multimeter · {snap.running ? `t = ${snap.time.toFixed(2)} s` : 'stopped'}</div>
                 <table className="w-full text-xs font-mono">
                     <tbody>
                         {netList.map((net, i) => {
-                            const [part, pin] = net[0].split('.');
-                            const volts = bench?.volts({ part, pin });
+                            const volts = snap.volts[net[0]];
                             return <tr key={i} data-net={net.join(',')}><td className="text-gray-300 pr-2 truncate max-w-[12rem]">{net.join(' = ')}</td><td className="text-right text-emerald-200" data-volts={volts?.toFixed(3)}>{volts === undefined ? '—' : `${volts.toFixed(2)} V`}</td></tr>;
                         })}
                         {netList.length === 0 && <tr><td className="text-gray-500">No wires yet.</td></tr>}
