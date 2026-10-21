@@ -1,0 +1,39 @@
+{
+  "name": "@xlibraries/bot-lab",
+  "version": "0.1.0",
+  "description": "An electronics and robotics simulator for the Xlib desktop: real parts on a bench, a circuit solver, real Arduino and Raspberry Pi code",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "templates",
+    "scripts"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "eslint . && tsc --noEmit && vitest run",
+    "compile:templates": "node scripts/compile-templates.mjs",
+    "sync:templates": "node scripts/sync-templates.mjs"
+  },
+  "dependencies": {
+    "@xlibraries/app-sdk": "workspace:^",
+    "avr8js": "0.21.1"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.3.0",
+    "react": "^19.2.9",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  }
+}

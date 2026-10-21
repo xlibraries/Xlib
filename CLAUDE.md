@@ -64,6 +64,12 @@ things work.
   pipeline (`scripts/build.mjs`) and test harness, physics (`xl_physics.h` over vendored Jolt v5.6.0, linked
   into modules with `physics: true`), and `EngineView` (the React canvas host). Apps that ship C++ modules depend
   on it; it imports no app.
+- `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
+  solver, parts, the Uno on avr8js, the bench loop) under a React bench. Templates ship their sketches with compiled
+  hexes (`templates/`, bundled into `src/templates/generated.ts` by `pnpm sync:templates`; the unit tests check it's
+  current). `services/arduino-compiler/` is the `arduino-cli` image that compiles them (`pnpm compile:templates`,
+  needs Docker) and, in phase 4, the compile service; CI recompiles the templates and fails on drift
+  (`.github/workflows/bot-lab-templates.yml`).
 - `packages/arcade` – the games, built on the engine for WebGPU and WebGL2 (`docs/arcade-plan.md`). Build with
   `pnpm --filter @xlibraries/arcade build:native` (needs `source ~/emsdk/emsdk_env.sh`, Emscripten 6.0.11);
   **commit `dist/`**, CI rebuilds it and fails on any difference. A full build stamps `dist/sources.sha256` over the

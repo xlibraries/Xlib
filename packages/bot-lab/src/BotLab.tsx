@@ -1,0 +1,363 @@
+// The Bot Lab app: a project list (templates and your saved projects), then the bench: parts and wires on the
+// left, Parts / Code / Monitor on the right, Run and Stop on top. The simulation itself is sim/bench.ts; this file
+// only draws it and forwards clicks.
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent } from 'react';
+import type { AppProps } from '@xlibraries/app-sdk';
+import { Bench, TICK, type PartState, type Warning } from './sim/bench';
+import { CATALOG, GROUPS, LED_MODELS, type PartSpec } from './sim/parts/catalog';
+import { addPart, connect, disconnect, emptyProject, loadProjects, nets, removePart, samePin, saveProjects, type PartInstance, type PinRef, type Project, type Saved } from './sim/project';
+import { TEMPLATES } from './templates';
+
+const GRID = 16;   // px per grid unit on the bench
+
+export function createBotLab(): ComponentType<AppProps> {
+    return function BotLab({ host }: AppProps) {
+        const [projects, setProjects] = useState<Saved[]>([]);
+        const [current, setCurrent] = useState<Saved | null>(null);
+        useEffect(() => { setProjects(loadProjects()); }, []);   // storage is only readable after mount
+
+        const persist = useCallback((list: Saved[]) => { setProjects(list); saveProjects(list); }, []);
+        const open = (saved: Saved) => { setCurrent(saved); host.track({ category: 'Bot Lab', action: 'Open project', label: saved.project.name }); };
+        const create = (project: Project) => {
+            const saved: Saved = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, project, updated: Date.now() };
+            persist([saved, ...projects]);
+            open(saved);
+        };
+        const update = (project: Project) => {
+            if (!current) return;
+            const next = { ...current, project, updated: Date.now() };
+            setCurrent(next);
+            persist(projects.map(s => (s.id === next.id ? next : s)));
+        };
+        const remove = (id: string) => persist(projects.filter(s => s.id !== id));
+
+        if (current) return <Workbench key={current.id} saved={current} onChange={update} onBack={() => setCurrent(null)} />;
+        return (
+            <div className="h-full w-full overflow-y-auto p-4 text-white" style={{ background: 'radial-gradient(ellipse at top, #0f2a22, #0a1410 70%)' }}>
+                <div className="text-xl font-bold tracking-wide">Bot Lab</div>
+                <div className="text-xs text-gray-400 mb-4">Real parts on a bench, a circuit solver underneath, real Arduino code on an emulated chip.</div>
+                <div className="text-sm font-semibold text-emerald-200 mb-2">Templates</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                    {TEMPLATES.map(t => (
+                        <button key={t.id} type="button" onClick={() => create(t.build())} className="text-left rounded-xl p-3 bg-white bg-opacity-5 hover:bg-opacity-10 border border-white border-opacity-10">
+                            <div className="font-semibold">{t.title}</div>
+                            <div className="text-xs text-gray-300 mt-1">{t.blurb}</div>
+                        </button>
+                    ))}
+                    <button type="button" onClick={() => create(emptyProject('Untitled'))} className="text-left rounded-xl p-3 bg-white bg-opacity-5 hover:bg-opacity-10 border border-dashed border-white border-opacity-20">
+                        <div className="font-semibold">Empty bench</div>
+                        <div className="text-xs text-gray-300 mt-1">Start from nothing: add parts, wire them, write a sketch.</div>
+                    </button>
+                </div>
+                {projects.length > 0 && <div className="text-sm font-semibold text-emerald-200 mb-2">Your projects</div>}
+                <ul className="space-y-1">
+                    {projects.map(s => (
+                        <li key={s.id} className="flex items-center gap-2 rounded-lg px-3 py-2 bg-white bg-opacity-5">
+                            <button type="button" onClick={() => open(s)} className="flex-grow text-left">
+                                <span className="font-medium">{s.project.name}</span>
+                                <span className="text-xs text-gray-400 ml-2">{s.project.parts.length} parts · {new Date(s.updated).toLocaleString()}</span>
+                            </button>
+                            <button type="button" onClick={() => remove(s.id)} className="text-xs text-gray-400 hover:text-red-300" aria-label={`Delete ${s.project.name}`}>delete</button>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        );
+    };
+}
+
+type Tab = 'parts' | 'code' | 'monitor';
+
+function Workbench({ saved, onChange, onBack }: { saved: Saved; onChange: (p: Project) => void; onBack: () => void }) {
+    const [project, setProject] = useState<Project>(saved.project);
+    const [running, setRunning] = useState(false);
+    const [tab, setTab] = useState<Tab>('parts');
+    const [selected, setSelected] = useState<string | null>(null);
+    const [pending, setPending] = useState<PinRef | null>(null);
+    const [frame, setFrame] = useState(0);        // bumps when the bench has new readings to draw
+    const bench = useRef<Bench | null>(null);
+
+    // every change is saved at once (projects are small); drags save on release
+    const change = useCallback((next: Project, save = true) => {
+        setProject(next);
+        if (save) onChange(next);
+    }, [onChange]);
+
+    // the simulation: a fresh bench on Run, stepped in real time (at most 50 ms per frame, so a slow tab stays sane)
+    useEffect(() => {
+        if (!running) { bench.current = null; return; }
+        bench.current = new Bench(structuredClone(project));
+        let raf = 0, last = performance.now();
+        const loop = (now: number) => {
+            raf = requestAnimationFrame(loop);
+            const b = bench.current;
+            if (!b) return;
+            const elapsed = Math.min(0.05, (now - last) / 1000);
+            last = now;
+            b.run(elapsed);
+            setFrame(f => f + 1);
+        };
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the bench is built from the project at Run time only
+    }, [running]);
+
+    const live = (id: string): PartState => bench.current?.state(id) ?? {};
+    const spec = (p: PartInstance) => CATALOG[p.kind];
+    const pinXY = (p: PartInstance, pin: string) => {
+        const s = spec(p), ps = s.pins.find(x => x.id === pin)!;
+        return { x: (p.x + ps.x * s.width) * GRID, y: (p.y + ps.y * s.height) * GRID };
+    };
+    const byId = (id: string) => project.parts.find(p => p.id === id);
+
+    const clickPin = (ref: PinRef) => {
+        if (!pending) { setPending(ref); return; }
+        const next = structuredClone(project);
+        if (!samePin(pending, ref)) connect(next, pending, ref);
+        setPending(null);
+        change(next);
+    };
+    const setProp = (id: string, key: string, value: number | string | boolean) => {
+        const next = structuredClone(project);
+        const part = next.parts.find(p => p.id === id)!;
+        part.props[key] = value;
+        change(next);
+        bench.current?.setProp(id, key, value);
+    };
+    const add = (kind: string) => {
+        const next = structuredClone(project);
+        const s = CATALOG[kind];
+        const part = addPart(next, kind, 2 + (next.parts.length * 3) % 30, 2 + Math.floor(next.parts.length / 10) * (s.height + 2));
+        change(next);
+        setSelected(part.id);
+    };
+    const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
+    const onPartPointerDown = (e: ReactPointerEvent<SVGGElement>, p: PartInstance) => {
+        if ((e.target as Element).closest('[data-pin]')) return;
+        setSelected(p.id);
+        const svg = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
+        drag.current = { id: p.id, dx: (e.clientX - svg.left) / GRID - p.x, dy: (e.clientY - svg.top) / GRID - p.y };
+        e.currentTarget.setPointerCapture(e.pointerId);
+    };
+    const onPartPointerMove = (e: ReactPointerEvent<SVGGElement>) => {
+        if (!drag.current) return;
+        const svg = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
+        const x = Math.round((e.clientX - svg.left) / GRID - drag.current.dx), y = Math.round((e.clientY - svg.top) / GRID - drag.current.dy);
+        const part = byId(drag.current.id);
+        if (!part || (part.x === x && part.y === y)) return;
+        const next = structuredClone(project);
+        const moved = next.parts.find(p => p.id === drag.current!.id)!;
+        moved.x = Math.max(0, x); moved.y = Math.max(0, y);
+        change(next, false);
+    };
+    const onPartPointerUp = () => { if (drag.current) onChange(project); drag.current = null; };
+
+    const warnings: Warning[] = bench.current?.warnings ?? [];
+    const netList = useMemo(() => nets(project), [project]);
+
+    return (
+        <div className="h-full w-full flex flex-col text-white" style={{ background: '#0b1511' }} data-testid="bot-lab">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-white border-opacity-10 text-sm">
+                <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20">← Projects</button>
+                <input value={project.name} onChange={e => change({ ...project, name: e.target.value.slice(0, 60) })} aria-label="Project name" className="bg-transparent font-semibold outline-none flex-grow min-w-0" />
+                {!running
+                    ? <button type="button" onClick={() => setRunning(true)} disabled={project.parts.length === 0} className="px-3 py-0.5 rounded-full bg-emerald-500 text-black font-semibold disabled:opacity-40">▶ Run</button>
+                    : <button type="button" onClick={() => setRunning(false)} className="px-3 py-0.5 rounded-full bg-red-500 text-black font-semibold">■ Stop</button>}
+            </div>
+            <div className="flex-grow min-h-0 flex flex-col md:flex-row">
+                <div className="flex-grow min-h-0 overflow-auto relative" style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-frame={frame}>
+                    <svg width={Math.max(800, ...project.parts.map(p => (p.x + spec(p).width + 4) * GRID))} height={Math.max(500, ...project.parts.map(p => (p.y + spec(p).height + 4) * GRID))} className="block select-none" style={{ touchAction: 'none' }}>
+                        {project.wires.map((w, i) => {
+                            const a = byId(w.a.part), b = byId(w.b.part);
+                            if (!a || !b) return null;
+                            const pa = pinXY(a, w.a.pin), pb = pinXY(b, w.b.pin);
+                            const net = netList.findIndex(n => n.includes(`${w.a.part}.${w.a.pin}`));
+                            const volts = bench.current?.volts(w.a) ?? 0;
+                            return (
+                                <g key={i} onClick={() => { const next = structuredClone(project); disconnect(next, w.a, w.b); change(next); }} className="cursor-pointer" data-wire={`${w.a.part}.${w.a.pin}-${w.b.part}.${w.b.pin}`}>
+                                    <path d={`M${pa.x},${pa.y} C${pa.x + 40},${pa.y} ${pb.x - 40},${pb.y} ${pb.x},${pb.y}`} fill="none" stroke="#000" strokeWidth={5} strokeOpacity={0.5} />
+                                    <path d={`M${pa.x},${pa.y} C${pa.x + 40},${pa.y} ${pb.x - 40},${pb.y} ${pb.x},${pb.y}`} fill="none" stroke={wireColour(net, running ? volts : null)} strokeWidth={3} />
+                                </g>
+                            );
+                        })}
+                        {project.parts.map(p => (
+                            <PartSymbol key={p.id} part={p} spec={spec(p)} state={live(p.id)} selected={selected === p.id} pending={pending} running={running}
+                                onPointerDown={e => onPartPointerDown(e, p)} onPointerMove={onPartPointerMove} onPointerUp={onPartPointerUp}
+                                onPin={pin => clickPin({ part: p.id, pin })} onPress={pressed => setProp(p.id, 'pressed', pressed)} />
+                        ))}
+                    </svg>
+                    {pending && <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded bg-emerald-600 text-black">Wiring from {pending.part}.{pending.pin}: click another pin, or <button type="button" className="underline" onClick={() => setPending(null)}>cancel</button></div>}
+                    {warnings.length > 0 && (
+                        <div className="absolute bottom-2 left-2 right-2 space-y-1" role="alert">
+                            {warnings.slice(-3).map((w, i) => <div key={i} className={'text-xs px-2 py-1 rounded ' + (w.smoke ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black')}>{w.smoke ? '💨 ' : '⚠ '}{w.text}</div>)}
+                        </div>
+                    )}
+                </div>
+                <div className="md:w-80 lg:w-96 flex-shrink-0 border-t md:border-t-0 md:border-l border-white border-opacity-10 flex flex-col min-h-0 h-1/2 md:h-full">
+                    <div className="flex text-xs" role="tablist">
+                        {(['parts', 'code', 'monitor'] as Tab[]).map(t => (
+                            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={'flex-1 py-2 capitalize ' + (tab === t ? 'bg-white bg-opacity-10 font-semibold' : 'text-gray-400 hover:text-white')}>{t}</button>
+                        ))}
+                    </div>
+                    <div className="flex-grow min-h-0 overflow-y-auto p-3 text-sm">
+                        {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onRemove={id => { const next = structuredClone(project); removePart(next, id); change(next); setSelected(null); }} />}
+                        {tab === 'code' && <CodeTab project={project} running={running} onChange={sketch => change({ ...project, code: { ...project.code, sketch } })} />}
+                        {tab === 'monitor' && <MonitorTab bench={bench.current} project={project} nets={netList} />}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function wireColour(net: number, volts: number | null) {
+    if (volts !== null) { const t = Math.max(0, Math.min(1, volts / 5)); return `hsl(${200 - 160 * t} 90% ${45 + 20 * t}%)`; }
+    const hues = [150, 40, 200, 300, 90, 0];
+    return `hsl(${hues[net % hues.length] ?? 150} 60% 55%)`;
+}
+
+function PartSymbol({ part, spec, state, selected, pending, running, onPointerDown, onPointerMove, onPointerUp, onPin, onPress }: {
+    part: PartInstance; spec: PartSpec; state: PartState; selected: boolean; pending: PinRef | null; running: boolean;
+    onPointerDown: (e: ReactPointerEvent<SVGGElement>) => void; onPointerMove: (e: ReactPointerEvent<SVGGElement>) => void; onPointerUp: () => void;
+    onPin: (pin: string) => void; onPress: (pressed: boolean) => void;
+}) {
+    const w = spec.width * GRID, h = spec.height * GRID, x = part.x * GRID, y = part.y * GRID;
+    const led = part.kind === 'led' ? LED_MODELS[String(part.props.colour)] ?? LED_MODELS.red : null;
+    const brightness = state.brightness ?? 0;
+    return (
+        <g transform={`translate(${x},${y})`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} className="cursor-move"
+            data-part={part.id} data-kind={part.kind} data-brightness={state.brightness?.toFixed(2)} data-angle={state.angle?.toFixed(0)} data-dead={state.dead ? 'true' : undefined}>
+            <rect width={w} height={h} rx={8} fill={part.kind === 'uno' ? '#1f6f8b' : '#1a2b24'} stroke={selected ? '#9ff5d1' : '#2f4a3e'} strokeWidth={selected ? 2 : 1} />
+            <text x={w / 2} y={part.kind === 'uno' ? 18 : h / 2 + 4} textAnchor="middle" fill="#e6f7ef" fontSize={part.kind === 'uno' ? 13 : 11} fontWeight={600}>{spec.title}</text>
+            {part.kind === 'resistor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{ohms(Number(part.props.ohms))}</text>}
+            {part.kind === 'capacitor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{farads(Number(part.props.farads))}</text>}
+            {part.kind === 'battery' && <text x={w / 2} y={h - 6} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{part.props.volts} V</text>}
+            {led && (
+                <g>
+                    <circle cx={w / 2} cy={h / 2 - 6} r={14} fill={led.rgb} opacity={0.15 + 0.85 * brightness} />
+                    {brightness > 0.05 && <circle cx={w / 2} cy={h / 2 - 6} r={24} fill={led.rgb} opacity={0.35 * brightness} />}
+                    {state.dead && <text x={w / 2} y={h / 2 - 2} textAnchor="middle" fontSize={14}>💨</text>}
+                </g>
+            )}
+            {part.kind === 'button' && (
+                <rect x={w / 2 - 12} y={h / 2 - 8} width={24} height={16} rx={4} fill={part.props.pressed ? '#9ff5d1' : '#3ddc97'} className="cursor-pointer"
+                    onPointerDown={e => { e.stopPropagation(); onPress(true); }} onPointerUp={e => { e.stopPropagation(); onPress(false); }} onPointerLeave={() => { if (part.props.pressed) onPress(false); }} data-button="true" />
+            )}
+            {part.kind === 'servo' && (
+                <g transform={`translate(${w * 0.65},${h * 0.5}) rotate(${-(state.angle ?? 90) + 90})`}>
+                    <circle r={10} fill="#3ddc97" />
+                    <rect x={-3} y={-28} width={6} height={28} rx={3} fill="#e6f7ef" />
+                </g>
+            )}
+            {part.kind === 'potentiometer' && (
+                <g transform={`translate(${w / 2},${h * 0.55}) rotate(${-135 + 270 * Number(part.props.position)})`}>
+                    <circle r={12} fill="#3ddc97" /><rect x={-2} y={-12} width={4} height={8} fill="#0b1511" />
+                </g>
+            )}
+            {part.kind === 'ldr' && <circle cx={w / 2} cy={h / 2 - 8} r={6} fill="#ffd60a" opacity={0.2 + 0.8 * Number(part.props.light)} />}
+            {spec.pins.map(pin => {
+                const px = pin.x * w, py = pin.y * h;
+                const isPending = pending?.part === part.id && pending.pin === pin.id;
+                return (
+                    <g key={pin.id} data-pin={pin.id} onClick={e => { e.stopPropagation(); onPin(pin.id); }} className="cursor-crosshair">
+                        <circle cx={px} cy={py} r={5} fill={isPending ? '#9ff5d1' : pin.kind === 'ground' ? '#444' : pin.kind === 'power' ? '#ff6b6b' : '#cfd8d3'} stroke="#0b1511" />
+                        {spec.width > 3 && <text x={px + (pin.x < 0.5 ? 8 : pin.x > 0.5 ? -8 : 0)} y={py + (pin.y === 0 ? 12 : pin.y === 1 ? -6 : 3)} textAnchor={pin.x < 0.5 ? 'start' : pin.x > 0.5 ? 'end' : 'middle'} fill="#9db5aa" fontSize={9}>{pin.label}</text>}
+                    </g>
+                );
+            })}
+            {running && state.amps !== undefined && part.kind !== 'led' && <text x={w / 2} y={-4} textAnchor="middle" fill="#9ff5d1" fontSize={9}>{(state.amps * 1000).toFixed(1)} mA</text>}
+        </g>
+    );
+}
+
+const ohms = (v: number) => v >= 1e6 ? `${v / 1e6} MΩ` : v >= 1000 ? `${v / 1000} kΩ` : `${v} Ω`;
+const farads = (v: number) => v >= 1e-3 ? `${(v * 1e3).toPrecision(3)} mF` : v >= 1e-6 ? `${(v * 1e6).toPrecision(3)} µF` : v >= 1e-9 ? `${(v * 1e9).toPrecision(3)} nF` : `${(v * 1e12).toPrecision(3)} pF`;
+
+function PartsTab({ project, selected, onAdd, onProp, onRemove }: { project: Project; selected: string | null; onAdd: (kind: string) => void; onProp: (id: string, key: string, value: number | string | boolean) => void; onRemove: (id: string) => void }) {
+    const part = project.parts.find(p => p.id === selected);
+    return (
+        <div className="space-y-4">
+            {part && (
+                <div className="rounded-lg bg-white bg-opacity-5 p-3">
+                    <div className="flex items-center justify-between">
+                        <div className="font-semibold">{CATALOG[part.kind].title} <span className="text-gray-400 font-normal">· {part.id}</span></div>
+                        <button type="button" onClick={() => onRemove(part.id)} className="text-xs text-gray-400 hover:text-red-300">remove</button>
+                    </div>
+                    <div className="text-xs text-gray-300 mt-1 mb-2">{CATALOG[part.kind].description}</div>
+                    {Object.entries(CATALOG[part.kind].props).map(([key, p]) => (
+                        <label key={key} className="flex items-center justify-between gap-2 text-xs py-1">
+                            <span>{p.label}{p.unit ? ` (${p.unit})` : ''}</span>
+                            {typeof p.default === 'boolean'
+                                ? <input type="checkbox" checked={part.props[key] === true} onChange={e => onProp(part.id, key, e.target.checked)} />
+                                : p.options
+                                    ? <select value={String(part.props[key])} onChange={e => onProp(part.id, key, e.target.value)} className="bg-black bg-opacity-40 rounded px-1 py-0.5">{p.options.map(o => <option key={o} value={o}>{o}</option>)}</select>
+                                    : p.min !== undefined && p.max !== undefined && p.max <= 1
+                                        ? <input type="range" min={p.min} max={p.max} step={0.01} value={Number(part.props[key])} onChange={e => onProp(part.id, key, Number(e.target.value))} />
+                                        : <input type="number" step="any" min={p.min} max={p.max} value={Number(part.props[key])} onChange={e => { const v = Number(e.target.value); if (Number.isFinite(v)) onProp(part.id, key, Math.max(p.min ?? -Infinity, Math.min(p.max ?? Infinity, v))); }} className="w-28 bg-black bg-opacity-40 rounded px-1 py-0.5 text-right" />}
+                        </label>
+                    ))}
+                </div>
+            )}
+            {GROUPS.map(g => {
+                const kinds = Object.values(CATALOG).filter(s => s.group === g.id);
+                if (!kinds.length) return null;
+                return (
+                    <div key={g.id}>
+                        <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{g.title}</div>
+                        <div className="flex flex-wrap gap-1">
+                            {kinds.map(s => <button key={s.kind} type="button" onClick={() => onAdd(s.kind)} className="text-xs px-2 py-1 rounded bg-white bg-opacity-10 hover:bg-opacity-20" title={s.description}>+ {s.title}</button>)}
+                        </div>
+                    </div>
+                );
+            })}
+            <div className="text-xs text-gray-400">Click a pin, then another, to wire them. Click a wire to remove it. Drag parts to move them.</div>
+        </div>
+    );
+}
+
+function CodeTab({ project, running, onChange }: { project: Project; running: boolean; onChange: (sketch: string) => void }) {
+    const hasBoard = project.parts.some(p => p.kind === 'uno');
+    return (
+        <div className="h-full flex flex-col gap-2">
+            <div className="text-xs text-gray-300">
+                {!hasBoard ? 'Add an Arduino Uno to run a sketch.'
+                    : project.code.hex ? 'The board runs this sketch’s last build. Building edited sketches needs the compiler (coming next); until then the templates’ builds run as shipped.'
+                        : 'No build yet: the compiler is coming next; start from a template to run one of its sketches.'}
+            </div>
+            <textarea value={project.code.sketch} onChange={e => onChange(e.target.value)} spellCheck={false} readOnly={running} aria-label="Sketch" className="flex-grow min-h-[16rem] font-mono text-xs bg-black bg-opacity-40 rounded p-2 outline-none" />
+        </div>
+    );
+}
+
+function MonitorTab({ bench, project, nets: netList }: { bench: Bench | null; project: Project; nets: string[][] }) {
+    const [input, setInput] = useState('');
+    const serial = bench?.board?.serial ?? [];
+    const scroller = useRef<HTMLDivElement>(null);
+    useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [serial.length]);
+    return (
+        <div className="space-y-3">
+            <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Serial monitor</div>
+                <div ref={scroller} data-testid="serial" className="h-40 overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap">{serial.length ? serial.join('\n') : bench ? '' : 'Run the project to see what the sketch prints.'}</div>
+                <form onSubmit={e => { e.preventDefault(); bench?.board?.write(input); setInput(''); }} className="flex gap-1 mt-1">
+                    <input value={input} onChange={e => setInput(e.target.value)} placeholder="send a line" aria-label="Send to serial" className="flex-grow bg-black bg-opacity-40 rounded px-2 py-1 text-xs" disabled={!bench?.board} />
+                    <button type="submit" className="text-xs px-2 rounded bg-white bg-opacity-10" disabled={!bench?.board}>send</button>
+                </form>
+            </div>
+            <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Multimeter · {bench ? `t = ${bench.time.toFixed(2)} s` : 'stopped'}</div>
+                <table className="w-full text-xs font-mono">
+                    <tbody>
+                        {netList.map((net, i) => {
+                            const [part, pin] = net[0].split('.');
+                            const volts = bench?.volts({ part, pin });
+                            return <tr key={i} data-net={net.join(',')}><td className="text-gray-300 pr-2 truncate max-w-[12rem]">{net.join(' = ')}</td><td className="text-right text-emerald-200" data-volts={volts?.toFixed(3)}>{volts === undefined ? '—' : `${volts.toFixed(2)} V`}</td></tr>;
+                        })}
+                        {netList.length === 0 && <tr><td className="text-gray-500">No wires yet.</td></tr>}
+                    </tbody>
+                </table>
+            </div>
+            <div className="text-xs text-gray-400">{project.parts.length} parts · {project.wires.length} wires · tick {(TICK * 1e6).toFixed(0)} µs</div>
+        </div>
+    );
+}

@@ -30,6 +30,7 @@ const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
 const displayTrash = lazyApp(() => import('./components/apps/trash'));
 const displayGedit = lazyApp(() => import('./components/apps/gedit'));
 const displayArcade = lazyApp(() => import('@xlibraries/arcade').then(m => ({ default: m.createArcade({ baseUrl: '/arcade', leaderboardUrl: '/api/arcade/leaderboard' }) })));
+const displayBotLab = lazyApp(() => import('@xlibraries/bot-lab').then(m => ({ default: m.createBotLab() })));
 
 export interface AppConfig {
     id: string;
@@ -140,6 +141,15 @@ const apps: AppConfig[] = [
         favourite: true,
         desktop_shortcut: true,
         screen: displayArcade,
+    },
+    {
+        id: "bot-lab",
+        title: "Bot Lab",
+        icon: './themes/Yaru/apps/bot-lab.svg',
+        disabled: false,
+        favourite: true,
+        desktop_shortcut: true,
+        screen: displayBotLab,
     },
     {
         id: "gedit",

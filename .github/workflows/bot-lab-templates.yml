@@ -1,0 +1,23 @@
+# Bot Lab's template sketches are committed with their compiled hexes. Rebuild them with the pinned compiler image
+# (services/arduino-compiler) and fail if anything drifted from the committed templates/ and generated.ts.
+name: bot-lab-templates
+
+on:
+  push:
+    branches: [master]
+    paths: ['packages/bot-lab/templates/**', 'packages/bot-lab/scripts/**', 'packages/bot-lab/src/templates/generated.ts', 'services/arduino-compiler/**', '.github/workflows/bot-lab-templates.yml']
+  pull_request:
+    paths: ['packages/bot-lab/templates/**', 'packages/bot-lab/scripts/**', 'packages/bot-lab/src/templates/generated.ts', 'services/arduino-compiler/**', '.github/workflows/bot-lab-templates.yml']
+
+jobs:
+  templates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - name: Compile the templates with the pinned arduino-cli image
+        run: node packages/bot-lab/scripts/compile-templates.mjs
+      - name: Committed hexes and generated.ts match the sketches
+        run: git diff --exit-code --stat -- packages/bot-lab/templates packages/bot-lab/src/templates/generated.ts

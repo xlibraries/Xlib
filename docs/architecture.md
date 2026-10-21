@@ -108,6 +108,17 @@ The games, on the engine: `native/games/*` and their panels, Box2D vendored for 
 `dist/` is committed (CI rebuilds and diffs it) and copied to `/arcade/` by `scripts/vendor.mjs`. Plan:
 [arcade-plan.md](arcade-plan.md).
 
+## Bot Lab (`packages/bot-lab`)
+
+An electronics and robotics simulator (plan: [bot-lab-plan.md](bot-lab-plan.md)). `sim/` is headless: `circuit/mna.ts`
+solves the net (modified nodal analysis, backward-Euler companions for C and L, Newton iterations for diodes),
+`parts/catalog.ts` describes the parts, `boards/uno.ts` runs a compiled sketch on avr8js and reports each pin's mode,
+level, PWM duty and pulse width, and `bench.ts` ties them together at 4800 steps a second: the board's pins become
+sources in the net, the net is solved, the result feeds the board's inputs and the parts (LED brightness, servo
+angle, currents), and the teaching rules fire from the numbers (an LED over its rating burns out, a pin over 40 mA
+warns). `project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links. `BotLab.tsx`
+draws it. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.
+
 ## Photo Drop (`packages/photo-drop`)
 
 A standalone page (served at `/drop/`, copied from the package's `web/` folder by `scripts/vendor.mjs`) for friends to upload photos and videos into Aman's Google Photos.
