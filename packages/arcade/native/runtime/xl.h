@@ -35,6 +35,8 @@ const Gamepad& gamepad();
 void end_frame();
 
 bool focused();
+/** Haptics: rumbles a connected gamepad (strong/weak motors 0..1 for `ms`), and, when `touch` is set, the phone. */
+void rumble(float strong, float weak, int ms, bool touch = false);
 bool paused();
 /** "WebGPU" or "WebGL2" */
 const char* backend_name();
@@ -82,6 +84,17 @@ EM_JS(char*, xl_js_load, (const char* game, const char* key), {
 EM_JS(void, xl_js_stats, (double frames, double fps), {
     if (Module["onStats"]) Module["onStats"]({ frames: frames, fps: fps });
 });
+EM_JS(void, xl_js_rumble, (float strong, float weak, int ms, int touch), {
+    try {
+        const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
+        for (const p of pads) {
+            if (!p || !p.connected || !p.vibrationActuator) continue;
+            p.vibrationActuator.playEffect("dual-rumble", { startDelay: 0, duration: ms, strongMagnitude: strong, weakMagnitude: weak });
+            break;
+        }
+        if (touch && typeof navigator.vibrate === "function") navigator.vibrate(ms);
+    } catch (e) {}
+});
 
 namespace { xl::Gamepad g_pad; }
 
@@ -97,6 +110,7 @@ const Gamepad& gamepad() { return g_pad; }
 void end_frame() { g_pad.previous = g_pad.buttons; }
 
 bool focused() { return g_focused; }
+void rumble(float strong, float weak, int ms, bool touch) { xl_js_rumble(strong, weak, ms, touch ? 1 : 0); }
 bool paused() { return g_paused; }
 
 const char* backend_name() {

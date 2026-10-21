@@ -89,5 +89,6 @@ valid shaders reach the game (`pg_set_shader`).
 | sokol | `3d3dcbcb15edd54902f3b59472720a5bec78d74e` (2026-10-04) |
 | sokol-shdc (sokol-tools-bin) | `11d0cf678105d614d675e6d9bd2aaf3eeff12f8c` |
 | HandmadeMath | v2.0.0 |
+| stb_truetype | v1.26 (public domain), bakes the Turbo Trails HUD font `native/fonts/LilitaOne-Regular.ttf` (Lilita One, OFL) |
 | doctest | v2.5.3 |
 | Box2D | v3.1.1 |

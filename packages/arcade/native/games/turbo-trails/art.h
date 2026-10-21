@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <string>
 #ifndef SOKOL_GL_INCLUDED
 #error "include sokol_gl.h before art.h"
 #endif
@@ -404,6 +405,11 @@ inline void draw_treasure(float x, float y, float t, Rgb accent) {
 }
 
 // ---------- Landmarks (world space, standing on the road at their x) ----------
+//
+// Three layers, so you drive through a place rather than past a sign: a small hazed silhouette in the distance
+// (slower parallax, drawn before the ground, so it stands behind the near ridge), the monument itself beside the
+// road with its name on a signboard, and translucent foreground pieces (columns, gates, lanterns...) that sweep
+// past in front of the vehicle.
 
 enum Landmark { DOME, TOWER, BRIDGE, BUILDING, ARCH, PEAK, PLATFORM };
 
@@ -417,24 +423,120 @@ inline Landmark landmark_shape(int era_index, int index) {
     return SHAPES[era_index % 10][index % 4];
 }
 
-inline void draw_landmark(const tt::Era& e, Landmark kind, float x, float y, float t) {
-    const Rgb c = darker(e.near_hills, 0.8f), lit_col = e.accent;
+constexpr float FAR_PARALLAX = 0.5f, NEAR_PARALLAX = 1.4f;
+/** Where a layer at parallax `k` shows a landmark anchored at world x. */
+inline float parallax_x(float x, float cam_x, float k) { return cam_x + (x - cam_x) * k; }
+
+/** The monument, `s` metres per unit, in colour `c` (lit details in `lit_col`); without `detail`, a silhouette. */
+inline void monument(Landmark kind, float x, float y, float s, Rgb c, Rgb lit_col, float t, bool detail = true) {
+    if (!detail) lit_col = lit(c, 0.12f);
+    const float o = detail ? 0.05f : 0;
     switch (kind) {
-        case DOME: rrect(x - 3, y, x + 3, y + 2.2f, 0.2f, c, 0.05f); oval(x, y + 2.2f, 3, 2.6f, c, 0.05f, 0.25f, -0.1f); disc(x, y + 5.0f, 0.5f, lit_col); break;
-        case TOWER: rrect(x - 0.7f, y, x + 0.7f, y + 9, 0.15f, c, 0.05f); rrect(x - 1.2f, y + 8.4f, x + 1.2f, y + 9.4f, 0.2f, c, 0.05f); soft_disc(x, y + 9.7f, 1.2f, lit_col, 0.4f + 0.3f * std::sin(t * 3)); disc(x, y + 9.7f, 0.3f, lit_col); break;
-        case BRIDGE: for (float px = -6; px <= 6; px += 3) rrect(px + x - 0.3f, y, px + x + 0.3f, y + 2.6f, 0.1f, c, 0.05f); rrect(x - 7, y + 2.6f, x + 7, y + 3.2f, 0.2f, c, 0.05f); break;
-        case BUILDING: rrect(x - 3.5f, y, x + 3.5f, y + 4, 0.2f, c, 0.05f); rrect(x - 2.5f, y + 4, x + 2.5f, y + 6, 0.3f, c, 0.05f); sgl_begin_quads(); col(lit_col, 0.8f); quad(x - 1.5f, y + 1, x - 0.5f, y + 2.2f); quad(x + 0.5f, y + 1, x + 1.5f, y + 2.2f); sgl_end(); break;
-        case ARCH: rrect(x - 3, y, x - 1.8f, y + 4.5f, 0.2f, c, 0.05f); rrect(x + 1.8f, y, x + 3, y + 4.5f, 0.2f, c, 0.05f); rrect(x - 3.4f, y + 4.5f, x + 3.4f, y + 5.6f, 0.3f, c, 0.05f); break;
-        case PEAK: { Pt p[4] = { { x - 6, y }, { x + 6, y }, { x + 1.5f, y + 9 }, { x - 1.5f, y + 9 } }; shape(p, 4, c, 0.05f); Pt s[4] = { { x - 1.5f, y + 7 }, { x + 1.5f, y + 7 }, { x + 1, y + 9 }, { x - 1, y + 9 } }; fill(s, 4, { 1, 1, 1 }, 0, -0.1f, 0.9f); break; }
-        case PLATFORM: rrect(x - 5, y, x + 5, y + 1.2f, 0.2f, c, 0.05f); rrect(x - 4, y + 1.2f, x + 4, y + 1.6f, 0.1f, c, 0.05f); rrect(x - 0.4f, y + 1.6f, x + 0.4f, y + 4, 0.1f, lit_col, 0.04f); rrect(x + 0.4f, y + 3.2f, x + 2.2f, y + 4, 0.1f, lit_col, 0.04f); break;
+        case DOME:
+            rrect(x - 4 * s, y, x + 4 * s, y + 2.4f * s, 0.2f * s, c, o, 0.2f, -0.22f);
+            oval(x, y + 2.4f * s, 3.6f * s, 3.0f * s, c, o, 0.28f, -0.1f);
+            if (detail) { for (float px = -3; px <= 3; px += 1.5f) rrect(x + px * s - 0.25f * s, y, x + px * s + 0.25f * s, y + 2.1f * s, 0.1f * s, lit(c, 0.15f), 0.03f); rrect(x - 0.3f * s, y + 5.3f * s, x + 0.3f * s, y + 6.4f * s, 0.1f * s, lit_col, 0.03f); disc(x, y + 6.6f * s, 0.45f * s, lit_col); }
+            break;
+        case TOWER:
+            rrect(x - 1.1f * s, y, x + 1.1f * s, y + 1.2f * s, 0.2f * s, c, o);
+            rrect(x - 0.8f * s, y + 1.2f * s, x + 0.8f * s, y + 10 * s, 0.15f * s, c, o);
+            rrect(x - 1.3f * s, y + 9.4f * s, x + 1.3f * s, y + 10.4f * s, 0.2f * s, c, o);
+            if (detail) { for (float wy = 2; wy < 9; wy += 1.6f) rrect(x - 0.25f * s, y + wy * s, x + 0.25f * s, y + (wy + 0.7f) * s, 0.05f * s, lit_col, 0.02f, 0.1f, -0.1f); soft_disc(x, y + 10.8f * s, 1.6f * s, lit_col, 0.4f + 0.3f * std::sin(t * 3)); disc(x, y + 10.8f * s, 0.35f * s, lit_col); }
+            break;
+        case BRIDGE:
+            for (float px = -7; px <= 7; px += 3.5f) rrect(px * s + x - 0.4f * s, y, px * s + x + 0.4f * s, y + 3.2f * s, 0.1f * s, c, o);
+            rrect(x - 8.5f * s, y + 3.2f * s, x + 8.5f * s, y + 3.9f * s, 0.2f * s, c, o);
+            if (detail) { Pt rail[9]; for (int i = 0; i < 9; i++) rail[i] = { x + (i - 4) * 2.1f * s, y + 3.9f * s + (2.2f - 0.11f * (i - 4) * (i - 4)) * s }; stroke(rail, 9, lit(c, 0.2f), 0.12f * s, false); for (int i = 1; i < 8; i++) { Pt hang[2] = { rail[i], { rail[i].x, y + 3.9f * s } }; stroke(hang, 2, lit(c, 0.2f), 0.06f * s, false); } }
+            break;
+        case BUILDING:
+            rrect(x - 4.5f * s, y, x + 4.5f * s, y + 4.5f * s, 0.2f * s, c, o);
+            rrect(x - 3 * s, y + 4.5f * s, x + 3 * s, y + 7 * s, 0.3f * s, c, o);
+            if (detail) { for (float wx = -3.5f; wx <= 2.6f; wx += 1.6f) for (float wy = 0.8f; wy < 4; wy += 1.5f) rrect(x + wx * s, y + wy * s, x + (wx + 0.9f) * s, y + (wy + 1.0f) * s, 0.08f * s, lit_col, 0.02f, 0.15f, -0.1f); rrect(x - 1.8f * s, y + 5.2f * s, x + 1.8f * s, y + 6.4f * s, 0.1f * s, lit_col, 0.02f, 0.15f, -0.1f); }
+            break;
+        case ARCH:
+            rrect(x - 3.8f * s, y, x - 2.2f * s, y + 5.5f * s, 0.2f * s, c, o);
+            rrect(x + 2.2f * s, y, x + 3.8f * s, y + 5.5f * s, 0.2f * s, c, o);
+            oval(x, y + 5.3f * s, 3.8f * s, 2.2f * s, c, o, 0.25f, -0.1f);
+            rrect(x - 4.3f * s, y + 6.6f * s, x + 4.3f * s, y + 7.6f * s, 0.3f * s, c, o);
+            if (detail) { oval(x, y + 4.6f * s, 2.0f * s, 1.6f * s, lit(c, -0.35f), 0, 0, 0); sgl_begin_quads(); col(lit(c, -0.35f)); quad(x - 2.0f * s, y, x + 2.0f * s, y + 4.6f * s); sgl_end(); rrect(x - 0.8f * s, y + 6.8f * s, x + 0.8f * s, y + 7.4f * s, 0.1f * s, lit_col, 0.02f); }
+            break;
+        case PEAK: {
+            Pt p[4] = { { x - 8 * s, y }, { x + 8 * s, y }, { x + 1.8f * s, y + 11 * s }, { x - 1.8f * s, y + 11 * s } };
+            shape(p, 4, c, o);
+            if (detail) { Pt snow[5] = { { x - 2.4f * s, y + 8 * s }, { x - 0.6f * s, y + 8.6f * s }, { x + 1.2f * s, y + 7.8f * s }, { x + 1.8f * s, y + 11 * s }, { x - 1.8f * s, y + 11 * s } }; fill(snow, 5, { 1, 1, 1 }, 0, -0.08f, 0.95f); }
+            break;
+        }
+        case PLATFORM:
+            rrect(x - 6 * s, y, x + 6 * s, y + 1.4f * s, 0.2f * s, c, o);
+            rrect(x - 5 * s, y + 1.4f * s, x + 5 * s, y + 1.9f * s, 0.1f * s, c, o);
+            rrect(x - 0.5f * s, y + 1.9f * s, x + 0.5f * s, y + 5 * s, 0.1f * s, lit_col, 0.03f * s);
+            rrect(x + 0.5f * s, y + 4 * s, x + 2.6f * s, y + 5 * s, 0.1f * s, lit_col, 0.03f * s);
+            if (detail) { for (float px = -5; px <= 5; px += 2.5f) rrect(x + px * s - 0.12f * s, y + 1.9f * s, x + px * s + 0.12f * s, y + 3.4f * s, 0.05f * s, lit(c, 0.2f), 0.02f); rrect(x - 5.2f * s, y + 3.4f * s, x + 5.2f * s, y + 3.6f * s, 0.05f * s, lit(c, 0.2f), 0.02f); }
+            break;
     }
 }
 
-inline void draw_landmarks(int era_index, const tt::Era& e, const tt::Terrain& terrain, float left, float right, float t) {
+/** Far layer: the monument seen in the distance first: small, hazed, behind the near ridge (drawn before the ground). */
+inline void draw_landmarks_far(int era_index, const tt::Era& e, const tt::Terrain& terrain, float left, float right, float cam_x, float t) {
+    const Rgb hazed = mix(mix(e.near_hills, e.sky_bottom, 0.5f), e.far_hills, 0.3f);
+    for (const tt::LandmarkSpot& l : terrain.landmarks) {
+        const float x = parallax_x(l.x + 6, cam_x, FAR_PARALLAX) - 4;   // ahead of you on the approach, drifting back as the real one arrives
+        if (x < left - 20 || x > right + 20) continue;
+        monument(landmark_shape(era_index, l.index), x, terrain.height(x) + 0.3f, 0.65f, hazed, hazed, t, false);
+    }
+}
+
+/** The monument beside the road, with its name on a signboard at the spot you pass. */
+template <class Text>
+inline void draw_landmarks(int era_index, const tt::Era& e, const tt::Terrain& terrain, float left, float right, float t, const Text& text) {
     for (const tt::LandmarkSpot& l : terrain.landmarks) {
         const float x = l.x + 6;   // just past the sign line, so you drive by it
-        if (x < left - 10 || x > right + 10) continue;
-        draw_landmark(e, landmark_shape(era_index, l.index), x, terrain.height(x) - 0.2f, t);
+        if (x < left - 14 || x > right + 14) continue;
+        monument(landmark_shape(era_index, l.index), x, terrain.height(x) - 0.2f, 1.0f, darker(e.near_hills, 0.8f), e.accent, t);
+        // the signboard
+        const float sx = l.x - 2, sy = terrain.height(sx);
+        rrect(sx - 0.08f, sy, sx + 0.08f, sy + 1.6f, 0.03f, { 0.45f, 0.3f, 0.18f }, 0.03f);
+        const std::string name = e.landmarks[l.index % e.landmark_count].name;
+        const float tw = text.width(name, 0.42f) + 0.5f;
+        rrect(sx - tw / 2, sy + 1.5f, sx + tw / 2, sy + 2.2f, 0.12f, { 0.95f, 0.9f, 0.75f }, 0.03f, 0.1f, -0.1f);
+        text.draw(name, sx, sy + 2.08f, 0.42f, { 0.2f, 0.12f, 0.1f }, Text::CENTRE, 1, false, -1);
+    }
+}
+
+/** Near layer: translucent pieces sweeping past in front of the vehicle. */
+inline void draw_landmarks_near(int era_index, const tt::Era& e, const tt::Terrain& terrain, float left, float right, float cam_x, float t) {
+    const Rgb c = darker(e.near_hills, 0.55f);
+    const float a = 0.62f;
+    for (const tt::LandmarkSpot& l : terrain.landmarks) {
+        const float x = parallax_x(l.x + 6, cam_x, NEAR_PARALLAX);
+        if (x < left - 30 || x > right + 30) continue;
+        const float y = terrain.height(l.x + 6) - 1.2f;
+        const Landmark kind = landmark_shape(era_index, l.index);
+        sgl_begin_quads();
+        col(c, a);
+        switch (kind) {
+            case BUILDING: case DOME:   // a colonnade you drive through
+                for (float px = -9; px <= 9; px += 4.5f) { quad(x + px - 0.45f, y, x + px + 0.45f, y + 7); quad(x + px - 0.7f, y + 6.6f, x + px + 0.7f, y + 7.2f); }
+                quad(x - 10, y + 7.2f, x + 10, y + 8.0f);
+                break;
+            case ARCH:   // the gate's near pillars
+                quad(x - 7, y, x - 5, y + 9); quad(x + 5, y, x + 7, y + 9); quad(x - 7.5f, y + 9, x + 7.5f, y + 10.2f);
+                break;
+            case TOWER: case PLATFORM:   // lamp posts and bunting
+                for (float px = -8; px <= 8; px += 5.5f) { quad(x + px - 0.12f, y, x + px + 0.12f, y + 4.5f); quad(x + px - 0.5f, y + 4.3f, x + px + 0.5f, y + 4.8f); }
+                for (float px = -8; px < 8; px += 0.9f) { col(e.accent, a); sgl_v2f(x + px, y + 4.9f); sgl_v2f(x + px + 0.7f, y + 4.9f); sgl_v2f(x + px + 0.35f, y + 4.2f); sgl_v2f(x + px + 0.35f, y + 4.2f); col(c, a); }
+                break;
+            case BRIDGE:   // railings and cables
+                for (float px = -10; px <= 10; px += 1.6f) quad(x + px - 0.08f, y + 0.6f, x + px + 0.08f, y + 2.2f);
+                quad(x - 10.5f, y + 2.1f, x + 10.5f, y + 2.4f);
+                break;
+            case PEAK:   // boulders and pines
+                for (float px = -9; px <= 9; px += 6) { sgl_v2f(x + px - 1.2f, y); sgl_v2f(x + px + 1.2f, y); sgl_v2f(x + px + 0.1f, y + 5.5f); sgl_v2f(x + px - 0.1f, y + 5.5f); }
+                break;
+        }
+        sgl_end();
+        if (kind == TOWER || kind == PLATFORM) for (float px = -8; px <= 8; px += 5.5f) soft_disc(x + px, y + 4.9f, 1.3f, e.accent, 0.35f + 0.1f * std::sin(t * 5 + px));
+        if (kind == PEAK) for (float px = -9; px <= 9; px += 6) oval(x + px + 2.5f, y + 0.3f, 1.1f, 0.7f, c, 0, 0.1f, -0.1f);
     }
 }
 

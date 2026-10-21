@@ -26,12 +26,13 @@ export const GAMES = {
     // the page passes shader source in, so it needs string helpers
     playground: { sources: ['games/playground/main.cpp'], shaders: [], flags: ['-sEXPORTED_RUNTIME_METHODS=stringToNewUTF8', '-sEXPORTED_FUNCTIONS=_main,_free'] },
     'turbo-trails': {
-        sources: ['games/turbo-trails/main.cpp', 'games/turbo-trails/physics_box2d.cpp', 'games/turbo-trails/terrain.cpp', 'games/turbo-trails/rules.cpp', 'games/turbo-trails/eras.cpp', 'games/turbo-trails/feel.cpp'],
+        sources: ['games/turbo-trails/main.cpp', 'games/turbo-trails/physics_box2d.cpp', 'games/turbo-trails/terrain.cpp', 'games/turbo-trails/rules.cpp', 'games/turbo-trails/eras.cpp', 'games/turbo-trails/feel.cpp', 'games/turbo-trails/font.cpp'],
         // Box2D v3 (C), compiled separately with emcc; scalar maths (its SIMD paths need SSE emulation)
         cSources: 'third_party/box2d/src',
         cFlags: ['-std=gnu17', '-DBOX2D_DISABLE_SIMD', '-Ithird_party/box2d/include', '-Ithird_party/box2d/src'],
         shaders: ['shaders/turbo-trails.glsl'],
-        flags: ['-Ithird_party/box2d/include', '-sEXPORTED_RUNTIME_METHODS=UTF8ToString', '-sEXPORTED_FUNCTIONS=_main,_free'],
+        // the HUD font (Lilita One, OFL) rides inside the wasm
+        flags: ['-Ithird_party/box2d/include', '-sEXPORTED_RUNTIME_METHODS=UTF8ToString', '-sEXPORTED_FUNCTIONS=_main,_free', '--embed-file', 'native/fonts/LilitaOne-Regular.ttf@/font.ttf'],
         assets: 'games/turbo-trails/assets',
     },
 };

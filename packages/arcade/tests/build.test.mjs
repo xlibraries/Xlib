@@ -43,6 +43,7 @@ describe('build-native', () => {
         expect(GAMES['turbo-trails'].cFlags).toContain('-DBOX2D_DISABLE_SIMD');
         expect(GAMES['turbo-trails'].shaders).toEqual(['shaders/turbo-trails.glsl']);   // the post-process pass
         expect(GAMES['turbo-trails'].sources).toContain('games/turbo-trails/feel.cpp');
+        expect(args.join(' ')).toContain('--embed-file native/fonts/LilitaOne-Regular.ttf@/font.ttf');   // the HUD font
         for (const f of ['chariots-bg.mp3', 'chariots-wheel.mp3']) expect(existsSync(new URL(`../dist/turbo-trails/${f}`, import.meta.url)), f).toBe(true);
     });
 

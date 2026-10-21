@@ -27,13 +27,17 @@ EM_JS(int, xl_audio_js_setup, (int channels), {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx || !("audioWorklet" in Ctx.prototype)) return 0;
     const ctx = new Ctx({ latencyHint: "interactive" });
-    const state = { ctx: ctx, node: null, channels: channels, written: 0, played: 0, playedAt: 0, ready: false };
+    const state = { ctx: ctx, node: null, gain: ctx.createGain(), channels: channels, written: 0, played: 0, playedAt: 0, ready: false };
+    state.gain.gain.value = typeof Module.xlVolume === "number" ? Module.xlVolume : 1;
+    state.gain.connect(ctx.destination);
+    // the page sets the desktop's master volume through this (GameView.tsx)
+    Module.xlSetVolume = (v) => { Module.xlVolume = v; state.gain.gain.value = Math.max(0, Math.min(1, v)); };
     Module.xlAudio = state;
     const url = Module.locateFile ? Module.locateFile("xl-audio-worklet.js") : "xl-audio-worklet.js";
     ctx.audioWorklet.addModule(url).then(() => {
         state.node = new AudioWorkletNode(ctx, "xl-audio", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [channels] });
         state.node.port.onmessage = (e) => { if (e.data && typeof e.data.played === "number") { state.played = e.data.played; state.playedAt = ctx.currentTime; } };
-        state.node.connect(ctx.destination);
+        state.node.connect(state.gain);
         state.ready = true;
     }).catch((err) => { console.warn("xl_audio: worklet failed to load", err); });
     // browsers only start audio after a user gesture
@@ -48,8 +52,9 @@ EM_JS(int, xl_audio_js_setup, (int channels), {
 EM_JS(void, xl_audio_js_shutdown, (), {
     const s = Module.xlAudio;
     if (!s) return;
-    try { if (s.node) s.node.disconnect(); s.ctx.close(); } catch (e) {}
+    try { if (s.node) s.node.disconnect(); s.gain.disconnect(); s.ctx.close(); } catch (e) {}
     Module.xlAudio = null;
+    Module.xlSetVolume = (v) => { Module.xlVolume = v; };
 });
 
 EM_JS(int, xl_audio_js_sample_rate, (), { return Module.xlAudio ? Module.xlAudio.ctx.sampleRate : 0; });
