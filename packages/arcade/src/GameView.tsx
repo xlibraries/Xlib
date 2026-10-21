@@ -18,11 +18,24 @@ interface GameInstance {
 
 const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
-/** The lean a phone's tilt asks for: the angle across the screen's short axis, relative to how it was first held. */
-export function tiltLean(angle: number | null, baseline: number | null, flipped: boolean): number {
-    if (angle === null || baseline === null) return 0;
-    const lean = Math.max(-1, Math.min(1, (angle - baseline) / 22));
-    return flipped ? -lean : lean;
+/**
+ * How far the screen's top edge is tilted away from the player, in degrees, from a deviceorientation reading.
+ * Works from the "up" vector in the device's frame (the third row of the W3C rotation matrix), which stays
+ * continuous however the phone is held; the raw beta/gamma angles flip sign near upright.
+ */
+export function screenPitch(beta: number | null, gamma: number | null, orientation: string): number | null {
+    if (beta === null || gamma === null) return null;
+    const b = beta * Math.PI / 180, g = gamma * Math.PI / 180;
+    const ux = -Math.cos(b) * Math.sin(g), uy = Math.sin(b), uz = Math.cos(b) * Math.cos(g);
+    // which device axis points up the screen in this orientation
+    const up = orientation.startsWith('landscape') ? (orientation === 'landscape-secondary' ? -ux : ux) : (orientation === 'portrait-secondary' ? -uy : uy);
+    return Math.atan2(uz, up) * 180 / Math.PI;
+}
+
+/** The lean a tilt asks for: degrees from where the phone was first held, full lean at 22°. */
+export function tiltLean(pitch: number | null, baseline: number | null): number {
+    if (pitch === null || baseline === null) return 0;
+    return Math.max(-1, Math.min(1, (pitch - baseline) / 22));
 }
 
 type CreateGame = (options: Record<string, unknown>) => Promise<GameInstance>;
@@ -92,25 +105,26 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
     // say so while the phone is upright
     useEffect(() => {
         if (!coarsePointer()) return;
+        const el = frame.current;
         const orientation = screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> };
-        frame.current?.requestFullscreen?.().then(() => orientation.lock?.('landscape')).catch(() => { /* needs a gesture or unsupported */ });
+        el?.requestFullscreen?.().then(() => orientation.lock?.('landscape')).catch(() => { /* needs a gesture or unsupported */ });
         const media = matchMedia('(orientation: portrait)');
         const update = () => setPortrait(media.matches);
         update();
         media.addEventListener('change', update);
-        return () => { media.removeEventListener('change', update); if (document.fullscreenElement === frame.current) document.exitFullscreen?.().catch(() => { }); };
+        return () => { media.removeEventListener('change', update); if (el && document.fullscreenElement === el) document.exitFullscreen?.().catch(() => { }); };
     }, []);
 
-    // Phones: tilt to lean. iOS asks permission, which needs a touch first; the first reading is "level"
+    // Phones: tilt to lean. iOS asks permission, which must come from a tap (pointerup, not pointerdown); the
+    // first reading after that is "level"
     useEffect(() => {
         if (!coarsePointer() || typeof DeviceOrientationEvent === 'undefined') return;
         let baseline: number | null = null, listening = false;
         const onOrientation = (e: DeviceOrientationEvent) => {
-            const landscape = (screen.orientation?.type ?? '').startsWith('landscape');
-            const angle = landscape ? e.gamma : e.beta;
-            if (angle === null) return;
-            if (baseline === null) baseline = angle;
-            instance.current?._xl_set_tilt?.(tiltLean(angle, baseline, screen.orientation?.type === 'landscape-secondary'));
+            const pitch = screenPitch(e.beta, e.gamma, screen.orientation?.type ?? 'landscape-primary');
+            if (pitch === null) return;
+            if (baseline === null) baseline = pitch;
+            instance.current?._xl_set_tilt?.(tiltLean(pitch, baseline));
         };
         const start = async () => {
             if (listening) return;
@@ -120,10 +134,10 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
             window.addEventListener('deviceorientation', onOrientation);
         };
         const el = frame.current;
-        el?.addEventListener('pointerdown', start);
+        el?.addEventListener('pointerup', start);
         const recalibrate = () => { baseline = null; };
         screen.orientation?.addEventListener('change', recalibrate);
-        return () => { el?.removeEventListener('pointerdown', start); screen.orientation?.removeEventListener('change', recalibrate); window.removeEventListener('deviceorientation', onOrientation); };
+        return () => { el?.removeEventListener('pointerup', start); screen.orientation?.removeEventListener('change', recalibrate); window.removeEventListener('deviceorientation', onOrientation); };
     }, []);
 
     // Pause while the window is minimized or the tab is hidden
