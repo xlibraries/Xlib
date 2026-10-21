@@ -1,6 +1,6 @@
 // Compiles a shader in the page before it's sent to the game, so errors come back immediately and with line
 // numbers: GLSL in a hidden WebGL2 context, WGSL through WebGPU's compilation info.
-import type { Backend } from '../backend';
+import type { Backend } from '@xlibraries/engine';
 import { compose, parseGlslLog, wgslErrors, type ShaderError } from './compose';
 
 let gl: WebGL2RenderingContext | null = null;

@@ -16,18 +16,19 @@ flowchart TB
         public[("public/arcade/<br/>(copied by scripts/vendor.mjs)")]
     end
 
+    subgraph engine["packages/engine (@xlibraries/engine) — shared by every app with C++ modules"]
+        view["src/EngineView.tsx<br/>canvas host: load, focus, pause, gamepad,<br/>volume, tilt, fullscreen"]
+        pick["src/backend.ts<br/>WebGPU if an adapter exists, else WebGL2"]
+        runtime["native/runtime/<br/>xl.h (page bridge) · xl_audio.h (worklet) ·<br/>xl_text.h (TrueType text)"]
+        buildpipe["scripts/build.mjs · scripts/test.mjs<br/>sokol-shdc + em++, dist stamp; doctest harness"]
+        third["third_party/<br/>sokol · HandmadeMath · stb · doctest (pinned)"]
+    end
+
     subgraph pkg["packages/arcade (@xlibraries/arcade)"]
-        subgraph ts["src/ (TypeScript, React)"]
-            launcher["Arcade.tsx<br/>launcher: cards, backend badge"]
-            view["GameView.tsx<br/>canvas host: load, focus, pause, fullscreen"]
-            pick["backend.ts<br/>WebGPU if an adapter exists, else WebGL2"]
-        end
-        subgraph native["native/ (C++20, sokol)"]
-            runtime["runtime/xl.h<br/>bridge to the page: pause, focus,<br/>saved scores, frame stats"]
-            games["games/<br/>breakout · playground · showcase"]
-            shaders["shaders/*.glsl<br/>written once (sokol-shdc annotated GLSL)"]
-        end
-        third["third_party/<br/>sokol headers · HandmadeMath (pinned)"]
+        launcher["src/Arcade.tsx<br/>launcher: cards, backend badge, panels"]
+        games["native/games/<br/>breakout · playground · showcase · turbo-trails"]
+        shaders["native/shaders/*.glsl<br/>written once (sokol-shdc annotated GLSL)"]
+        box2d["third_party/box2d (Turbo Trails)"]
         dist[("dist/&lt;game&gt;/{webgpu,webgl2}.{js,wasm}<br/>committed build output")]
     end
 
@@ -35,9 +36,8 @@ flowchart TB
     view --> pick
     view -- "import() the matching build" --> public
     dist --> public
-    games --> runtime
-    games --> shaders
-    games --> third
+    games --> runtime & shaders & third & box2d
+    buildpipe -- builds --> dist
 ```
 
 ## Build pipeline

@@ -1,7 +1,7 @@
 // The Arcade's games. Each is built for both backends into dist/<id>/{webgpu,webgl2}.{js,wasm}
 // (scripts/build-native.mjs).
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
-import type { Backend } from './backend';
+import type { Backend } from '@xlibraries/engine';
 
 /** Props for a game's optional side panel (e.g. the Shader Playground's editor). */
 export interface PanelProps {

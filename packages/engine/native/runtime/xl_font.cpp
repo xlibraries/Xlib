@@ -1,8 +1,8 @@
-#include "font.h"
+#include "xl_font.h"
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb/stb_truetype.h"
 
-namespace tt {
+namespace xl {
 
 namespace {
 
@@ -62,4 +62,4 @@ float Font::width(const std::string& text, float px) const {
     return w * px / baked_px;
 }
 
-} // namespace tt
+} // namespace xl
