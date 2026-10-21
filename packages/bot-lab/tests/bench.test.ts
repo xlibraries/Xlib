@@ -67,19 +67,20 @@ describe('the bench', () => {
     it('runs Blink: the LED lights and goes out with pin 13, drawing about 15 mA through 220 Ω', () => {
         const bench = new Bench(template('blink')!.build());
         const samples: number[] = [];
-        for (let i = 0; i < 24; i++) { bench.run(0.1); samples.push(bench.state('led1').brightness ?? 0); }
+        let amps = 0;
+        for (let i = 0; i < 12; i++) {   // 1.2 s: a little over one blink cycle
+            bench.run(0.1);
+            const s = bench.state('led1');
+            samples.push(s.brightness ?? 0);
+            amps = Math.max(amps, s.amps ?? 0);
+        }
         expect(Math.max(...samples)).toBeGreaterThan(0.6);
         expect(Math.min(...samples)).toBe(0);
         const lit = samples.filter(b => b > 0.5).length;
-        expect(lit).toBeGreaterThan(8);
-        expect(lit).toBeLessThan(16);
-        const on = samples.indexOf(Math.max(...samples));
-        bench.run(0.5);   // somewhere; check the current when lit
-        let amps = 0;
-        for (let i = 0; i < 10 && amps < 0.005; i++) { bench.run(0.1); amps = bench.state('led1').amps ?? 0; }
-        expect(amps).toBeGreaterThan(0.01);
+        expect(lit).toBeGreaterThan(3);
+        expect(lit).toBeLessThan(9);
+        expect(amps).toBeGreaterThan(0.01);   // (5 - 1.8) V / (220 + 40) Ω ≈ 12 mA when lit
         expect(amps).toBeLessThan(0.02);
-        expect(on).toBeGreaterThanOrEqual(0);
         expect(bench.warnings).toEqual([]);
     });
 
