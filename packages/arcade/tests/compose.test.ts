@@ -42,3 +42,15 @@ describe('presets', () => {
         }
     });
 });
+
+import { tiltLean } from '../src/GameView';
+
+describe('tiltLean', () => {
+    it('leans by the tilt from where the phone was first held, clamped, flipped for the other landscape', () => {
+        expect(tiltLean(null, null, false)).toBe(0);
+        expect(tiltLean(30, 30, false)).toBe(0);
+        expect(tiltLean(41, 30, false)).toBeCloseTo(0.5);
+        expect(tiltLean(-60, 30, false)).toBe(-1);
+        expect(tiltLean(41, 30, true)).toBeCloseTo(-0.5);
+    });
+});

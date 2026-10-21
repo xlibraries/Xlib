@@ -12,6 +12,17 @@ interface GameInstance {
     _xl_set_gamepad(connected: number, lx: number, ly: number, rx: number, ry: number, buttons: number): void;
     /** Set by xl_audio.h once the game has sound: the master volume, 0..1 */
     xlSetVolume?(volume: number): void;
+    /** The phone's tilt as a lean, -1..1 (games that steer by gyro read xl::tilt()) */
+    _xl_set_tilt?(lean: number): void;
+}
+
+const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
+/** The lean a phone's tilt asks for: the angle across the screen's short axis, relative to how it was first held. */
+export function tiltLean(angle: number | null, baseline: number | null, flipped: boolean): number {
+    if (angle === null || baseline === null) return 0;
+    const lean = Math.max(-1, Math.min(1, (angle - baseline) / 22));
+    return flipped ? -lean : lean;
 }
 
 type CreateGame = (options: Record<string, unknown>) => Promise<GameInstance>;
@@ -37,6 +48,7 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
     const [running, setRunning] = useState<GameInstance | null>(null);
     const [fps, setFps] = useState(0);
     const [padConnected, setPadConnected] = useState(false);
+    const [portrait, setPortrait] = useState(false);
 
     // Load the game; shut it down when the view closes
     useEffect(() => {
@@ -75,6 +87,44 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
 
     // The desktop's volume slider reaches the game's audio (and again once it has loaded)
     useEffect(() => { running?.xlSetVolume?.(volume); }, [running, volume]);
+
+    // Phones: play full-screen and sideways (the lock only works in fullscreen, and only on some browsers), and
+    // say so while the phone is upright
+    useEffect(() => {
+        if (!coarsePointer()) return;
+        const orientation = screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> };
+        frame.current?.requestFullscreen?.().then(() => orientation.lock?.('landscape')).catch(() => { /* needs a gesture or unsupported */ });
+        const media = matchMedia('(orientation: portrait)');
+        const update = () => setPortrait(media.matches);
+        update();
+        media.addEventListener('change', update);
+        return () => { media.removeEventListener('change', update); if (document.fullscreenElement === frame.current) document.exitFullscreen?.().catch(() => { }); };
+    }, []);
+
+    // Phones: tilt to lean. iOS asks permission, which needs a touch first; the first reading is "level"
+    useEffect(() => {
+        if (!coarsePointer() || typeof DeviceOrientationEvent === 'undefined') return;
+        let baseline: number | null = null, listening = false;
+        const onOrientation = (e: DeviceOrientationEvent) => {
+            const landscape = (screen.orientation?.type ?? '').startsWith('landscape');
+            const angle = landscape ? e.gamma : e.beta;
+            if (angle === null) return;
+            if (baseline === null) baseline = angle;
+            instance.current?._xl_set_tilt?.(tiltLean(angle, baseline, screen.orientation?.type === 'landscape-secondary'));
+        };
+        const start = async () => {
+            if (listening) return;
+            listening = true;
+            const Ctor = DeviceOrientationEvent as unknown as { requestPermission?(): Promise<string> };
+            try { if (Ctor.requestPermission && await Ctor.requestPermission() !== 'granted') return; } catch { return; }
+            window.addEventListener('deviceorientation', onOrientation);
+        };
+        const el = frame.current;
+        el?.addEventListener('pointerdown', start);
+        const recalibrate = () => { baseline = null; };
+        screen.orientation?.addEventListener('change', recalibrate);
+        return () => { el?.removeEventListener('pointerdown', start); screen.orientation?.removeEventListener('change', recalibrate); window.removeEventListener('deviceorientation', onOrientation); };
+    }, []);
 
     // Pause while the window is minimized or the tab is hidden
     useEffect(() => {
@@ -133,6 +183,11 @@ export function GameView({ game, baseUrl, leaderboardUrl, choice, volume = 1, on
                 <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80">← Games</button>
             </div>
             {status.kind === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm pointer-events-none">Loading {game.title}…</div>}
+            {portrait && status.kind === 'running' && (
+                <div data-testid="rotate-hint" className="absolute inset-x-0 bottom-10 flex justify-center pointer-events-none">
+                    <div className="px-4 py-2 rounded-full bg-black bg-opacity-70 text-white text-sm">🔄 Turn your phone sideways to play</div>
+                </div>
+            )}
             {status.kind === 'error' && (
                 <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-gray-200">
                     <div>Couldn&apos;t start {game.title}: {status.message}</div>

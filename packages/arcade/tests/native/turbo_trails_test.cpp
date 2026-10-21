@@ -236,7 +236,7 @@ TEST_CASE("physics: leaning back lifts the nose, leaning forward in the air pitc
         }
         if (e == 0) {
             MESSAGE("chariot pitch back/flat/forward: " << pitch[0] << " " << pitch[1] << " " << pitch[2]);
-            CHECK(pitch[0] > pitch[1] + 0.05f);   // nose up: a wheelie you asked for
+            CHECK(pitch[0] > pitch[1] + 0.25f);   // nose up: a real wheelie
             CHECK(pitch[2] < pitch[1] - 0.005f);  // nose pressed down
         }
     }
@@ -276,7 +276,7 @@ TEST_CASE("physics: leaning back lifts the nose, leaning forward in the air pitc
 TEST_CASE("rules: the Turbo meter fills from coins, flips and air time, and drains only while the key is held") {
     Terrain t = build_terrain(era(0).terrain, 1, 4);
     Run run; run.state = RunState::Driving;
-    Pose pose; pose.x = 10; pose.y = 1.0f;
+    Pose pose; pose.x = 10; pose.y = 1.0f; pose.vx = 3;   // rolling, so the gas-on-but-not-moving rule stays out of it
     RunInput gas; gas.throttle = 1;
     t.coins = { { 10, 1.0f }, { 10.2f, 1.0f } };
     update_run(run, t, pose, true, false, 0, gas, 0.016f, 2400);
@@ -377,4 +377,50 @@ TEST_CASE("font: the HUD font bakes into an atlas with every printable glyph and
     CHECK(!bad.bake(truncated, 48));
     std::vector<uint8_t> forged = { 0, 1, 0, 0, 0xff, 0xff, 0, 0, 0, 0, 0, 0 };   // 65535 tables in 12 bytes
     CHECK(!bad.bake(forged, 48));
+}
+
+TEST_CASE("rules: backflips and frontflips are told apart, wheelies pay by the second, being stuck ends the run") {
+    Terrain t = build_terrain(era(0).terrain, 1, 4);
+    Run run; run.state = RunState::Driving;
+    Pose pose; pose.x = 20; pose.y = 1.0f; pose.vx = 5;
+    RunInput gas; gas.throttle = 1;
+    // a backflip: nose up and over (positive rotation)
+    pose.omega = 7.0f;
+    update_run(run, t, pose, false, false, 0, gas, 1.0f, 2400);
+    CHECK(has(run, RunEvent::Flip));
+    CHECK(run.last_flip_backward);
+    pose.omega = -7.0f;
+    update_run(run, t, pose, false, false, 0, gas, 1.0f, 2400);
+    CHECK(has(run, RunEvent::Flip));
+    CHECK(!run.last_flip_backward);
+    pose.omega = 0;
+    // a wheelie: rear down, front up, rolling; counted once it ends, if long enough
+    update_run(run, t, pose, true, false, 0, gas, 0.5f, 2400, 0);
+    CHECK(run.wheelie_time == doctest::Approx(0.5f));
+    update_run(run, t, pose, true, false, 0, gas, 0.5f, 2400, 1);   // front touches down: too short, no pay
+    CHECK(!has(run, RunEvent::Wheelie));
+    CHECK(run.wheelie_time == 0);
+    const int coins = run.coins;
+    for (int i = 0; i < 5; i++) update_run(run, t, pose, true, false, 0, gas, 0.5f, 2400, 0);   // 2.5 s
+    update_run(run, t, pose, true, false, 0, gas, 0.1f, 2400, 1);
+    CHECK(has(run, RunEvent::Wheelie));
+    CHECK(run.last_wheelie == doctest::Approx(2.5f));
+    CHECK(run.coins == coins + 2 * COINS_PER_WHEELIE_SECOND);
+    // without the front wheel's state, wheelies don't count (the old callers)
+    for (int i = 0; i < 5; i++) update_run(run, t, pose, true, false, 0, gas, 0.5f, 2400);
+    CHECK(run.wheelie_time == 0);
+    // stuck: gas on, not moving
+    pose.vx = 0;
+    for (int i = 0; i < 3; i++) update_run(run, t, pose, true, false, 0, gas, 0.5f, 2400);
+    CHECK(run.state == RunState::Driving);           // 1.5 s: patience
+    update_run(run, t, pose, true, false, 0, gas, 0.6f, 2400);
+    CHECK(run.state == RunState::Crashed);
+    CHECK(has(run, RunEvent::Stuck));
+    // resting with no gas is not stuck; lying on your side is
+    Run calm; calm.state = RunState::Driving;
+    for (int i = 0; i < 10; i++) update_run(calm, t, pose, true, false, 0, {}, 0.5f, 2400);
+    CHECK(calm.state == RunState::Driving);
+    pose.angle = 1.4f;
+    for (int i = 0; i < 5; i++) update_run(calm, t, pose, true, false, 0, {}, 0.5f, 2400);
+    CHECK(calm.state == RunState::Crashed);
 }
