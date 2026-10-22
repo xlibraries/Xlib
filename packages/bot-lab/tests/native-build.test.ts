@@ -7,6 +7,8 @@ describe('the native modules', () => {
         const stamp = new URL(`../${STAMP}`, import.meta.url);
         expect(existsSync(stamp), 'dist/sources.sha256 is missing: run a full build').toBe(true);
         expect(readFileSync(stamp, 'utf8').trim(), 'native sources changed since the last full build').toBe(sourcesHash());
-        for (const name of Object.keys(MODULES)) expect(existsSync(new URL(`../dist/${name}/headless.wasm`, import.meta.url)), name).toBe(true);
+        for (const [name, spec] of Object.entries(MODULES)) {
+            for (const file of spec.headless ? ['headless.wasm'] : ['webgpu.wasm', 'webgl2.wasm']) expect(existsSync(new URL(`../dist/${name}/${file}`, import.meta.url)), `${name}/${file}`).toBe(true);
+        }
     });
 });

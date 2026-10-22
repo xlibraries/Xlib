@@ -738,6 +738,24 @@ test.describe('Bot Lab', () => {
         await expect(again.locator('[data-best]')).toHaveAttribute('data-best', best.toFixed(2));
     });
 
+    test('the World in 3D: the view module runs embedded and follows the robot while it drives', async ({ page }) => {
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Robot \(World\)/ }).click();
+        await lab.getByRole('tab', { name: '3D' }).click();
+        const view = lab.locator('[data-game="view"]');
+        const frames = () => view.evaluate(el => Number((el as HTMLElement).dataset.frames));
+        await expect.poll(frames, { timeout: 20_000 }).toBeGreaterThan(10);
+        await expect(view).toHaveAttribute('data-backend', /webgl2|webgpu/);
+        await expect(lab.getByRole('button', { name: /← / })).toHaveCount(1);   // only Bot Lab's own back button: the view is embedded
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const before = await frames();
+        await expect.poll(frames, { timeout: 10_000 }).toBeGreaterThan(before + 30);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        await lab.getByRole('tab', { name: 'Top' }).click();
+        await expect(lab.locator('[data-robot]')).toBeVisible();
+    });
+
     test('the track editor: presets, drawing a line point by point, a loop, the robot\u2019s start', async ({ page }) => {
         await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');

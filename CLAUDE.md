@@ -67,7 +67,7 @@ things work.
 - `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
   solver, parts, the Uno on avr8js, the Pi's header, the Pico on rp2040js with MicroPython, I²C devices on per-board buses, the
   bench loop), and a robot in a physics world: `native/world` (C++ on the engine's Jolt) is built headless into
-  `dist/world/` by `pnpm --filter @xlibraries/bot-lab build:native` (needs Emscripten; **commit `dist/`**, CI rebuilds and
+  `dist/world/` and `native/view` (its 3D view, sokol) into `dist/view/`, by `pnpm --filter @xlibraries/bot-lab build:native` (needs Emscripten; **commit `dist/`**, CI rebuilds and
   diffs it; the unit tests check its sources stamp, which also covers the engine). `firmware/` is vendored (MicroPython, and an RP2040 boot ROM with its float library zeroed for licensing:
   `pico-rom-float.ts` replaces it; see `firmware/README.md`), copied to `public/vendor/pico/` by `scripts/vendor.mjs`) under a React bench. The bench runs in a worker
   (`runtime/`); the Raspberry Pi runs Python on Pyodide (vendored to `public/vendor/pyodide/`) with `python/`
