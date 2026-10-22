@@ -2,7 +2,7 @@
   "name": "@xlibraries/arduino-compiler",
   "private": true,
   "version": "1.0.0",
-  "description": "Bot Lab's Arduino compile service (Docker image for Cloud Run); its tests run with the workspace's verify",
+  "description": "Bot Lab's Arduino compile service (Docker image for a Hugging Face Space); its tests run with the workspace's verify",
   "scripts": {
     "test": "python3 -m unittest discover -p 'test_*.py'",
     "verify": "python3 -m unittest discover -p 'test_*.py'"
