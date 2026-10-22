@@ -1,0 +1,31 @@
+# Publishes Bot Lab's Arduino compiler image (services/arduino-compiler) to GitHub's container registry, where the
+# bot-lab-compile workflow pulls it for each visitor's build. Runs when the image changes on master.
+name: arduino-compiler
+
+on:
+  push:
+    branches: [master]
+    paths: ['services/arduino-compiler/**', '.github/workflows/arduino-compiler.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency: arduino-compiler-publish
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests
+        run: cd services/arduino-compiler && python3 -m unittest discover -p 'test_*.py'
+      - name: Build and push ghcr.io/xlibraries/arduino-compiler
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          image=ghcr.io/xlibraries/arduino-compiler
+          docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$image:latest" -t "$image:$GITHUB_SHA" services/arduino-compiler
+          docker push --all-tags "$image"

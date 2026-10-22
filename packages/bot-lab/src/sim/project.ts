@@ -23,6 +23,8 @@ export interface Code {
     sketch: string;
     /** The compiled sketch, when it has been built (templates ship with theirs) */
     hex: string;
+    /** `sketchHash` of the sketch the hex was built from (tells the editor the build is out of date) */
+    builtFrom?: string;
 }
 
 export interface Project {
@@ -103,6 +105,7 @@ export function parseProject(input: unknown): Project {
         if (input.code.board === 'pi') project.code.board = 'pi';
         if (typeof input.code.sketch === 'string') project.code.sketch = input.code.sketch.slice(0, 65536);
         if (typeof input.code.hex === 'string' && /^(:[0-9A-Fa-f]*\s*)*$/.test(input.code.hex)) project.code.hex = input.code.hex.slice(0, 200_000);
+        if (typeof input.code.builtFrom === 'string' && /^[0-9a-f]{8}$/.test(input.code.builtFrom)) project.code.builtFrom = input.code.builtFrom;
     }
     return project;
 }

@@ -1,0 +1,10 @@
+{
+  "name": "@xlibraries/arduino-compiler",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Bot Lab's Arduino compile service (Docker image, run per build on GitHub Actions); its tests run with the workspace's verify",
+  "scripts": {
+    "test": "python3 -m unittest discover -p 'test_*.py'",
+    "verify": "python3 -m unittest discover -p 'test_*.py'"
+  }
+}

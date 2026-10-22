@@ -133,6 +133,15 @@ wait, and Stop replaces the worker. (A `SharedArrayBuffer` would need the whole 
 which the Music app's YouTube embed rules out; a frame can't be isolated on its own.) The unit tests run Node with
 `--experimental-wasm-jspi`, so CI uses Node 24.
 
+Arduino sketches are built by the site, not in the browser. `createBotLab({ compile, compilerAvailable })` receives
+`lib/bot-lab-client.ts`, which posts to `/api/bot-lab/compile`. In production, `lib/bot-lab-compile.ts` answers from a
+cache keyed by the sketch's SHA-256, or stores the sketch under a random job id in Redis and starts the
+`bot-lab-compile` workflow with `BOT_LAB_GITHUB_TOKEN`. The run fetches the sketch from `/api/bot-lab/compile-job` and
+posts the result back, both with `BOT_LAB_JOB_SECRET`, while the browser polls and shows the progress. Locally,
+`BOT_LAB_COMPILER_URL` + `BOT_LAB_COMPILER_SECRET` point at the image's HTTP mode instead. Builds are limited per
+visitor and overall, and the editor hides Build where neither mode is configured. A project keeps the hex with
+`builtFrom`, a fingerprint of the sketch it was built from, so the editor can say when the sketch has changed since.
+
 ## Photo Drop (`packages/photo-drop`)
 
 A standalone page (served at `/drop/`, copied from the package's `web/` folder by `scripts/vendor.mjs`) for friends to upload photos and videos into Aman's Google Photos.
