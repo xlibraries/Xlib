@@ -81,6 +81,7 @@ class ParseMessages(unittest.TestCase):
 
     def test_clean_log_hides_the_job_folder(self):
         self.assertEqual(server.clean_log("/tmp/job-ab/sketch/sketch.ino:1:1: error: x\n/tmp/job-ab/out", "/tmp/job-ab"), "sketch.ino:1:1: error: x\nout")
+        self.assertEqual(server.clean_log("\x1b[92mUsed platform\x1b[0m arduino:avr", "/tmp/job-ab"), "Used platform arduino:avr")
 
 
 class CompileSketch(unittest.TestCase):
@@ -166,6 +167,37 @@ class Http(unittest.TestCase):
         with urllib.request.urlopen(self.url + "/healthz") as r:
             self.assertEqual(json.loads(r.read()), {"ok": True})
 
+
+
+class CompileStdin(unittest.TestCase):
+    def run_with(self, body: bytes, cli_behaviour="ok"):
+        import io
+        out = io.StringIO()
+        original = server.compile_sketch
+        server.compile_sketch = lambda sketch, fqbn: original(sketch, fqbn, cli=fake_cli(cli_behaviour))
+        try:
+            self.assertEqual(server.compile_stdin(_Stdin(body), out), 0)
+        finally:
+            server.compile_sketch = original
+        return json.loads(out.getvalue())
+
+    def test_builds_from_stdin(self):
+        r = self.run_with(b'{"sketch": "void setup(){}"}')
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["hex"], HEX)
+
+    def test_compiler_errors_and_refusals_are_json_too(self):
+        self.assertEqual(self.run_with(b'{"sketch": "x"}', "error")["errors"][0]["line"], 7)
+        refused = self.run_with(b'{"sketch": "#include \\"/etc/passwd\\""}')
+        self.assertFalse(refused["ok"])
+        self.assertIn("only libraries and headers by name", refused["errors"][0]["message"])
+        self.assertFalse(self.run_with(b"not json")["ok"])
+
+
+class _Stdin:
+    def __init__(self, data: bytes):
+        import io
+        self.buffer = io.BytesIO(data)
 
 
 class Hardening(unittest.TestCase):

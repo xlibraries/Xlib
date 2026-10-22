@@ -514,16 +514,23 @@ test.describe('Bot Lab', () => {
         await expect(again.locator('li').filter({ hasText: 'Blink' })).toContainText('2 parts');
     });
 
-    test('Build: compiler errors point at their line, and a successful build is what the Uno runs', async ({ page }) => {
-        // the compile service is mocked: errors for the first build, then the Hello serial template's hex
+    test('Build: a job on GitHub Actions reports progress, errors point at their line, and a successful build is what the Uno runs', async ({ page }) => {
+        // the site's compile endpoint is mocked: the first build fails with an error, the second runs as a job
+        // (queued → running → done) and comes back with the Hello serial template's hex
         const helloHex = readFileSync(join(process.cwd(), '../../packages/bot-lab/templates/hello_serial/hello_serial.hex'), 'utf8');   // tests run from apps/web
         const sent: string[] = [];
-        await page.route('**/api/bot-lab/compile', async route => {
-            const { sketch } = route.request().postDataJSON() as { sketch: string };
+        let polls = 0;
+        await page.route('**/api/bot-lab/compile*', async route => {
+            const request = route.request();
+            if (request.method() === 'GET' && !request.url().includes('job=')) return route.fulfill({ json: { available: true } });
+            if (request.method() === 'GET') {
+                polls++;
+                return route.fulfill({ json: polls < 2 ? { state: 'queued' } : polls < 3 ? { state: 'running' } : { state: 'done', result: { ok: true, hex: helloHex, size: 1830, warnings: [] } } });
+            }
+            const { sketch } = request.postDataJSON() as { sketch: string };
             sent.push(sketch);
-            await route.fulfill({ json: sent.length === 1
-                ? { ok: false, errors: [{ line: 3, column: 3, severity: 'error', message: "'pinMod' was not declared in this scope" }] }
-                : { ok: true, hex: helloHex, size: 1830, warnings: [] } });
+            if (sent.length === 1) return route.fulfill({ json: { ok: false, errors: [{ line: 3, column: 3, severity: 'error', message: "'pinMod' was not declared in this scope" }] } });
+            return route.fulfill({ status: 202, json: { job: 'c'.repeat(32) } });
         });
         await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');
@@ -541,7 +548,9 @@ test.describe('Bot Lab', () => {
         expect(selected).toBe('pinMod(13, OUTPUT);');
         await editor.fill('void setup() { Serial.begin(9600); }\nvoid loop() {}\n');
         await lab.getByRole('button', { name: 'Build' }).click();
-        await expect(lab.getByRole('status')).toContainText('Built: 1830 of 32256 bytes');
+        await expect(lab.getByTestId('build-progress')).toContainText('GitHub Actions');
+        await expect(lab.getByTestId('build-progress')).toContainText('Compiling', { timeout: 10_000 });
+        await expect(lab.getByRole('status')).toContainText('Built: 1830 of 32256 bytes', { timeout: 10_000 });
         await expect(lab.getByTestId('code-note')).toContainText('The Uno runs this build');
         expect(sent).toHaveLength(2);
         await lab.getByRole('button', { name: '▶ Run' }).click();
@@ -555,6 +564,15 @@ test.describe('Bot Lab', () => {
         await again.locator('li').filter({ hasText: 'Blink' }).getByRole('button').first().click();
         await again.getByRole('tab', { name: 'code' }).click();
         await expect(again.getByTestId('code-note')).toContainText('The Uno runs this build');
+    });
+
+    test('where the site can\u2019t compile, the editor has no Build button and says so', async ({ page }) => {
+        await openDesktop(page);   // the e2e server has no compiler configured
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Blink An LED/ }).click();
+        await lab.getByRole('tab', { name: 'code' }).click();
+        await expect(lab.getByTestId('code-note')).toContainText('isn\u2019t set up here');
+        await expect(lab.getByRole('button', { name: 'Build' })).toHaveCount(0);
     });
 
     test('the Raspberry Pi runs Python: gpiozero blinks the LED, Stop ends a sleeping script, the console shows prints', async ({ page }) => {

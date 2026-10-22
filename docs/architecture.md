@@ -133,12 +133,14 @@ wait, and Stop replaces the worker. (A `SharedArrayBuffer` would need the whole 
 which the Music app's YouTube embed rules out; a frame can't be isolated on its own.) The unit tests run Node with
 `--experimental-wasm-jspi`, so CI uses Node 24.
 
-Arduino sketches are built by the site, not in the browser: `createBotLab({ compile })` receives `lib/bot-lab-client.ts`,
-which posts to `/api/bot-lab/compile`. `lib/bot-lab-compile.ts` limits builds per visitor (Redis), caches results by
-the sketch's SHA-256, and forwards to the arduino-compiler service (`services/arduino-compiler`, a Hugging Face Space that sleeps when idle; a sleeping one reads as "waking up") with
-`BOT_LAB_COMPILER_URL` and `BOT_LAB_COMPILER_SECRET`; without them the endpoint answers 503 and the Uno runs the
-templates' committed builds. A project keeps the hex with `builtFrom`, a fingerprint of the sketch it was built from,
-so the editor can say when the sketch has changed since.
+Arduino sketches are built by the site, not in the browser. `createBotLab({ compile, compilerAvailable })` receives
+`lib/bot-lab-client.ts`, which posts to `/api/bot-lab/compile`. In production, `lib/bot-lab-compile.ts` answers from a
+cache keyed by the sketch's SHA-256, or stores the sketch under a random job id in Redis and starts the
+`bot-lab-compile` workflow with `BOT_LAB_GITHUB_TOKEN`. The run fetches the sketch from `/api/bot-lab/compile-job` and
+posts the result back, both with `BOT_LAB_JOB_SECRET`, while the browser polls and shows the progress. Locally,
+`BOT_LAB_COMPILER_URL` + `BOT_LAB_COMPILER_SECRET` point at the image's HTTP mode instead. Builds are limited per
+visitor and overall, and the editor hides Build where neither mode is configured. A project keeps the hex with
+`builtFrom`, a fingerprint of the sketch it was built from, so the editor can say when the sketch has changed since.
 
 ## Photo Drop (`packages/photo-drop`)
 

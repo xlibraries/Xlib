@@ -1,16 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { clientIp, sameOrigin } from '../../../lib/admin-auth';
-import { build, compilerConfig } from '../../../lib/bot-lab-compile';
+import { availability, compilerConfig, jobStatus, startBuild } from '../../../lib/bot-lab-compile';
 import { getStore } from '../../../lib/kv';
 
-// POST { sketch } → { ok, hex, size, warnings } or { ok: false, errors }; see lib/bot-lab-compile.ts
-// up to 60 s: a sleeping compiler takes about a minute to wake
+// POST { sketch } → a build (200) or { job } (202); GET ?job=… → the job's state; GET → { available }.
+// See lib/bot-lab-compile.ts.
 export const config = { api: { bodyParser: { sizeLimit: '80kb' } }, maxDuration: 60 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.setHeader('Cache-Control', 'no-store');
-    if (req.method !== 'POST') return res.status(405).json({ error: 'POST' });
+    const store = getStore();
+    if (req.method === 'GET') {
+        const { status, body } = typeof req.query.job === 'string' ? await jobStatus(store, req.query.job) : availability(compilerConfig(), store);
+        return res.status(status).json(body);
+    }
+    if (req.method !== 'POST') return res.status(405).json({ error: 'GET or POST' });
     if (!sameOrigin(req)) return res.status(403).json({ error: 'Forbidden' });
-    const { status, body } = await build({ body: req.body, ip: clientIp(req), config: compilerConfig(), store: getStore() });
+    const { status, body } = await startBuild({ body: req.body, ip: clientIp(req), config: compilerConfig(), store });
     return res.status(status).json(body);
 }

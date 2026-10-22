@@ -30,7 +30,7 @@ const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
 const displayTrash = lazyApp(() => import('./components/apps/trash'));
 const displayGedit = lazyApp(() => import('./components/apps/gedit'));
 const displayArcade = lazyApp(() => import('@xlibraries/arcade').then(m => ({ default: m.createArcade({ baseUrl: '/arcade', leaderboardUrl: '/api/arcade/leaderboard' }) })));
-const displayBotLab = lazyApp(() => Promise.all([import('@xlibraries/bot-lab'), import('./lib/bot-lab-client')]).then(([m, c]) => ({ default: m.createBotLab({ compile: c.compileSketch }) })));
+const displayBotLab = lazyApp(() => Promise.all([import('@xlibraries/bot-lab'), import('./lib/bot-lab-client')]).then(([m, c]) => ({ default: m.createBotLab({ compile: c.compileSketch, compilerAvailable: c.compilerAvailable }) })));
 
 export interface AppConfig {
     id: string;

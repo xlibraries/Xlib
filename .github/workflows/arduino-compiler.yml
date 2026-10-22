@@ -1,6 +1,5 @@
-# Deploys Bot Lab's Arduino compile service (services/arduino-compiler) to its Hugging Face Space when it changes on
-# master. Set up once with services/arduino-compiler/setup-hf.sh, which creates the Space and stores HF_TOKEN
-# (secret) and HF_SPACE (variable) here; until then this workflow skips itself.
+# Publishes Bot Lab's Arduino compiler image (services/arduino-compiler) to GitHub's container registry, where the
+# bot-lab-compile workflow pulls it for each visitor's build. Runs when the image changes on master.
 name: arduino-compiler
 
 on:
@@ -11,19 +10,22 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
-concurrency: arduino-compiler-deploy
+concurrency: arduino-compiler-publish
 
 jobs:
-  deploy:
-    if: vars.HF_SPACE != ''
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Tests
         run: cd services/arduino-compiler && python3 -m unittest discover -p 'test_*.py'
-      - name: Deploy to the Space and wait until it answers
+      - name: Build and push ghcr.io/xlibraries/arduino-compiler
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE: ${{ vars.HF_SPACE }}
-        run: services/arduino-compiler/deploy-hf.sh
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          image=ghcr.io/xlibraries/arduino-compiler
+          docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$image:latest" -t "$image:$GITHUB_SHA" services/arduino-compiler
+          docker push --all-tags "$image"

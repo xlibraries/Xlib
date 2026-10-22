@@ -1,0 +1,43 @@
+# One Bot Lab build: xlibraries.com starts this with a job id (lib/bot-lab-compile.ts), the run fetches the sketch
+# from the site, compiles it in the pinned compiler image and posts the result back. Nothing about the sketch is
+# printed: these logs are public.
+name: bot-lab-compile
+run-name: Bot Lab build
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job id (from the site)
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      JOB: ${{ inputs.job }}
+      SITE: ${{ vars.BOT_LAB_SITE || 'https://xlibraries.com' }}
+      SECRET: ${{ secrets.BOT_LAB_JOB_SECRET }}
+    steps:
+      - name: Fetch the sketch
+        run: |
+          [[ "$JOB" =~ ^[0-9a-f]{32}$ ]] || { echo "bad job id"; exit 1; }
+          curl -fsS --retry 2 -H "Authorization: Bearer $SECRET" "$SITE/api/bot-lab/compile-job?id=$JOB" -o job.json
+      - name: Pull the compiler
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
+          docker pull -q ghcr.io/xlibraries/arduino-compiler:latest >/dev/null
+      - name: Compile
+        run: docker run --rm -i --network none --entrypoint python3 ghcr.io/xlibraries/arduino-compiler:latest /opt/service/server.py compile-stdin < job.json > result.json
+      - name: Send the result
+        if: always()
+        run: |
+          [ -s result.json ] || echo '{"ok": false, "errors": [{"line": 0, "column": 0, "severity": "error", "message": "the build machine failed"}]}' > result.json
+          curl -fsS --retry 2 -X POST -H "Authorization: Bearer $SECRET" -H 'Content-Type: application/json' --data-binary @result.json "$SITE/api/bot-lab/compile-job?id=$JOB" -o /dev/null

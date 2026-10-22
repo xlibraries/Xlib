@@ -16,6 +16,8 @@ const GRID = 16;   // px per grid unit on the bench
 export interface BotLabOptions {
     /** Builds Arduino sketches (the site's compile endpoint). Without it, the Uno runs only the templates' builds. */
     compile?: Compiler;
+    /** Whether `compile` can work here (asked when the editor opens); Build is hidden when it says no. */
+    compilerAvailable?: () => Promise<boolean>;
 }
 
 export function createBotLab(options: BotLabOptions = {}): ComponentType<AppProps> {
@@ -39,7 +41,7 @@ export function createBotLab(options: BotLabOptions = {}): ComponentType<AppProp
         };
         const remove = (id: string) => persist(projects.filter(s => s.id !== id));
 
-        if (current) return <Workbench key={current.id} saved={current} compile={options.compile} onChange={update} onBack={() => setCurrent(null)} />;
+        if (current) return <Workbench key={current.id} saved={current} compile={options.compile} compilerAvailable={options.compilerAvailable} onChange={update} onBack={() => setCurrent(null)} />;
         return (
             <div className="h-full w-full overflow-y-auto p-4 text-white" style={{ background: 'radial-gradient(ellipse at top, #0f2a22, #0a1410 70%)' }}>
                 <div className="text-xl font-bold tracking-wide">Bot Lab</div>
@@ -78,7 +80,7 @@ type Tab = 'parts' | 'code' | 'monitor';
 
 const EMPTY: Snapshot = { type: 'snapshot', time: 0, running: false, states: {}, volts: {}, serial: [], console: [], warnings: [] };
 
-function Workbench({ saved, compile, onChange, onBack }: { saved: Saved; compile?: Compiler; onChange: (p: Project) => void; onBack: () => void }) {
+function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { saved: Saved; compile?: Compiler; compilerAvailable?: () => Promise<boolean>; onChange: (p: Project) => void; onBack: () => void }) {
     const [project, setProject] = useState<Project>(saved.project);
     const [snap, setSnap] = useState<Snapshot>(EMPTY);
     const [error, setError] = useState<string | null>(null);
@@ -208,7 +210,7 @@ function Workbench({ saved, compile, onChange, onBack }: { saved: Saved; compile
                     </div>
                     <div className="flex-grow min-h-0 overflow-y-auto p-3 text-sm">
                         {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onRemove={id => { const next = structuredClone(project); removePart(next, id); change(next); setSelected(null); }} />}
-                        {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} compile={compile} onChange={code => change({ ...project, code: { ...project.code, ...code } })} />}
+                        {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} compile={compile} compilerAvailable={compilerAvailable} onChange={code => change({ ...project, code: { ...project.code, ...code } })} />}
                         {tab === 'monitor' && <MonitorTab snap={snap} board={board} project={project} nets={netList} onSerial={text => client.current?.send({ type: 'serial', text })} />}
                     </div>
                 </div>
@@ -323,15 +325,24 @@ function PartsTab({ project, selected, onAdd, onProp, onRemove }: { project: Pro
     );
 }
 
-type Build = { state: 'idle' } | { state: 'building' } | { state: 'built'; size: number; warnings: CompileMessage[] } | { state: 'failed'; errors: CompileMessage[]; log?: string } | { state: 'unavailable'; message: string };
+type Build = { state: 'idle' } | { state: 'building'; status?: string } | { state: 'built'; size: number; warnings: CompileMessage[] } | { state: 'failed'; errors: CompileMessage[]; log?: string } | { state: 'unavailable'; message: string };
 
-function CodeTab({ project, board, running, snap, compile, onChange }: { project: Project; board: Board; running: boolean; snap: Snapshot; compile?: Compiler; onChange: (code: Partial<Project['code']>) => void }) {
+function CodeTab({ project, board, running, snap, compile: compileProp, compilerAvailable, onChange }: { project: Project; board: Board; running: boolean; snap: Snapshot; compile?: Compiler; compilerAvailable?: () => Promise<boolean>; onChange: (code: Partial<Project['code']>) => void }) {
     const [build, setBuild] = useState<Build>({ state: 'idle' });
+    // Build shows only where the site can compile (no promise: assume it can)
+    const [available, setAvailable] = useState<boolean | null>(compileProp && compilerAvailable ? null : !!compileProp);
+    useEffect(() => {
+        let live = true;
+        if (compileProp && compilerAvailable) compilerAvailable().then(ok => { if (live) setAvailable(ok); }, () => { if (live) setAvailable(false); });
+        return () => { live = false; };
+    }, [compileProp, compilerAvailable]);
+    const compile = available ? compileProp : undefined;
     const editor = useRef<HTMLTextAreaElement>(null);
     const hasBoard = project.parts.some(p => p.kind === 'uno' || p.kind === 'pi');
     const stale = buildIsStale(project.code);
     const note = !hasBoard ? 'Add an Arduino Uno or a Raspberry Pi to run code.'
         : board === 'pi' ? (snap.finished ? 'The script ended. Run starts it again.' : 'Python on the Raspberry Pi: gpiozero, RPi.GPIO and time work as on the real board. Run starts the script; Stop ends it.')
+            : !compile && available === null ? 'Checking whether this site can build sketches\u2026'
             : !compile ? (project.code.hex ? 'The Uno runs this sketch\u2019s last build. Building edited sketches needs the compile service, which isn\u2019t set up here.' : 'No build yet, and the compile service isn\u2019t set up here: start from a template to run one of its sketches.')
                 : !project.code.hex ? 'Build the sketch to run it on the Uno.'
                     : stale ? 'The sketch changed since its last build: Run uses the old build until you build again.'
@@ -342,7 +353,7 @@ function CodeTab({ project, board, running, snap, compile, onChange }: { project
         const sketch = project.code.sketch;
         setBuild({ state: 'building' });
         try {
-            const r = await compile(sketch);
+            const r = await compile(sketch, { onStatus: status => setBuild({ state: 'building', status }) });
             if ('errors' in r) setBuild({ state: 'failed', errors: r.errors, log: r.log });
             else {
                 onChange({ hex: r.hex, builtFrom: sketchHash(sketch) });
@@ -382,6 +393,7 @@ function CodeTab({ project, board, running, snap, compile, onChange }: { project
                         {build.state === 'building' ? 'Building\u2026' : 'Build'}
                     </button>
                     {running && <span className="text-gray-400">Stop the bench to build.</span>}
+                    {build.state === 'building' && build.status && <span className="text-gray-300" data-testid="build-progress">{build.status}</span>}
                     {build.state === 'built' && <span className="text-emerald-200" role="status">Built: {build.size} of {UNO_FLASH} bytes ({Math.round(build.size / UNO_FLASH * 100)}%){build.warnings.length ? `, ${build.warnings.length} warning${build.warnings.length > 1 ? 's' : ''}` : ''}. Press Run.</span>}
                     {build.state === 'failed' && <span className="text-red-300" role="status">{build.errors.length} error{build.errors.length > 1 ? 's' : ''}</span>}
                     {build.state === 'unavailable' && <span className="text-yellow-200" role="status">Couldn\u2019t build: {build.message}</span>}

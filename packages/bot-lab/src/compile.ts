@@ -7,8 +7,9 @@ export type CompileResult =
     | { ok: true; hex: string; size: number; warnings: CompileMessage[] }
     | { ok: false; errors: CompileMessage[]; log?: string };
 
-/** Builds a sketch for the Uno. Rejects only when the build couldn't be attempted (offline, rate-limited…). */
-export type Compiler = (sketch: string) => Promise<CompileResult>;
+/** Builds a sketch for the Uno. Rejects only when the build couldn't be attempted (offline, rate-limited…).
+ *  Slow builds (a queued GitHub Actions run) report progress through `onStatus`. */
+export type Compiler = (sketch: string, options?: { onStatus?(text: string): void }) => Promise<CompileResult>;
 
 /** The Uno's flash, minus the bootloader */
 export const UNO_FLASH = 32_256;

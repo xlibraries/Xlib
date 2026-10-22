@@ -1,6 +1,7 @@
 """Bot Lab's Arduino compile service: POST a sketch, get the Uno's Intel HEX or the compiler's errors with lines.
 
-Runs in the arduino-compiler image (a Hugging Face Docker Space). Standard library only.
+Runs in the arduino-compiler image: as an HTTP service (local development), or once per build with `compile-stdin`
+(GitHub Actions, see the README). Standard library only.
 
     POST /compile   Authorization: Bearer <COMPILER_SECRET>   {"sketch": "...", "board": "uno"}
         200 {"ok": true, "hex": "...", "size": 924, "warnings": [...]}
@@ -12,7 +13,7 @@ The compiler's messages quote source lines, so a sketch that #includes a file wo
 secret out of reach: includes of absolute paths or paths with .. are refused before compiling; the compiler gets an
 empty environment; and this process marks itself non-dumpable, which makes its /proc files (environ included)
 readable only by root. Where the container runs as root (Docker locally), compiles also drop to the
-unprivileged `builder` user; on Hugging Face Spaces the container already runs as that user (uid 1000).
+unprivileged `builder` user; a container started as uid 1000 already runs as that user.
 """
 import hmac
 import json
@@ -21,6 +22,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -85,6 +87,7 @@ def parse_messages(log: str) -> list[dict]:
 
 def clean_log(log: str, job: str) -> str:
     """The compiler's output without the job's temporary paths (and short enough to send)."""
+    log = re.sub(r"\x1b\[[0-9;]*m", "", log)       # arduino-cli colours its summary
     log = log.replace(os.path.join(job, SKETCH) + os.sep, "").replace(job + os.sep, "")
     return log[-8000:]
 
@@ -207,5 +210,21 @@ def main():
     ThreadingHTTPServer(("", port), Handler).serve_forever()
 
 
+def compile_stdin(stdin=sys.stdin, stdout=sys.stdout) -> int:
+    """One build without HTTP (GitHub Actions runs the image like this): {"sketch", "board"} on stdin, the response
+    body on stdout. A refused request is reported the same way, as {"ok": false, "errors": [...]}, so the caller
+    always has JSON to hand back."""
+    try:
+        sketch, fqbn = parse_request(stdin.buffer.read() if hasattr(stdin, "buffer") else stdin.read().encode())
+        body = compile_sketch(sketch, fqbn)
+    except BadRequest as e:
+        body = {"ok": False, "errors": [{"line": 0, "column": 0, "severity": "error", "message": str(e)}], "log": ""}
+    stdout.write(json.dumps(body))
+    stdout.flush()
+    return 0
+
+
 if __name__ == "__main__":
+    if sys.argv[1:] == ["compile-stdin"]:
+        raise SystemExit(compile_stdin())
     main()

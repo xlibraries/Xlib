@@ -1,56 +1,56 @@
 # arduino-compiler
 
 Bot Lab's Arduino compiler: `arduino-cli` 1.2.2 with the `arduino:avr` 1.8.6 core and the Servo library, in a
-container that serves builds over HTTP on a Hugging Face Space and also compiles the committed templates.
+container that builds visitors' sketches (one GitHub Actions run per build, or an HTTP service for local development)
+and compiles the committed templates.
 
-## The service
+## Live builds on GitHub Actions
 
-`server.py` (standard library only), started when the image runs with no arguments:
+Visitors' builds run on GitHub Actions, which costs nothing for this public repo and needs no other host:
+
+1. `POST /api/bot-lab/compile` (`apps/web/lib/bot-lab-compile.ts`) checks the sketch, answers from the cache when the
+   same text was built before, and otherwise stores the sketch in Redis under a random job id for a few minutes.
+   It then starts `.github/workflows/bot-lab-compile.yml` with that id, using `BOT_LAB_GITHUB_TOKEN`, a token that
+   can only run workflows.
+2. The run fetches the sketch from `/api/bot-lab/compile-job` with `BOT_LAB_JOB_SECRET`, compiles it with this image
+   (`server.py compile-stdin`, with no network), and posts the result back. It prints nothing about the sketch,
+   because Actions logs are public, and GitHub never receives the sketch in the run's inputs.
+3. The browser polls `GET /api/bot-lab/compile?job=…` and shows the progress. A build takes about a minute, most of it
+   waiting for a runner and pulling the image.
+
+`.github/workflows/arduino-compiler.yml` publishes the image to `ghcr.io/xlibraries/arduino-compiler` whenever this
+folder changes on `master`. Builds are limited per visitor and overall, and are cached by sketch for a week. Until the
+site has `BOT_LAB_GITHUB_TOKEN` and `BOT_LAB_JOB_SECRET`, the editor hides Build and the Uno runs the templates' builds.
+
+One-time setup: `gh auth switch --user xlibraries && services/arduino-compiler/setup-actions.sh`. It stores the job
+secret and the site's address in the repo, publishes the image if needed, and lists the two values for Vercel.
+
+## The HTTP service (local development)
+
+`server.py`, started when the image runs with no arguments, serves builds directly:
 
 - `POST /compile` with `Authorization: Bearer $COMPILER_SECRET` and `{"sketch": "...", "board": "uno"}` returns
   `{"ok": true, "hex", "size", "warnings"}` or `{"ok": false, "errors": [{line, column, severity, message}], "log"}`.
 - `GET /healthz` returns `{"ok": true}`.
-- Sketches are limited to 64 KB and 45 s of compiling, two builds at a time per instance.
-- Compiler messages quote source, so a sketch that `#include`s a file would echo it. Three guards keep the secret
-  out of reach: includes of absolute or `..` paths are refused up front, the compiler gets an empty environment, and
-  the server makes itself non-dumpable, so its `/proc/<pid>/environ` is root-only. Hugging Face runs the container
-  as uid 1000 (the image's `builder` user). Where it runs as root (Docker locally), compiles also drop to `builder`.
-  A computed `#include` of `/proc/1/environ` gets "Permission denied" either way.
-- The Arduino core is precompiled into the image, so a fresh instance builds a sketch in well under a second.
-
-The site never exposes the secret. Browsers call `/api/bot-lab/compile` (`apps/web/lib/bot-lab-compile.ts`), which
-rate-limits per visitor, caches builds by sketch in Redis, and forwards here with `BOT_LAB_COMPILER_URL` and
-`BOT_LAB_COMPILER_SECRET`.
-
-Tests: `pnpm --filter @xlibraries/arduino-compiler test` (part of `pnpm verify`; a fake `arduino-cli` stands in, so
-no toolchain is needed). Try the real thing locally:
 
 ```sh
 docker build -t xlib-arduino-compiler services/arduino-compiler
 docker run --rm -p 8080:8080 --user 1000 -e COMPILER_SECRET=dev xlib-arduino-compiler
-curl -s localhost:8080/compile -H 'Authorization: Bearer dev' -d '{"sketch":"void setup(){}\nvoid loop(){}"}'
+BOT_LAB_COMPILER_URL=http://localhost:8080 BOT_LAB_COMPILER_SECRET=dev pnpm dev
 ```
 
-Point a local site at it with `BOT_LAB_COMPILER_URL=http://localhost:8080 BOT_LAB_COMPILER_SECRET=dev pnpm dev`.
+## Both modes
 
-## Deploying (Hugging Face Spaces)
+- Sketches are limited to 64 KB and 45 s of compiling. The Arduino core is precompiled into the image, so a sketch
+  builds in well under a second once the image is running.
+- Compiler messages quote source, so a sketch that `#include`s a file would echo it. Includes of absolute or `..`
+  paths are refused up front, and the compiler gets an empty environment. As root, compiles drop to the `builder`
+  user (uid 1000). The HTTP server also makes itself non-dumpable, so its environment, where the secret lives, is
+  root-only. A computed `#include` of `/proc/1/environ` gets "Permission denied". On Actions, the container holds no
+  secrets at all and has no network.
 
-The service runs as a public Docker Space, on the free CPU tier (2 vCPU, 16 GB). Its `/compile` needs the secret, and
-the code is public in this repo anyway. A free Space sleeps after 48 hours without requests, and the next build wakes
-it in about a minute; the site tells visitors so.
-
-`deploy-hf.sh` pushes the image's files to the Space, with a generated Space card (`sdk: docker`, `app_port: 8080`),
-then waits until it runs and answers. `.github/workflows/arduino-compiler.yml` runs it whenever this folder changes on
-`master`, using the `HF_TOKEN` secret and `HF_SPACE` variable.
-
-One-time setup, with your **personal** Hugging Face account (the script refuses a flamapp.com one):
-
-1. On huggingface.co: Settings → Access Tokens → create a token of type **Write**.
-2. `gh auth switch --user xlibraries`
-3. `services/arduino-compiler/setup-hf.sh` (asks for the token; the Space is named `bot-lab-compiler` unless you pass a name)
-
-It creates the Space with a random `COMPILER_SECRET`, stores the token and Space name in the GitHub repo, does the
-first deploy, and prints `BOT_LAB_COMPILER_URL` and `BOT_LAB_COMPILER_SECRET` for Vercel.
+Tests: `pnpm --filter @xlibraries/arduino-compiler test`, part of `pnpm verify`. A fake `arduino-cli` stands in, so
+no toolchain is needed.
 
 ## The templates
 

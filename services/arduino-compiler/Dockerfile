@@ -1,6 +1,7 @@
 # The Arduino compiler Bot Lab uses: arduino-cli with the AVR core and the libraries the templates need, pinned.
 # Two modes (entrypoint.sh):
-# - no arguments: the compile service (server.py) on $PORT, as deployed to the Hugging Face Space; needs COMPILER_SECRET
+# - no arguments: the compile service (server.py) on $PORT, for local development; needs COMPILER_SECRET
+# - `--entrypoint python3 … /opt/service/server.py compile-stdin`: one build, JSON in and out (GitHub Actions)
 # - a sketch name: compiles /sketch/<name>/<name>.ino for the Uno and prints the Intel HEX on stdout, e.g.
 #   docker build -t xlib-arduino-compiler . && docker run --rm -v "$PWD/sketch:/sketch" xlib-arduino-compiler blink
 FROM debian:bookworm-slim
@@ -13,7 +14,6 @@ ENV ARDUINO_DIRECTORIES_DATA=/opt/arduino ARDUINO_DIRECTORIES_DOWNLOADS=/opt/ard
 RUN arduino-cli config init --overwrite && arduino-cli core update-index && arduino-cli core install arduino:avr@${AVR_CORE} \
     && arduino-cli lib install Servo@1.2.2 && rm -rf /opt/arduino/staging
 # Visitors' sketches compile as this user: it can't read the service's environment or its files
-# (uid 1000: Hugging Face Spaces runs the whole container as uid 1000, so there it is the service's user too)
 RUN useradd --uid 1000 --no-create-home --shell /usr/sbin/nologin builder \
     && mkdir -p /opt/arduino/build-cache /opt/arduino/staging && chown -R builder /opt/arduino/build-cache /opt/arduino/staging
 COPY compile.sh /usr/local/bin/compile
