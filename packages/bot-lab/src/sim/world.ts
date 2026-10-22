@@ -5,6 +5,7 @@
 import type { Bench } from './bench';
 import type { WorldSpec } from './project';
 import { reflectance } from './track';
+import { LapTracker, type LapState } from './laps';
 
 /** The headless module's exports (Emscripten) */
 export interface WorldModule {
@@ -32,6 +33,7 @@ export interface RobotPose {
     caster: number[];
     /** Line sensors' spots on the floor, [x, z] */
     sensors: [number, number][];
+    laps: LapState;
 }
 
 export class RobotWorld {
@@ -42,6 +44,7 @@ export class RobotWorld {
     private sumRight = 0;
     private readonly left;
     private readonly right;
+    readonly laps: LapTracker;
 
     constructor(private readonly m: WorldModule, private readonly bench: Bench, readonly spec: WorldSpec) {
         const motor = (id: string) => {
@@ -50,6 +53,7 @@ export class RobotWorld {
             found.attached = true;
             return found;
         };
+        this.laps = new LapTracker(spec.track);
         this.left = motor(spec.robot.left);
         this.right = motor(spec.robot.right);
         this.scratch = m._malloc(4 * 32);
@@ -84,6 +88,7 @@ export class RobotWorld {
         this.left.omega = this.state[24];
         this.right.omega = this.state[25];
         this.sense();
+        this.laps.update(this.state[0], this.state[2], this.bench.time);
     }
 
     /** Where a robot-frame point (x forward, z right) is over the floor */
@@ -103,7 +108,7 @@ export class RobotWorld {
     /** The robot's poses for drawing */
     pose(): RobotPose {
         const s = Array.from(this.state);
-        return { chassis: s.slice(0, 7), left: s.slice(7, 14), right: s.slice(14, 21), caster: s.slice(21, 24), sensors: this.spec.robot.sensors.map(m => this.point(m.x, m.z)) };
+        return { chassis: s.slice(0, 7), left: s.slice(7, 14), right: s.slice(14, 21), caster: s.slice(21, 24), sensors: this.spec.robot.sensors.map(m => this.point(m.x, m.z)), laps: { ...this.laps.state } };
     }
 
     /** Heading, radians (0 = facing +x), from the chassis's rotation */

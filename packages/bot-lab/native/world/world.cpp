@@ -53,6 +53,7 @@ extern "C" {
 /** A fresh world: a 20 m square floor whose top is y = 0. */
 EMSCRIPTEN_KEEPALIVE void bl_reset() {
     world = World::create(9.81f);
+    world->set_tolerances(0.0005f, 0.005f);   // millimetres: the robot's wheels are 32 mm
     world->add_box(Motion::Static, {0, -0.05f, 0}, {}, {10, 0.05f, 10}, 0, {1.0f, 0.0f});
     has_robot = false;
 }

@@ -127,7 +127,9 @@ the TCRT5000's outputs follow the surface under it. A project with a `world` put
 (C++ on the engine's Jolt, built headless into `dist/world/`) is the physics, and `sim/world.ts` couples it to the
 bench every two steps (the wheel motors' torques in, the wheels' speeds out as their shaft speeds; line sensors read
 `sim/track.ts`'s line under them). The worker loads it from `/vendor/bot-lab/world/` for any board, and snapshots carry
-the robot's poses for the World view. `i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's
+the robot's poses for the World view, with `sim/laps.ts`'s lap state (the line-follower challenge). Stopped, the World
+view edits the track and the robot's start; the Parts tab's Robot panel picks the wheel motors and mounts the sensors.
+`i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's
 TWI) reaches the powered devices wired to it (TMP102, ADS1115, MPU-6050, following their register maps).
 `project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links; `boardOf` says which
 board the code runs on. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.

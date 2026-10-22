@@ -3,6 +3,7 @@ import { Bench } from '../src/sim/bench';
 import { addPart, connect, emptyProject, parseProject, type Project } from '../src/sim/project';
 import { ROBOT, RobotWorld, type WorldModule } from '../src/sim/world';
 import { template } from '../src/templates';
+import { LapTracker } from '../src/sim/laps';
 import { distanceToLine, reflectance, ovalTrack, type Track } from '../src/sim/track';
 
 let createWorld: () => Promise<WorldModule>;
@@ -111,5 +112,26 @@ describe('the Robot template', () => {
         expect(Math.abs(world.heading())).toBeGreaterThan(0.6);       // then it turned
         expect(bench.board!.serial.slice(0, 2)).toEqual(['forward', 'turn']);
     }, 60_000);
+});
+
+describe('the line follower', () => {
+    it('steers round the oval on its two sensors and completes a timed lap without leaving the track', async () => {
+        const project = template('line_follower')!.build();
+        const bench = new Bench(project);
+        const world = new RobotWorld(await createWorld(), bench, project.world!);
+        const laps = new LapTracker(project.world!.track);
+        let wasOff = false;
+        for (let t = 0; t < 14 && laps.state.laps < 1; t += 0.05) {
+            bench.run(0.05);
+            const [x, , z] = world.pose().chassis;
+            laps.update(x, z, bench.time);
+            wasOff ||= laps.state.offTrack;
+        }
+        expect(laps.state.laps).toBe(1);
+        expect(laps.state.best).toBeGreaterThan(6);
+        expect(laps.state.best).toBeLessThan(13);
+        expect(wasOff).toBe(false);
+        expect(world.pose().left[1]).toBeGreaterThan(0.0315);   // on its wheels' rims (within a millimetre), not sunk into the floor
+    }, 120_000);
 });
 

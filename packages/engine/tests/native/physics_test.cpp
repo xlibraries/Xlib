@@ -144,3 +144,34 @@ TEST_CASE("physics: quaternion helpers") {
     CHECK(e.z == doctest::Approx(-1));
     CHECK(axis_angle({ 0, 0, 0 }, 1).w == 1);
 }
+
+TEST_CASE("physics: small things want small tolerances; a driven 32 mm wheel stays on its rim") {
+    // a wheel on a hinge to a box, driven by torque at a small robot's step size: with the default 2 cm slop it settles
+    // most of its radius into the floor; with millimetre tolerances it rolls on its rim
+    const auto drive = [](bool fine) {
+        auto w = World::create();
+        if (fine) w->set_tolerances(0.0005f, 0.005f);
+        w->add_box(Motion::Static, { 0, -0.05f, 0 }, {}, { 5, 0.05f, 5 }, 0, { 1, 0 });
+        const Body chassis = w->add_box(Motion::Dynamic, { 0, 0.045f, 0 }, {}, { 0.08f, 0.015f, 0.05f }, 0.4f);
+        const Body wheel = w->add_cylinder(Motion::Dynamic, { 0.03f, 0.0325f, -0.07f }, axis_angle({ 1, 0, 0 }, 1.5707963f), 0.013f, 0.0325f, 0.03f, { 1, 0 });
+        const Body other = w->add_cylinder(Motion::Dynamic, { 0.03f, 0.0325f, 0.07f }, axis_angle({ 1, 0, 0 }, 1.5707963f), 0.013f, 0.0325f, 0.03f, { 1, 0 });
+        const Body caster = w->add_sphere(Motion::Dynamic, { -0.06f, 0.012f, 0 }, 0.012f, 0.02f, { 0, 0 });
+        w->add_hinge(chassis, wheel, { { 0.03f, 0.0325f, -0.07f }, { 0, 0, -1 } });
+        w->add_hinge(chassis, other, { { 0.03f, 0.0325f, 0.07f }, { 0, 0, -1 } });
+        w->add_fixed(chassis, caster);
+        for (int i = 0; i < 2400 * 2; i++) {
+            w->apply_torque(wheel, { 0, 0, -0.05f });
+            w->apply_torque(other, { 0, 0, -0.05f });
+            w->apply_torque(chassis, { 0, 0, 0.1f });
+            w->step(1.0f / 2400);
+        }
+        return std::pair{ w->pose(wheel).position.y, w->pose(chassis).position.x };
+    };
+    const auto [coarse_y, coarse_x] = drive(false);
+    const auto [fine_y, fine_x] = drive(true);
+    CHECK(fine_y == doctest::Approx(0.0325f).epsilon(0.03));   // within a millimetre of its radius
+    CHECK(fine_x > 0.3f);                                       // and it rolled forwards
+    CHECK(coarse_y < 0.03f);                                    // the default lets it sink
+    (void)coarse_x;
+}
+

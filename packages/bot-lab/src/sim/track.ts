@@ -46,3 +46,14 @@ export function ovalTrack(straight = 0.8, radius = 0.35, width = 0.019, segments
     for (let i = 0; i <= segments; i++) { const a = Math.PI / 2 + Math.PI * i / segments; points.push([-half + radius * Math.cos(a), radius * Math.sin(a)]); }
     return { width, points, closed: true };
 }
+
+/** A figure of eight (a lemniscate): the line crosses itself in the middle, where a follower should go straight on. */
+export function figureEightTrack(size = 0.7, width = 0.019, segments = 64): Track {
+    const points: [number, number][] = [];
+    for (let i = 0; i < segments; i++) {
+        const t = (i / segments) * 2 * Math.PI, d = 1 + Math.sin(t) ** 2;
+        points.push([size * Math.cos(t) / d, size * Math.sin(t) * Math.cos(t) / d]);
+    }
+    return { width, points, closed: true };
+}
+

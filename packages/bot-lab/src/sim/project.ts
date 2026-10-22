@@ -44,6 +44,8 @@ export interface WorldSpec {
         heading: number;
     };
     track: Track;
+    /** The best lap so far on this track, seconds */
+    best?: number;
 }
 
 export interface Project {
@@ -147,6 +149,7 @@ function parseWorld(w: Record<string, unknown>, project: Project): WorldSpec | n
     return {
         robot: { left: robot.left as string, right: robot.right as string, sensors, x: finite(robot.x, 0, 10), z: finite(robot.z, 0, 10), heading: finite(robot.heading, 0, 7) },
         track: { width: Math.max(0.005, Math.min(0.1, finite(track.width, 0.019))), points, closed: track.closed === true },
+        ...(typeof w.best === 'number' && Number.isFinite(w.best) && w.best > 0 ? { best: w.best } : {}),
     };
 }
 
