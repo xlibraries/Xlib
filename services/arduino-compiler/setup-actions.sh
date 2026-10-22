@@ -19,7 +19,8 @@ gh secret set BOT_LAB_JOB_SECRET --repo "$REPO_SLUG" --body "$SECRET"
 gh variable set BOT_LAB_SITE --repo "$REPO_SLUG" --body "$SITE"
 echo "✓ BOT_LAB_JOB_SECRET and BOT_LAB_SITE ($SITE) stored in $REPO_SLUG"
 
-if gh api "/users/xlibraries/packages/container/arduino-compiler" >/dev/null 2>&1; then
+# published = the publish workflow has succeeded at least once (reading packages needs a scope gh logins rarely have)
+if [ "$(gh run list --repo "$REPO_SLUG" --workflow arduino-compiler.yml --status success --limit 1 --json databaseId --jq length)" != 0 ]; then
     echo "✓ the compiler image is published"
 else
     gh workflow run arduino-compiler --repo "$REPO_SLUG" && echo "… publishing the compiler image (about 5 minutes): gh run watch --repo $REPO_SLUG"
