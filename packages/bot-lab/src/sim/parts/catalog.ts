@@ -44,6 +44,10 @@ export const UNO_ANALOG = Array.from({ length: 6 }, (_, i) => `A${i}`);
 /** The Raspberry Pi header pins Bot Lab wires (BCM numbers), left column then right. */
 export const PI_PINS = [2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21];
 
+/** The Pico's header GPIOs, left side then right */
+export const PICO_LEFT = Array.from({ length: 16 }, (_, i) => i);
+export const PICO_RIGHT = [16, 17, 18, 19, 20, 21, 22, 26, 27, 28];
+
 export const CATALOG: Record<string, PartSpec> = {
     uno: {
         kind: 'uno', title: 'Arduino Uno', group: 'board', width: 14, height: 12,
@@ -64,6 +68,17 @@ export const CATALOG: Record<string, PartSpec> = {
             ...side(PI_PINS.slice(13).map(n => `GPIO${n}`), PI_PINS.slice(13).map(() => 'digital' as PinKind), 1, 0.3, 0.95),
             { id: '3V3', label: '3.3V', kind: 'power', x: 0, y: 0.08 }, { id: '5V', label: '5V', kind: 'power', x: 1, y: 0.08 },
             { id: 'GND', label: 'GND', kind: 'ground', x: 0, y: 0.18 }, { id: 'GND2', label: 'GND', kind: 'ground', x: 1, y: 0.18 },
+        ],
+        props: {},
+    },
+    pico: {
+        kind: 'pico', title: 'Raspberry Pi Pico', group: 'board', width: 10, height: 16,
+        description: 'An RP2040 at 125 MHz running MicroPython (the official firmware): machine.Pin, PWM, ADC on GP26–GP28, I²C, the LED on the board, and a REPL in the terminal. 3.3 V logic.',
+        pins: [
+            ...side(PICO_LEFT.map(n => `GP${n}`), PICO_LEFT.map(() => 'digital' as PinKind), 0, 0.12, 0.95),
+            ...side(PICO_RIGHT.map(n => `GP${n}`), PICO_RIGHT.map(n => (n >= 26 ? 'analog' : 'digital') as PinKind), 1, 0.32, 0.95),
+            { id: 'VSYS', label: 'VSYS', kind: 'power', x: 1, y: 0.06 }, { id: '3V3', label: '3V3', kind: 'power', x: 1, y: 0.14 },
+            { id: 'GND', label: 'GND', kind: 'ground', x: 1, y: 0.22 }, { id: 'GND2', label: 'GND', kind: 'ground', x: 0, y: 0.04 },
         ],
         props: {},
     },

@@ -39,4 +39,7 @@ export interface Snapshot {
 export type WorkerToApp = Snapshot | { type: 'error'; message: string };
 
 export const PYODIDE_PATH = '/vendor/pyodide';
+/** The Pico's boot ROM (float library removed) and MicroPython image, copied from packages/bot-lab/firmware */
+export const PICO_PATH = '/vendor/pico';
+export const PICO_FILES = { bootrom: 'rp2040-bootrom-b1-nofp.bin', uf2: 'micropython-rpi-pico-v1.29.0.uf2' };
 export const SNAPSHOT_HZ = 30;

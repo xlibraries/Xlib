@@ -664,6 +664,30 @@ test.describe('Bot Lab', () => {
         await expect(lab.getByTestId('serial')).toContainText('temperature: 30.00 C', { timeout: 10_000 });
     });
 
+    test('the Pico runs MicroPython: Blink blinks, Ctrl+C interrupts it, and its REPL answers', async ({ page }) => {
+        test.slow();   // the firmware (about 700 KB) loads, MicroPython boots on the emulated RP2040
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Blink \(Pico/ }).click();
+        await expect(lab.locator('[data-part="pico1"]')).toBeVisible();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const led = () => lab.locator('[data-part="led1"]').evaluate(el => Number((el as HTMLElement).dataset.brightness ?? 0));
+        const boardLed = () => lab.locator('[data-part="pico1"] [data-led]').getAttribute('data-led');
+        await expect.poll(led, { timeout: 60_000, intervals: [50] }).toBeGreaterThan(0.5);
+        await expect.poll(led, { timeout: 10_000, intervals: [50] }).toBeLessThan(0.1);
+        await expect.poll(boardLed, { timeout: 10_000, intervals: [50] }).toBe('on');
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        const term = lab.getByLabel('Terminal'), screen = lab.getByTestId('serial');
+        await term.press('Control+c');
+        await expect(screen).toContainText('KeyboardInterrupt', { timeout: 10_000 });
+        await expect(screen).toContainText('>>>');
+        await term.fill('print(6 * 7)');
+        await term.press('Enter');
+        await expect(screen).toContainText(/\n42(\n|$)/, { timeout: 10_000 });
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        await expect(lab.getByRole('button', { name: '▶ Run' })).toBeVisible();
+    });
+
     test('the Raspberry Pi Button template: a press reaches the script while it sits in pause()', async ({ page }) => {
         test.slow();
         await openDesktop(page);

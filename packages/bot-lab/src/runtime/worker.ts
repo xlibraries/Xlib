@@ -4,7 +4,8 @@
 // synchronously with busy-wait pacing, and the app restarts the worker to stop it.
 import { Bench, TICK } from '../sim/bench';
 import { parseProject, type Project } from '../sim/project';
-import { PYODIDE_PATH, SNAPSHOT_HZ, type Command, type Snapshot, type WorkerToApp } from './protocol';
+import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, type Command, type Snapshot, type WorkerToApp } from './protocol';
+import type { PicoFirmware } from '../sim/boards/pico';
 import { PiRuntime, canSuspend, type PyodideLike } from './pi';
 import { PY_MORE, PY_PROMPT, SHELL_PROMPT, shell } from './terminal';
 
@@ -21,6 +22,9 @@ let responsive = true;
 const piConsole: string[] = [];
 /** The Pi terminal: a shell, or the Python prompt (a session on a live bench) */
 let python: { runtime: PiRuntime; more: boolean; queue: Promise<void> } | null = null;
+let picoFirmware: Promise<PicoFirmware> | null = null;
+/** The Pico's script: sent once its USB serial is up */
+let picoScript: { started: boolean } | null = null;
 
 const post = (message: WorkerToApp) => self.postMessage(message);
 
@@ -32,7 +36,9 @@ function snapshot(extra: Partial<Snapshot> = {}): Snapshot {
         for (const part of project.parts) states[part.id] = bench.state(part.id);
         for (const key of bench.nodeOf.keys()) { const [part, pin] = key.split('.'); volts[key] = bench.volts({ part, pin }); }
     }
-    return { type: 'snapshot', time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: piConsole.slice(-200), warnings: bench?.warnings ?? [], finished, responsive, prompt: prompt(), ...extra };
+    const pico = bench?.pico;
+    const consoleLines = pico && running ? [...pico.console.slice(-200), ...(pico.partial ? [pico.partial] : [])] : piConsole.slice(-200);
+    return { type: 'snapshot', time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: consoleLines, warnings: bench?.warnings ?? [], finished, responsive, prompt: prompt(), ...extra };
 }
 
 let lastSnapshot = 0;
@@ -43,6 +49,7 @@ function snapshotIfDue(force = false) {
 
 /** What the terminal shows before the cursor: nothing while a script runs. */
 function prompt(): string | undefined {
+    if (project?.code.board === 'pico') return '';            // MicroPython prints its own >>>
     if (python) return python.more ? PY_MORE : PY_PROMPT;
     return running && script ? undefined : SHELL_PROMPT;
 }
@@ -52,6 +59,7 @@ function stop() {
     script?.stop();
     python?.runtime.stop();
     python = null;
+    picoScript = null;
     if (timer) { clearInterval(timer); timer = null; }
     snapshotIfDue(true);
 }
@@ -69,6 +77,7 @@ async function run() {
     finished = false;
     running = true;
     if (project.code.board === 'pi' && bench.pi) { await runPython(bench); return; }
+    if (project.code.board === 'pico' && project.parts.some(p => p.kind === 'pico')) { await runPico(); return; }
     startRealTime();
 }
 
@@ -115,6 +124,33 @@ async function runPython(b: Bench) {
     else snapshotIfDue(true);
 }
 
+/** The Pico: MicroPython boots on the bench, then the script goes in through the raw REPL. */
+async function runPico() {
+    post(snapshot({ loading: 'the Pico\u2019s firmware' }));
+    let firmware: PicoFirmware;
+    try { firmware = await loadPicoFirmware(); } catch (err) {
+        post({ type: 'error', message: `The Pico\u2019s firmware failed to load: ${(err as Error).message}` });
+        running = false; snapshotIfDue(true); return;
+    }
+    if (!running || !project) return;
+    bench = new Bench(structuredClone(project), { pico: firmware });
+    picoScript = { started: false };
+    startRealTime();
+}
+
+function loadPicoFirmware(): Promise<PicoFirmware> {
+    if (!picoFirmware) {
+        const get = async (name: string) => {
+            const res = await fetch(`${origin}${PICO_PATH}/${name}`);
+            if (!res.ok) throw new Error(`${name}: ${res.status}`);
+            return new Uint8Array(await res.arrayBuffer());
+        };
+        picoFirmware = Promise.all([get(PICO_FILES.bootrom), get(PICO_FILES.uf2)]).then(([bootrom, uf2]) => ({ bootrom, uf2 }));
+        picoFirmware.catch(() => { picoFirmware = null; });
+    }
+    return picoFirmware;
+}
+
 /** Real time: the bench advances with the clock, at most 50 ms per slice (a stalled tab mustn't fast-forward). */
 function startRealTime() {
     lastReal = performance.now();
@@ -124,12 +160,18 @@ function startRealTime() {
         const now = performance.now();
         bench.run(Math.min(0.05, (now - lastReal) / 1000));
         lastReal = now;
+        const pico = bench.pico;
+        if (pico && picoScript && !picoScript.started && pico.connected && project) {
+            picoScript.started = true;
+            void pico.exec(project.code.sketch).then(ok => { finished = ok; snapshotIfDue(true); });
+        }
         snapshotIfDue();
     }, 1000 * TICK * 40);   // ~8 ms
 }
 
 /** A line from the Pi's terminal. */
 function terminal(line: string) {
+    if (project?.code.board === 'pico') { picoTerminal(line); return; }
     if (!project || project.code.board !== 'pi') return;
     if (line === '\u0003') {                                   // Ctrl+C
         if (running) { print('^C'); stop(); }
@@ -147,6 +189,17 @@ function terminal(line: string) {
     snapshotIfDue(true);
     if (result.action === 'run') void run();
     else if (result.action === 'python') void startPython();
+}
+
+/** The Pico's terminal is MicroPython's own REPL on USB serial: keys go straight in. */
+function picoTerminal(line: string) {
+    const pico = running ? bench?.pico : null;
+    if (!pico) {
+        if (line !== '\u0003') { piConsole.push('(the Pico is off: \u25b6 Run powers it and runs the script; then this is its REPL)'); snapshotIfDue(true); }
+        return;
+    }
+    if (line === '\u0003') pico.interrupt();
+    else pico.write(`${line}\r`);
 }
 
 /** Opens the Python prompt on a fresh, running bench. */

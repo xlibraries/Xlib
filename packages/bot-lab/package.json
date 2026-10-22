@@ -11,6 +11,7 @@
   },
   "files": [
     "src",
+    "firmware",
     "templates",
     "scripts"
   ],
@@ -26,7 +27,8 @@
   "dependencies": {
     "@xlibraries/app-sdk": "workspace:^",
     "avr8js": "0.21.1",
-    "pyodide": "314.0.7"
+    "pyodide": "314.0.7",
+    "rp2040js": "1.4.0"
   },
   "peerDependencies": {
     "react": ">=18"

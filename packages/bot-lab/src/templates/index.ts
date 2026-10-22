@@ -181,7 +181,67 @@ with SMBus(1) as bus:
         sleep(0.25)
 `;
 
+const PICO_BLINK = `# Blink, on a Raspberry Pi Pico: the LED on the board and one on GP15 take turns.
+from machine import Pin
+import time
+
+board_led = Pin("LED", Pin.OUT)
+led = Pin(15, Pin.OUT)
+
+while True:
+    board_led.toggle()
+    led.value(not board_led.value())
+    time.sleep(0.5)
+`;
+
+const PICO_KNOB = `# A knob on GP26 (ADC0) sets the brightness of the LED on GP15 through PWM.
+from machine import Pin, PWM, ADC
+import time
+
+knob = ADC(26)
+led = PWM(Pin(15))
+led.freq(1000)
+
+while True:
+    reading = knob.read_u16()          # 0..65535
+    led.duty_u16(reading)
+    print("knob:", round(reading * 3.3 / 65535, 2), "V")
+    time.sleep(0.25)
+`;
+
+function picoProject(name: string, script: string): Project {
+    const p = emptyProject(name);
+    p.code = { board: 'pico', sketch: script, hex: '' };
+    addPart(p, 'pico', 4, 2);
+    return p;
+}
+
 TEMPLATES.push(
+    {
+        id: 'pico_blink', title: 'Blink (Pico, MicroPython)', blurb: 'machine.Pin on a Raspberry Pi Pico: the board\u2019s own LED and one on GP15.',
+        build() {
+            const p = picoProject('Blink (Pico)', PICO_BLINK);
+            const r = addPart(p, 'resistor', 20, 4), led = addPart(p, 'led', 28, 8);
+            connect(p, { part: 'pico1', pin: 'GP15' }, { part: r.id, pin: 'a' });
+            connect(p, { part: r.id, pin: 'b' }, { part: led.id, pin: 'a' });
+            connect(p, { part: led.id, pin: 'k' }, { part: 'pico1', pin: 'GND' });
+            return p;
+        },
+    },
+    {
+        id: 'pico_knob', title: 'Knob and PWM (Pico, MicroPython)', blurb: 'The Pico\u2019s ADC reads a knob on GP26; PWM dims an LED to match.',
+        build() {
+            const p = picoProject('Knob (Pico)', PICO_KNOB);
+            const k = addPart(p, 'potentiometer', 20, 14), r = addPart(p, 'resistor', 20, 4), led = addPart(p, 'led', 28, 8);
+            connect(p, { part: 'pico1', pin: '3V3' }, { part: k.id, pin: 'b' });
+            connect(p, { part: 'pico1', pin: 'GND' }, { part: k.id, pin: 'a' });
+            connect(p, { part: k.id, pin: 'w' }, { part: 'pico1', pin: 'GP26' });
+            connect(p, { part: 'pico1', pin: 'GP15' }, { part: r.id, pin: 'a' });
+            connect(p, { part: r.id, pin: 'b' }, { part: led.id, pin: 'a' });
+            connect(p, { part: led.id, pin: 'k' }, { part: 'pico1', pin: 'GND2' });
+            return p;
+        },
+    },
     {
         id: 'pi_blink', title: 'Blink (Raspberry Pi)', blurb: 'The same LED, driven by Python with gpiozero on a Raspberry Pi.',
         build() {
