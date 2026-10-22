@@ -459,9 +459,10 @@ test.describe('Bot Lab', () => {
         await expect(led).toBeVisible();
         await lab.getByRole('button', { name: '▶ Run' }).click();
         const brightness = () => led.evaluate(el => Number((el as HTMLElement).dataset.brightness ?? 0));
-        await expect.poll(brightness, { timeout: 5_000 }).toBeGreaterThan(0.5);
-        await expect.poll(brightness, { timeout: 5_000 }).toBeLessThan(0.1);
-        await expect.poll(brightness, { timeout: 5_000 }).toBeGreaterThan(0.5);
+        // sample fast: polling once a second against a once-a-second blink can keep landing on the same phase
+        await expect.poll(brightness, { timeout: 15_000, intervals: [50] }).toBeGreaterThan(0.5);
+        await expect.poll(brightness, { timeout: 15_000, intervals: [50] }).toBeLessThan(0.1);
+        await expect.poll(brightness, { timeout: 15_000, intervals: [50] }).toBeGreaterThan(0.5);
         // the multimeter: the pin 13 net sits at 5 V while the LED is lit, with the LED's drop across the resistor
         await lab.getByRole('tab', { name: 'monitor' }).click();
         const pinNet = lab.locator('[data-net*="uno1.D13"] [data-volts]');
