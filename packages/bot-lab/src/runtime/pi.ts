@@ -75,6 +75,10 @@ export class PiRuntime {
                 paced: () => live().paced,
                 run: (seconds: number) => live().run(seconds),
                 run_paced: (seconds: number) => live().runPaced(seconds),
+                // I²C bus 1: bytes cross as "1,2,3" strings (no proxies to leak); "!" means nothing answered (a JS
+                // null would reach Python as jsnull, not None)
+                i2c_xfer: (address: number, data: string, read: number) => live().i2c(address, data, read),
+                i2c_scan: () => (live().bench.piBus?.scan() ?? []).join(','),
             });
             this.py.FS.mkdirTree('/lib/botlab/RPi');
             for (const [path, source] of Object.entries(PYTHON_FILES)) this.py.FS.writeFile(`/lib/botlab/${path}`, source);
@@ -102,6 +106,31 @@ export class PiRuntime {
         return this.finish();
     }
 
+    /** Opens the Python prompt (a fresh namespace; earlier background jobs end). Lines then go to `pushLine`. */
+    startConsole() {
+        if (bridges.get(this.py)?.current !== this) this.install();
+        this.stopped = false;
+        this.paced = canSuspend();
+        this.py.runPython(CONSOLE);
+    }
+
+    /** One line at the Python prompt. `more` asks for a continuation line; `exited` means exit() was called (or Stop). */
+    async pushLine(line: string): Promise<{ more: boolean; exited: boolean }> {
+        this.stopped = false;
+        this.clock = { sim: this.bench.time, wall: this.now() };
+        (globalThis as { __botlab_line?: string }).__botlab_line = line;
+        const run = `__botlab_console_result = __botlab_console.push(__import__('js').__botlab_line)`;
+        try {
+            if (this.paced) await this.py.runPythonAsync(run); else this.py.runPython(run);
+        } catch (err) {
+            const message = String((err as Error).message ?? err);
+            if (message.includes('SystemExit') || message.includes(STOP_MARKER)) return { more: false, exited: true };
+            throw err;
+        }
+        const result = String(this.py.runPython('__botlab_console_result'));
+        return { more: result === 'more', exited: result === 'exit' || this.stopped };
+    }
+
     private prepare(script: string, paced: boolean) {
         if (bridges.get(this.py)?.current !== this) this.install();
         this.stopped = false;
@@ -111,6 +140,18 @@ export class PiRuntime {
 
     private finish(): boolean {
         return (this.py.runPython('__botlab_ok') as boolean) && !this.stopped;
+    }
+
+    /** One I²C transaction on the Pi's bus: write `data` (if any), then read `read` bytes (if any). */
+    i2c(address: number, data: string, read: number): string {
+        const bus = this.bench.piBus;
+        if (!bus) return '!';
+        const bytes = data ? data.split(',').map(Number) : [];
+        if (read > 0) {
+            const got = bytes.length ? bus.writeRead(address, bytes, read) : bus.read(address, read);
+            return got ? got.join(',') : '!';
+        }
+        return bus.write(address, bytes) ? '' : '!';
     }
 
     /** Ends a paced script at its next sleep slice (or as soon as its current wait ends). */
@@ -148,6 +189,30 @@ export class PiRuntime {
         this.checkStop();   // a Stop that arrived during the last wait
     }
 }
+
+// The Python prompt: an InteractiveConsole whose push() reports 'more', 'done' or 'exit'. A Stop ends the session
+// quietly instead of printing a traceback.
+const CONSOLE = `
+import code, sys, gpiozero
+gpiozero._scheduler.jobs.clear()
+class __BotlabConsole(code.InteractiveConsole):
+    def runcode(self, compiled):
+        try:
+            exec(compiled, self.locals)
+        except SystemExit:
+            raise
+        except BaseException as e:
+            if '${STOP_MARKER}' in str(e):
+                raise SystemExit()
+            self.showtraceback()
+    def push(self, line):
+        try:
+            return 'more' if code.InteractiveConsole.push(self, line) else 'done'
+        except SystemExit:
+            self.resetbuffer()
+            return 'exit'
+__botlab_console = __BotlabConsole({'__name__': '__main__'})
+`;
 
 // Runs /home/pi/main.py as __main__; a Stop ends it quietly, any other error prints its traceback
 const WRAPPER = `

@@ -2,7 +2,8 @@
 // (D0–D13, A0–A5). Each step the board runs its share of 16 MHz cycles; the bench reads what the pins did
 // (mode, level, PWM duty over the step, the last pulse width) and feeds back what the circuit put on its inputs
 // (digital levels, analog voltages). Serial output is collected as lines.
-import { ADCMuxInputType, AVRADC, AVRIOPort, AVRTimer, AVRUSART, CPU, PinState, adcConfig, avrInstruction, portBConfig, portCConfig, portDConfig, timer0Config, timer1Config, timer2Config, usart0Config } from 'avr8js';
+import { ADCMuxInputType, AVRADC, AVRIOPort, AVRTWI, AVRTimer, AVRUSART, CPU, PinState, adcConfig, avrInstruction, portBConfig, portCConfig, portDConfig, timer0Config, timer1Config, timer2Config, twiConfig, usart0Config, type TWIEventHandler } from 'avr8js';
+import type { I2CBus, I2CDevice } from '../i2c';
 import { parseHex } from './hex';
 
 export const UNO_CLOCK = 16_000_000;
@@ -40,6 +41,7 @@ export class Uno {
     readonly ports: Record<'B' | 'C' | 'D', AVRIOPort>;
     readonly usart: AVRUSART;
     readonly adc: AVRADC;
+    readonly twi: AVRTWI;
     /** Lines the sketch printed (Serial), newest last; `onSerial` sees each as it completes. */
     readonly serial: string[] = [];
     onSerial?: (line: string) => void;
@@ -54,6 +56,7 @@ export class Uno {
         this.ports = { B: new AVRIOPort(this.cpu, portBConfig), C: new AVRIOPort(this.cpu, portCConfig), D: new AVRIOPort(this.cpu, portDConfig) };
         this.usart = new AVRUSART(this.cpu, usart0Config, UNO_CLOCK);
         this.adc = new AVRADC(this.cpu, adcConfig);
+        this.twi = new AVRTWI(this.cpu, twiConfig, UNO_CLOCK);
         this.usart.onByteTransmit = (byte) => {
             const ch = String.fromCharCode(byte);
             if (ch === '\n') { const line = this.serialLine.replace(/\r$/, ''); this.serial.push(line); if (this.serial.length > 500) this.serial.shift(); this.serialLine = ''; this.onSerial?.(line); }
@@ -67,6 +70,20 @@ export class Uno {
     }
 
     /** Runs `cycles` more CPU cycles (16 000 000 per simulated second). */
+    /** Connects the Uno's I²C (Wire) to a bus: each START/address/byte/STOP completes at once. */
+    attachI2C(bus: () => I2CBus | null) {
+        const twi = this.twi;
+        let device: I2CDevice | undefined;
+        const handler: TWIEventHandler = {
+            start: () => twi.completeStart(),
+            stop: () => { device?.end(); device = undefined; twi.completeStop(); },
+            connectToSlave: (addr, write) => { device = bus()?.find(addr); device?.begin(write); twi.completeConnect(!!device); },
+            writeByte: (value) => twi.completeWrite(device ? device.write(value) : false),
+            readByte: () => twi.completeRead(device ? device.read() : 0xff),
+        };
+        twi.eventHandler = handler;
+    }
+
     run(cycles: number) {
         this.stepStart = this.cpu.cycles;
         for (const s of this.state) { s.highCycles = 0; s.since = this.cpu.cycles; }

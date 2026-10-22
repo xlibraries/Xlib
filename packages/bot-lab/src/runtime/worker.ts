@@ -6,6 +6,7 @@ import { Bench, TICK } from '../sim/bench';
 import { parseProject, type Project } from '../sim/project';
 import { PYODIDE_PATH, SNAPSHOT_HZ, type Command, type Snapshot, type WorkerToApp } from './protocol';
 import { PiRuntime, canSuspend, type PyodideLike } from './pi';
+import { PY_MORE, PY_PROMPT, SHELL_PROMPT, shell } from './terminal';
 
 let origin = '';
 let bench: Bench | null = null;
@@ -18,6 +19,8 @@ let script: PiRuntime | null = null;
 let finished = false;
 let responsive = true;
 const piConsole: string[] = [];
+/** The Pi terminal: a shell, or the Python prompt (a session on a live bench) */
+let python: { runtime: PiRuntime; more: boolean; queue: Promise<void> } | null = null;
 
 const post = (message: WorkerToApp) => self.postMessage(message);
 
@@ -29,7 +32,7 @@ function snapshot(extra: Partial<Snapshot> = {}): Snapshot {
         for (const part of project.parts) states[part.id] = bench.state(part.id);
         for (const key of bench.nodeOf.keys()) { const [part, pin] = key.split('.'); volts[key] = bench.volts({ part, pin }); }
     }
-    return { type: 'snapshot', time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: piConsole.slice(-200), warnings: bench?.warnings ?? [], finished, responsive, ...extra };
+    return { type: 'snapshot', time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: piConsole.slice(-200), warnings: bench?.warnings ?? [], finished, responsive, prompt: prompt(), ...extra };
 }
 
 let lastSnapshot = 0;
@@ -38,9 +41,17 @@ function snapshotIfDue(force = false) {
     if (force || now - lastSnapshot >= 1000 / SNAPSHOT_HZ) { lastSnapshot = now; post(snapshot()); }
 }
 
+/** What the terminal shows before the cursor: nothing while a script runs. */
+function prompt(): string | undefined {
+    if (python) return python.more ? PY_MORE : PY_PROMPT;
+    return running && script ? undefined : SHELL_PROMPT;
+}
+
 function stop() {
     running = false;
     script?.stop();
+    python?.runtime.stop();
+    python = null;
     if (timer) { clearInterval(timer); timer = null; }
     snapshotIfDue(true);
 }
@@ -50,7 +61,9 @@ function print(text: string) {
 }
 
 async function run() {
-    if (!project || running) return;
+    if (!project) return;
+    if (python) stop();
+    if (running) return;
     bench = new Bench(structuredClone(project));
     piConsole.length = 0;
     finished = false;
@@ -115,6 +128,62 @@ function startRealTime() {
     }, 1000 * TICK * 40);   // ~8 ms
 }
 
+/** A line from the Pi's terminal. */
+function terminal(line: string) {
+    if (!project || project.code.board !== 'pi') return;
+    if (line === '\u0003') {                                   // Ctrl+C
+        if (running) { print('^C'); stop(); }
+        return;
+    }
+    if (running && script) { print('(a script is running: Ctrl+C or \u25a0 Stop ends it)'); snapshotIfDue(true); return; }
+    if (python) { pythonLine(python, line); return; }
+    print(`${SHELL_PROMPT}${line}`);
+    if (!bench) bench = new Bench(structuredClone(project));
+    if (!running) bench.run(TICK * 2);                          // a solved net: the bus knows who's powered
+    const b = bench;
+    const result = shell(line, { script: project.code.sketch, scan: () => b.piBus?.scan() ?? [] });
+    for (const out of result.output) piConsole.push(out);
+    if (result.action === 'clear') piConsole.length = 0;
+    snapshotIfDue(true);
+    if (result.action === 'run') void run();
+    else if (result.action === 'python') void startPython();
+}
+
+/** Opens the Python prompt on a fresh, running bench. */
+async function startPython() {
+    if (!project) return;
+    post(snapshot({ loading: 'Python' }));
+    let py: PyodideLike;
+    try { py = await loadPython(); } catch (err) { post({ type: 'error', message: `Python failed to load: ${(err as Error).message}` }); return; }
+    bench = new Bench(structuredClone(project));
+    finished = false;
+    running = true;
+    const b = bench;
+    const runtime = new PiRuntime(py, b, { onOutput: print, shouldStop: () => !running || bench !== b, onStep: () => snapshotIfDue() });
+    runtime.install();
+    runtime.startConsole();
+    python = { runtime, more: false, queue: Promise.resolve() };
+    startRealTime();
+    snapshotIfDue(true);
+}
+
+/** Lines at the Python prompt run one after another; the bench keeps time between them. */
+function pythonLine(session: NonNullable<typeof python>, line: string) {
+    print(`${session.more ? PY_MORE : PY_PROMPT}${line}`);
+    snapshotIfDue(true);
+    session.queue = session.queue.then(async () => {
+        if (python !== session) return;
+        if (timer) { clearInterval(timer); timer = null; }        // the line's sleeps advance the bench now
+        let result = { more: false, exited: true };
+        try { result = await session.runtime.pushLine(line); } catch (err) { print(`runtime error: ${(err as Error).message}`); }
+        if (python !== session) return;
+        session.more = result.more;
+        if (result.exited) { python = null; running = false; }
+        else startRealTime();
+        snapshotIfDue(true);
+    });
+}
+
 async function loadPython(): Promise<PyodideLike> {
     if (!pyodide) {
         pyodide = (async () => {
@@ -136,5 +205,6 @@ self.onmessage = (e: MessageEvent<Command>) => {
         case 'stop': stop(); break;
         case 'setProp': if (bench) { bench.setProp(m.id, m.key, m.value); if (!running) { bench.run(TICK * 4); snapshotIfDue(true); } } break;
         case 'serial': bench?.board?.write(m.text); break;
+        case 'terminal': terminal(m.line); break;
     }
 };

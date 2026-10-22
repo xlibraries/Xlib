@@ -1,7 +1,7 @@
 // The Bot Lab app: a project list (templates and your saved projects), then the bench: parts and wires on the
 // left, Parts / Code / Monitor on the right, Run and Stop on top. The simulation runs in a worker
 // (runtime/client.ts → runtime/worker.ts with sim/bench.ts); this file draws its snapshots and forwards clicks.
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { AppProps } from '@xlibraries/app-sdk';
 import { TICK, type PartState } from './sim/bench';
 import { CATALOG, GROUPS, LED_MODELS, type PartSpec } from './sim/parts/catalog';
@@ -211,7 +211,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                     <div className="flex-grow min-h-0 overflow-y-auto p-3 text-sm">
                         {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onRemove={id => { const next = structuredClone(project); removePart(next, id); change(next); setSelected(null); }} />}
                         {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} compile={compile} compilerAvailable={compilerAvailable} onChange={code => change({ ...project, code: { ...project.code, ...code } })} />}
-                        {tab === 'monitor' && <MonitorTab snap={snap} board={board} project={project} nets={netList} onSerial={text => client.current?.send({ type: 'serial', text })} />}
+                        {tab === 'monitor' && <MonitorTab snap={snap} board={board} project={project} nets={netList} onSerial={text => client.current?.send({ type: 'serial', text })} onTerminal={line => client.current?.send({ type: 'terminal', line })} />}
                     </div>
                 </div>
             </div>
@@ -264,6 +264,13 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
                     <circle r={12} fill="#3ddc97" /><rect x={-2} y={-12} width={4} height={8} fill="#0b1511" />
                 </g>
             )}
+            {part.kind === 'tmp102' && <text x={w / 2} y={h / 2 + 16} textAnchor="middle" fill="#ffd60a" fontSize={11} data-readout="temperature">{Number(part.props.temperature).toFixed(1)} °C</text>}
+            {part.kind === 'mpu6050' && (
+                <g transform={`translate(${w / 2},${h / 2 + 14}) rotate(${Number(part.props.roll)})`}>
+                    <rect x={-14} y={-3} width={28} height={6} rx={2} fill="#3ddc97" opacity={0.4 + 0.6 * Math.cos(Number(part.props.pitch) * Math.PI / 180)} />
+                </g>
+            )}
+            {part.kind === 'ads1115' && <text x={w / 2} y={h / 2 + 16} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{String(part.props.address)}</text>}
             {part.kind === 'ldr' && <circle cx={w / 2} cy={h / 2 - 8} r={6} fill="#ffd60a" opacity={0.2 + 0.8 * Number(part.props.light)} />}
             {spec.pins.map(pin => {
                 const px = pin.x * w, py = pin.y * h;
@@ -406,20 +413,40 @@ function CodeTab({ project, board, running, snap, compile: compileProp, compiler
     );
 }
 
-function MonitorTab({ snap, board, project, nets: netList, onSerial }: { snap: Snapshot; board: Board; project: Project; nets: string[][]; onSerial: (text: string) => void }) {
+function MonitorTab({ snap, board, project, nets: netList, onSerial, onTerminal }: { snap: Snapshot; board: Board; project: Project; nets: string[][]; onSerial: (text: string) => void; onTerminal: (line: string) => void }) {
     const [input, setInput] = useState('');
+    const history = useRef<string[]>([]);
+    const back = useRef(0);
     const lines = board === 'pi' ? snap.console : snap.serial;
     const scroller = useRef<HTMLDivElement>(null);
     useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [lines.length]);
+    const pi = board === 'pi' && project.parts.some(p => p.kind === 'pi');
+    const submit = () => {
+        if (pi) { onTerminal(input); if (input.trim()) history.current.push(input); back.current = 0; }
+        else onSerial(input);
+        setInput('');
+    };
+    const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (!pi) return;
+        if (e.key === 'c' && e.ctrlKey) { e.preventDefault(); onTerminal('\u0003'); setInput(''); return; }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const h = history.current;
+            back.current = Math.max(0, Math.min(h.length, back.current + (e.key === 'ArrowUp' ? 1 : -1)));
+            setInput(back.current ? h[h.length - back.current] : '');
+        }
+    };
     return (
         <div className="space-y-3">
             <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{board === 'pi' ? 'Console' : 'Serial monitor'}</div>
-                <div ref={scroller} data-testid="serial" className="h-40 overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap">{lines.length ? lines.join('\n') : snap.running ? '' : 'Run the project to see what the code prints.'}</div>
-                {board === 'uno' && (
-                    <form onSubmit={e => { e.preventDefault(); onSerial(input); setInput(''); }} className="flex gap-1 mt-1">
-                        <input value={input} onChange={e => setInput(e.target.value)} placeholder="send a line" aria-label="Send to serial" className="flex-grow bg-black bg-opacity-40 rounded px-2 py-1 text-xs" disabled={!snap.running} />
-                        <button type="submit" className="text-xs px-2 rounded bg-white bg-opacity-10" disabled={!snap.running}>send</button>
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{pi ? 'Terminal' : 'Serial monitor'}</div>
+                <div ref={scroller} data-testid="serial" className={'overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap ' + (pi ? 'h-56' : 'h-40')}>{lines.length ? lines.join('\n') : pi ? 'Type help, or python3 main.py to run the script.' : snap.running ? '' : 'Run the project to see what the code prints.'}</div>
+                {(board === 'uno' || pi) && (
+                    <form onSubmit={e => { e.preventDefault(); submit(); }} className="flex gap-1 mt-1 items-center">
+                        {pi && <span className="font-mono text-xs text-emerald-300 whitespace-pre" data-testid="prompt">{snap.prompt ?? ''}</span>}
+                        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKey} placeholder={pi ? (snap.prompt ? '' : 'a script is running: Ctrl+C stops it') : 'send a line'} aria-label={pi ? 'Terminal' : 'Send to serial'} spellCheck={false} autoCapitalize="off" autoComplete="off"
+                            className="flex-grow bg-black bg-opacity-40 rounded px-2 py-1 text-xs font-mono" disabled={!pi && !snap.running} />
+                        <button type="submit" className="text-xs px-2 rounded bg-white bg-opacity-10" disabled={!pi && !snap.running}>{pi ? 'enter' : 'send'}</button>
                     </form>
                 )}
             </div>

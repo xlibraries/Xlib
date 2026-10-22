@@ -6,6 +6,7 @@ import { Capacitor, Diode, GROUND, Netlist, Resistor, Switch, VoltageSource, typ
 import { Uno, UNO_CLOCK, type PinActivity } from './boards/uno';
 import { PI_GPIO, PI_LOGIC_VOLTS, PI_PIN_MAX_AMPS, PI_PIN_OUT_OHMS, PI_PULL_OHMS, PiBoard } from './boards/pi';
 import { CATALOG, LED_MODELS } from './parts/catalog';
+import { Ads1115, I2CBus, Mpu6050, Tmp102, type I2CDevice } from './i2c';
 import { nets, type PinRef, type Project } from './project';
 
 export const TICK = 1 / 4800;           // the electrical step
@@ -14,6 +15,8 @@ const UNO_PIN_OUT_OHMS = 40;             // an AVR pin's output stage
 const UNO_PIN_MAX_AMPS = 0.04;
 const UNO_PULLUP_OHMS = 35_000;
 const SERVO_MIN_US = 544, SERVO_MAX_US = 2400;
+const PI_I2C_PULLUP_OHMS = 1800;         // the Pi's fixed pull-ups on GPIO2/GPIO3
+const I2C_MIN_VOLTS = 1.8;               // below this a sensor is off
 
 export interface Warning { part: string; text: string; smoke?: boolean }
 
@@ -68,6 +71,11 @@ export class Bench {
     private readonly pots: { part: string; ra: Resistor; rb: Resistor }[] = [];
     private readonly ldrs: { part: string; r: Resistor }[] = [];
     private readonly dead = new Set<string>();
+    private readonly i2cDevices: { part: string; device: I2CDevice; sda: Node; scl: Node; vcc: Node; gnd: Node }[] = [];
+    /** The Pi's I²C bus 1 (GPIO2 = SDA, GPIO3 = SCL), when there's a Pi */
+    readonly piBus: I2CBus | null;
+    /** The Uno's I²C (A4 = SDA, A5 = SCL), when there's an Uno */
+    readonly unoBus: I2CBus | null;
     time = 0;
 
     constructor(readonly project: Project) {
@@ -80,6 +88,27 @@ export class Bench {
         this.board = project.parts.some(p => p.kind === 'uno') && project.code.board === 'uno' && project.code.hex ? new Uno(project.code.hex) : null;
         this.pi = project.parts.some(p => p.kind === 'pi') ? new PiBoard() : null;
         for (const part of project.parts) this.place(part.id, part.kind, part.props);
+        const piPart = project.parts.find(p => p.kind === 'pi'), unoPart = project.parts.find(p => p.kind === 'uno');
+        this.piBus = piPart ? this.bus(piPart.id, 'GPIO2', 'GPIO3') : null;
+        this.unoBus = unoPart ? this.bus(unoPart.id, 'A4', 'A5') : null;
+        this.board?.attachI2C(() => this.unoBus);
+    }
+
+    /** A board's I²C bus: the powered, grounded devices whose SDA and SCL share its nets. Two on one address clash. */
+    private bus(part: string, sdaPin: string, sclPin: string): I2CBus {
+        const sda = this.node({ part, pin: sdaPin }), scl = this.node({ part, pin: sclPin });
+        return new I2CBus(() => {
+            if (!this.solution) this.tick();     // a script's first words can come before the first step: settle the circuit (power on)
+            const v = this.solution?.v;
+            const on = this.i2cDevices.filter(d => d.sda === sda && d.scl === scl && d.gnd === GROUND && !!v && v[d.vcc] >= I2C_MIN_VOLTS);
+            const seen = new Map<number, string>();
+            for (const d of on) {
+                const other = seen.get(d.device.address);
+                if (other) this.warn(d.part, `${other} and ${d.part} both answer at I²C address 0x${d.device.address.toString(16)}: change one\u2019s address.`);
+                seen.set(d.device.address, d.part);
+            }
+            return on.filter((d, i) => on.findIndex(e => e.device.address === d.device.address) === i).map(d => d.device);
+        });
     }
 
     /** The node a pin sits on; unwired pins get their own floating node on demand. */
@@ -114,6 +143,8 @@ export class Bench {
                 this.net.add(new VoltageSource(n('5V'), GROUND, 5));
                 this.net.add(new VoltageSource(n('3V3'), GROUND, PI_LOGIC_VOLTS));
                 const pi = this.pi!;
+                this.net.add(new Resistor(n('GPIO2'), n('3V3'), PI_I2C_PULLUP_OHMS));
+                this.net.add(new Resistor(n('GPIO3'), n('3V3'), PI_I2C_PULLUP_OHMS));
                 for (const bcm of PI_GPIO) {
                     const name = `GPIO${bcm}`;
                     this.driver('pi', name, n(name), n('3V3'), PI_LOGIC_VOLTS, PI_PIN_OUT_OHMS, PI_PIN_MAX_AMPS, PI_PULL_OHMS,
@@ -141,6 +172,22 @@ export class Bench {
                 break;
             }
             case 'ldr': this.ldrs.push({ part: id, r: this.net.add(new Resistor(n('a'), n('b'), ldrOhms(num('light')))) }); break;
+            case 'tmp102': case 'ads1115': case 'mpu6050': {
+                const part = this.project.parts.find(p => p.id === id)!;
+                const prop = (key: string) => Number(part.props[key]);
+                const address = parseInt(String(props.address), 16);
+                const vcc = n(kind === 'ads1115' ? 'VDD' : 'VCC'), gnd = n('GND');
+                this.net.add(new Resistor(vcc, gnd, 33_000));     // ~100 µA from 3.3 V
+                let device: I2CDevice;
+                if (kind === 'tmp102') device = new Tmp102(address, () => prop('temperature'));
+                else if (kind === 'mpu6050') device = new Mpu6050(address, () => ({ pitch: prop('pitch'), roll: prop('roll'), gx: 0, gy: 0, gz: prop('turn'), celsius: prop('temperature') }));
+                else {
+                    const inputs = ['A0', 'A1', 'A2', 'A3'].map(pin => { const node = n(pin); this.net.add(new Resistor(node, gnd, 10e6)); return node; });
+                    device = new Ads1115(address, ch => { const v = this.solution?.v; return v ? v[inputs[ch]] - v[gnd] : 0; });
+                }
+                this.i2cDevices.push({ part: id, device, sda: n('SDA'), scl: n('SCL'), vcc, gnd });
+                break;
+            }
             case 'servo': {
                 this.net.add(new Resistor(n('sig'), GROUND, 1e6));           // the signal input
                 this.net.add(new Resistor(n('v'), n('gnd'), 50));            // ~100 mA from 5 V

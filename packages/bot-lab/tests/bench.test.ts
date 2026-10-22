@@ -77,7 +77,7 @@ describe('the board that runs the code', () => {
         for (const t of TEMPLATES) {
             const p = t.build();
             expect(p.code.board).toBe(boardOf(p));
-            if (p.code.board === 'pi') expect(p.code.sketch).toMatch(/^from gpiozero import|^import RPi/m);
+            if (p.code.board === 'pi') expect(p.code.sketch).toMatch(/^from (gpiozero|smbus2) import|^import (RPi|pigpio)/m);
             else if (p.parts.some(x => x.kind === 'uno')) expect(p.code.hex).not.toBe('');
         }
     });
@@ -185,6 +185,21 @@ describe('the bench', () => {
         expect(bench.warnings.some(w => w.part === 'uno' && /D13 is sourcing/.test(w.text))).toBe(true);
         expect(bench.state('led1').dead).toBe(true);
         expect(bench.state('led1').brightness).toBe(0);
+    });
+
+    it('runs Temperature: the Wire library reads the TMP102 over I²C and Serial prints it', () => {
+        const bench = new Bench(template('temperature')!.build());
+        bench.run(0.7);
+        expect(bench.board!.serial.at(-1)).toBe('temperature: 22.00 C');
+        bench.setProp('tmp1021', 'temperature', -5.5);
+        bench.run(0.6);
+        expect(bench.board!.serial.at(-1)).toBe('temperature: -5.50 C');
+        // pull the sensor's power and the sketch says so
+        const unpowered = template('temperature')!.build();
+        unpowered.wires = unpowered.wires.filter(w => w.b.pin !== 'VCC');
+        const b2 = new Bench(unpowered);
+        b2.run(0.3);
+        expect(b2.board!.serial[0]).toMatch(/no TMP102 at 0x48/);
     });
 
     it('light sensor resistance falls with light', () => {

@@ -568,7 +568,9 @@ test.describe('Bot Lab', () => {
     });
 
     test('where the site can\u2019t compile, the editor has no Build button and says so', async ({ page }) => {
-        await openDesktop(page);   // the e2e server has no compiler configured
+        // whether a local server has a compiler depends on its .env.local, so the answer is mocked
+        await page.route('**/api/bot-lab/compile', route => route.request().method() === 'GET' ? route.fulfill({ json: { available: false } }) : route.abort());
+        await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');
         await lab.getByRole('button', { name: /^Blink An LED/ }).click();
         await lab.getByRole('tab', { name: 'code' }).click();
@@ -605,6 +607,61 @@ test.describe('Bot Lab', () => {
         await lab.getByRole('tab', { name: 'code' }).click();
         await expect(lab.getByText('The script ended. Run starts it again.')).toBeVisible({ timeout: 10_000 });
         await expect.poll(brightness).toBeGreaterThan(0.5);   // the bench stays alive after the script ends
+    });
+
+    test('the Pi terminal: i2cdetect finds the sensor, the Python prompt reads it, python3 main.py runs and Ctrl+C stops it', async ({ page }) => {
+        test.slow();
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Temperature \(Raspberry Pi/ }).click();
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        const term = lab.getByLabel('Terminal'), screen = lab.getByTestId('serial'), prompt = lab.getByTestId('prompt');
+        await expect(prompt).toHaveText('pi@botlab:~ $');
+        await term.fill('i2cdetect -y 1');
+        await term.press('Enter');
+        await expect(screen).toContainText('40: -- -- -- -- -- -- -- -- 48 --');
+        await term.fill('python3');
+        await term.press('Enter');
+        await expect(prompt).toHaveText('>>>', { timeout: 60_000 });
+        await term.fill('from smbus2 import SMBus');
+        await term.press('Enter');
+        await term.fill('hi, lo = SMBus(1).read_i2c_block_data(0x48, 0, 2); print((hi << 8 | lo) >> 4 >> 4)');
+        await term.press('Enter');
+        await expect(screen).toContainText(/\n22\n|\n22$/);   // 22 °C
+        await term.fill('for i in range(2):');
+        await term.press('Enter');
+        await expect(prompt).toHaveText('...');
+        await term.fill('    print("loop", i)');
+        await term.press('Enter');
+        await term.fill('');
+        await term.press('Enter');
+        await expect(screen).toContainText('loop 1');
+        await term.fill('exit()');
+        await term.press('Enter');
+        await expect(prompt).toHaveText('pi@botlab:~ $');
+        // the script itself, from the terminal; the temperature follows the inspector
+        await term.fill('python3 main.py');
+        await term.press('Enter');
+        await expect(screen).toContainText('temperature: 22.00 C', { timeout: 30_000 });
+        await expect(prompt).toHaveText('');
+        await term.press('Control+c');
+        await expect(screen).toContainText('^C');
+        await expect(prompt).toHaveText('pi@botlab:~ $');
+        await expect(lab.getByRole('button', { name: '▶ Run' })).toBeVisible();
+    });
+
+    test('the Uno reads a TMP102 over I²C with the Wire library', async ({ page }) => {
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Temperature \(I²C\)/ }).click();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        await expect(lab.getByTestId('serial')).toContainText('temperature: 22.00 C', { timeout: 10_000 });
+        await lab.getByRole('tab', { name: 'parts' }).click();
+        await lab.locator('[data-part="tmp1021"]').click();
+        await lab.getByLabel(/Temperature \(°C\)/).fill('30');
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        await expect(lab.getByTestId('serial')).toContainText('temperature: 30.00 C', { timeout: 10_000 });
     });
 
     test('the Raspberry Pi Button template: a press reaches the script while it sits in pause()', async ({ page }) => {
