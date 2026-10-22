@@ -65,9 +65,9 @@ things work.
   into modules with `physics: true`), and `EngineView` (the React canvas host). Apps that ship C++ modules depend
   on it; it imports no app.
 - `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
-  solver, parts, the Uno on avr8js, the Pi's header, the bench loop) under a React bench. The bench runs in a worker
+  solver, parts, the Uno on avr8js, the Pi's header, I²C devices on per-board buses, the bench loop) under a React bench. The bench runs in a worker
   (`runtime/`); the Raspberry Pi runs Python on Pyodide (vendored to `public/vendor/pyodide/`) with `python/`
-  (`gpiozero`, `RPi.GPIO`, simulated `time`) bundled by `pnpm sync:python` (the unit tests check it's current).
+  (`gpiozero`, `RPi.GPIO`, `pigpio`, `smbus2`, simulated `time`) bundled by `pnpm sync:python` (the unit tests check it's current).
   `time.sleep` steps the bench and, with JSPI, suspends Python so messages arrive mid-sleep; the unit tests need
   Node 24's `--experimental-wasm-jspi` (set in its vitest config). Templates ship their sketches with compiled hexes (`templates/`, bundled into
   `src/templates/generated.ts` by `pnpm sync:templates`; the unit tests check it's current). `services/arduino-compiler/` (a workspace package for its Python tests) is the `arduino-cli` image: it

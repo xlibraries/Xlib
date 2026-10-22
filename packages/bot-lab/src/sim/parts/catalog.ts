@@ -115,6 +115,28 @@ export const CATALOG: Record<string, PartSpec> = {
         pins: [{ id: 'sig', label: 'signal', kind: 'signal', x: 0, y: 0.25 }, { id: 'v', label: '5V', kind: 'power', x: 0, y: 0.5 }, { id: 'gnd', label: 'GND', kind: 'ground', x: 0, y: 0.75 }],
         props: {},
     },
+    tmp102: {
+        kind: 'tmp102', title: 'Temperature sensor (TMP102)', group: 'sensor', width: 6, height: 5,
+        description: 'Reads temperature to 0.0625 °C over I²C (address 0x48–0x4B). Wire SDA and SCL to the board\u2019s I²C pins (Pi GPIO2/GPIO3, Uno A4/A5) and power it from 3.3 V.',
+        pins: [...side(['VCC', 'GND'], ['power', 'ground'], 0, 0.3, 0.7), ...side(['SDA', 'SCL'], ['signal', 'signal'], 1, 0.3, 0.7)],
+        props: { temperature: { label: 'Temperature', default: 22, unit: '°C', min: -40, max: 125 }, address: { label: 'Address', default: '0x48', options: ['0x48', '0x49', '0x4A', '0x4B'] } },
+    },
+    ads1115: {
+        kind: 'ads1115', title: 'ADC (ADS1115)', group: 'sensor', width: 7, height: 7,
+        description: 'Four analog inputs, 16 bits, over I²C: what a Raspberry Pi needs to read a knob or a light sensor. Inputs must stay between GND and VDD.',
+        pins: [...side(['VDD', 'GND', 'SCL', 'SDA'], ['power', 'ground', 'signal', 'signal'], 0), ...side(['A0', 'A1', 'A2', 'A3'], ['analog', 'analog', 'analog', 'analog'], 1)],
+        props: { address: { label: 'Address', default: '0x48', options: ['0x48', '0x49', '0x4A', '0x4B'] } },
+    },
+    mpu6050: {
+        kind: 'mpu6050', title: 'Motion sensor (MPU-6050)', group: 'sensor', width: 6, height: 5,
+        description: 'Accelerometer and gyroscope over I²C (address 0x68 or 0x69). Tilt it in the inspector: gravity moves between its axes.',
+        pins: [...side(['VCC', 'GND'], ['power', 'ground'], 0, 0.3, 0.7), ...side(['SDA', 'SCL'], ['signal', 'signal'], 1, 0.3, 0.7)],
+        props: {
+            pitch: { label: 'Pitch', default: 0, unit: '°', min: -90, max: 90 }, roll: { label: 'Roll', default: 0, unit: '°', min: -180, max: 180 },
+            turn: { label: 'Turning (Z)', default: 0, unit: '°/s', min: -250, max: 250 }, temperature: { label: 'Temperature', default: 25, unit: '°C', min: -40, max: 85 },
+            address: { label: 'Address', default: '0x68', options: ['0x68', '0x69'] },
+        },
+    },
 };
 
 export const GROUPS: { id: Group; title: string }[] = [

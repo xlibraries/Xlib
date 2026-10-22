@@ -81,6 +81,20 @@ export const TEMPLATES: Template[] = [
             return p;
         },
     },
+    {
+        id: 'temperature', title: 'Temperature (I²C)', blurb: 'A TMP102 on the Uno\u2019s I²C pins: the Wire library reads it and Serial prints the temperature.',
+        build() {
+            const p = emptyProject('Temperature');
+            p.code = code('temperature');
+            addPart(p, 'uno', 4, 4);
+            const t = addPart(p, 'tmp102', 26, 8);
+            connect(p, { part: 'uno1', pin: 'A4' }, { part: t.id, pin: 'SDA' });
+            connect(p, { part: 'uno1', pin: 'A5' }, { part: t.id, pin: 'SCL' });
+            connect(p, { part: 'uno1', pin: '3V3' }, { part: t.id, pin: 'VCC' });
+            connect(p, { part: 'uno1', pin: 'GND' }, { part: t.id, pin: 'GND' });
+            return p;
+        },
+    },
 ];
 
 const PI_BLINK = `# Blink, on a Raspberry Pi: an LED on GPIO17 through a resistor.
@@ -129,6 +143,44 @@ function piProject(name: string, script: string): Project {
     return p;
 }
 
+const PI_TEMPERATURE = `# A TMP102 temperature sensor on the Pi's I2C pins (GPIO2 = SDA, GPIO3 = SCL), read with smbus2.
+# Change its temperature in the inspector. Try \`i2cdetect -y 1\` in the terminal to see it on the bus.
+from smbus2 import SMBus
+from time import sleep
+
+TMP102 = 0x48
+
+with SMBus(1) as bus:
+    while True:
+        high, low = bus.read_i2c_block_data(TMP102, 0, 2)
+        raw = ((high << 8) | low) >> 4
+        if raw & 0x800:          # below zero
+            raw -= 4096
+        print(f"temperature: {raw * 0.0625:.2f} C")
+        sleep(1)
+`;
+
+const PI_KNOB = `# The Pi has no analog inputs, so an ADS1115 reads the knob (A0) over I2C, and the LED on GPIO17 follows it.
+from smbus2 import SMBus
+from gpiozero import PWMLED
+from time import sleep
+
+ADS1115 = 0x48
+led = PWMLED(17)
+
+with SMBus(1) as bus:
+    while True:
+        # start a single conversion of A0 against GND, +-4.096 V
+        bus.write_i2c_block_data(ADS1115, 1, [0b11000011, 0b10000011])
+        sleep(0.01)
+        high, low = bus.read_i2c_block_data(ADS1115, 0, 2)
+        raw = int.from_bytes(bytes([high, low]), "big", signed=True)
+        volts = raw * 4.096 / 32768
+        led.value = max(0.0, min(1.0, volts / 3.3))
+        print(f"knob: {volts:.2f} V")
+        sleep(0.25)
+`;
+
 TEMPLATES.push(
     {
         id: 'pi_blink', title: 'Blink (Raspberry Pi)', blurb: 'The same LED, driven by Python with gpiozero on a Raspberry Pi.',
@@ -151,6 +203,36 @@ TEMPLATES.push(
             connect(p, { part: 'pi1', pin: 'GPIO17' }, { part: r.id, pin: 'a' });
             connect(p, { part: r.id, pin: 'b' }, { part: led.id, pin: 'a' });
             connect(p, { part: led.id, pin: 'k' }, { part: 'pi1', pin: 'GND' });
+            return p;
+        },
+    },
+    {
+        id: 'pi_temperature', title: 'Temperature (Raspberry Pi, I²C)', blurb: 'smbus2 reads a TMP102 on GPIO2/GPIO3, the Pi\u2019s I²C bus 1.',
+        build() {
+            const p = piProject('Temperature (Pi)', PI_TEMPERATURE);
+            const t = addPart(p, 'tmp102', 26, 6);
+            connect(p, { part: 'pi1', pin: 'GPIO2' }, { part: t.id, pin: 'SDA' });
+            connect(p, { part: 'pi1', pin: 'GPIO3' }, { part: t.id, pin: 'SCL' });
+            connect(p, { part: 'pi1', pin: '3V3' }, { part: t.id, pin: 'VCC' });
+            connect(p, { part: 'pi1', pin: 'GND' }, { part: t.id, pin: 'GND' });
+            return p;
+        },
+    },
+    {
+        id: 'pi_knob', title: 'Knob through an ADC (Raspberry Pi)', blurb: 'An ADS1115 gives the Pi an analog input: a knob on A0 sets an LED\u2019s brightness.',
+        build() {
+            const p = piProject('Knob (Pi)', PI_KNOB);
+            const a = addPart(p, 'ads1115', 26, 4), k = addPart(p, 'potentiometer', 38, 4), r = addPart(p, 'resistor', 26, 16), led = addPart(p, 'led', 34, 18);
+            connect(p, { part: 'pi1', pin: 'GPIO2' }, { part: a.id, pin: 'SDA' });
+            connect(p, { part: 'pi1', pin: 'GPIO3' }, { part: a.id, pin: 'SCL' });
+            connect(p, { part: 'pi1', pin: '3V3' }, { part: a.id, pin: 'VDD' });
+            connect(p, { part: 'pi1', pin: 'GND' }, { part: a.id, pin: 'GND' });
+            connect(p, { part: 'pi1', pin: '3V3' }, { part: k.id, pin: 'b' });
+            connect(p, { part: 'pi1', pin: 'GND' }, { part: k.id, pin: 'a' });
+            connect(p, { part: k.id, pin: 'w' }, { part: a.id, pin: 'A0' });
+            connect(p, { part: 'pi1', pin: 'GPIO17' }, { part: r.id, pin: 'a' });
+            connect(p, { part: r.id, pin: 'b' }, { part: led.id, pin: 'a' });
+            connect(p, { part: led.id, pin: 'k' }, { part: 'pi1', pin: 'GND2' });
             return p;
         },
     },

@@ -9,7 +9,9 @@ export type Command =
     | { type: 'run' }
     | { type: 'stop' }
     | { type: 'setProp'; id: string; key: string; value: number | string | boolean }
-    | { type: 'serial'; text: string };
+    | { type: 'serial'; text: string }
+    /** A line typed in the Pi's terminal ("\u0003" is Ctrl+C) */
+    | { type: 'terminal'; line: string };
 
 export interface Snapshot {
     type: 'snapshot';
@@ -30,6 +32,8 @@ export interface Snapshot {
     /** False while a Python script runs synchronously (no JSPI in this browser): the worker can't read messages
      *  then, so inputs wait and Stop restarts the worker */
     responsive?: boolean;
+    /** The Pi terminal's prompt, or absent while a script runs (the terminal only takes Ctrl+C then) */
+    prompt?: string;
 }
 
 export type WorkerToApp = Snapshot | { type: 'error'; message: string };

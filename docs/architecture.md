@@ -117,6 +117,8 @@ level, PWM duty and pulse width, and `bench.ts` ties them together at 4800 steps
 sources in the net, the net is solved, the result feeds the board's inputs and the parts (LED brightness, servo
 angle, currents), and the teaching rules fire from the numbers (an LED over its rating burns out, a pin over 40 mA
 warns). `boards/pi.ts` is the Raspberry Pi's header (3.3 V logic, pull-ups, software PWM and servo pulses).
+`i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's
+TWI) reaches the powered devices wired to it (TMP102, ADS1115, MPU-6050, following their register maps).
 `project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links; `boardOf` says which
 board the code runs on. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.
 
@@ -124,9 +126,11 @@ The simulation doesn't run on the page's thread. `runtime/client.ts` starts a wo
 sends commands (load, run, stop, set a prop, serial) and gets snapshots back (`runtime/protocol.ts`) about 30 times
 a second, which `BotLab.tsx` draws. The Uno runs in real time on a timer. The Raspberry Pi runs Python on Pyodide
 (vendored to `/vendor/pyodide/`, loaded only when a Pi project runs): `runtime/pi.ts` registers a `_bench` module
-and installs `python/` (`gpiozero`, `RPi.GPIO`, and `_bench_time`, which makes `time.sleep` advance the bench),
+and installs `python/` (`gpiozero`, `RPi.GPIO`, `pigpio`, `smbus2`, and `_bench_time`, which makes `time.sleep` advance the bench),
 bundled into `src/runtime/python-generated.ts` by `pnpm sync:python`. Background blinks and button callbacks run on a
-scheduler serviced during sleeps, not on threads. Where the browser has JSPI (WebAssembly stack switching), a sleep
+scheduler serviced during sleeps, not on threads. The Pi's terminal (`runtime/terminal.ts`, a small shell) runs the
+script, lists I²C devices and opens the Python prompt, an `InteractiveConsole` on a live bench whose lines run one at a
+time while the bench keeps time between them. Where the browser has JSPI (WebAssembly stack switching), a sleep
 steps the bench and then suspends Python until the wall clock catches up, so the worker keeps reading messages:
 button presses and Stop arrive mid-sleep. Without JSPI the script runs synchronously with busy-wait pacing, inputs
 wait, and Stop replaces the worker. (A `SharedArrayBuffer` would need the whole desktop to be cross-origin isolated,

@@ -26,7 +26,7 @@ describe('Intel HEX', () => {
 
 describe('the templates', () => {
     it('are bundled from templates/ (run `pnpm sync:templates` after changing a sketch or hex)', () => {
-        expect(Object.keys(TEMPLATE_CODE).sort()).toEqual(['blink', 'button', 'hello_serial', 'servo_sweep']);
+        expect(Object.keys(TEMPLATE_CODE).sort()).toEqual(['blink', 'button', 'hello_serial', 'servo_sweep', 'temperature']);
         for (const [name, code] of Object.entries(TEMPLATE_CODE)) {
             expect(code.hex.startsWith(':'), `${name} has a compiled hex`).toBe(true);
             expect(code.sketch).toContain('void loop()');
