@@ -688,6 +688,17 @@ test.describe('Bot Lab', () => {
         await expect(lab.getByRole('button', { name: '▶ Run' })).toBeVisible();
     });
 
+    test('Motor and driver: PWM through the TB6612 spins the motor up, then the other way', async ({ page }) => {
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Motor and driver A TB6612/ }).click();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const rpm = () => lab.locator('[data-part="motor1"] [data-rpm]').getAttribute('data-rpm').then(Number);
+        await expect.poll(rpm, { timeout: 15_000, intervals: [100] }).toBeGreaterThan(150);
+        await expect.poll(rpm, { timeout: 15_000, intervals: [100] }).toBeLessThan(-150);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+    });
+
     test('the Raspberry Pi Button template: a press reaches the script while it sits in pause()', async ({ page }) => {
         test.slow();
         await openDesktop(page);

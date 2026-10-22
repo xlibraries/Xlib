@@ -272,6 +272,22 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
                     <text x={w / 2 + 3} y={33} fill="#9db5aa" fontSize={7}>LED</text>
                 </g>
             )}
+            {part.kind === 'motor' && (
+                <g data-rpm={state.rpm?.toFixed(0)}>
+                    <g transform={`translate(${w * 0.62},${h * 0.5}) rotate(${state.turned ?? 0})`}>
+                        <circle r={13} fill="#ffd60a" opacity={0.85} />
+                        <rect x={-2} y={-13} width={4} height={26} rx={2} fill="#0b1511" />
+                        <rect x={-13} y={-2} width={26} height={4} rx={2} fill="#0b1511" opacity={0.6} />
+                    </g>
+                    <text x={w * 0.62} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={9}>{running ? `${Math.round(state.rpm ?? 0)} rpm` : ''}</text>
+                </g>
+            )}
+            {part.kind === 'tcrt5000' && (
+                <g>
+                    <circle cx={w * 0.35} cy={h * 0.62} r={4} fill="#ff3b30" opacity={state.led ? 1 : 0.15} data-led={state.led ? 'on' : 'off'} />
+                    <rect x={w * 0.55} y={h * 0.5} width={w * 0.25} height={h * 0.25} rx={2} fill={`hsl(0 0% ${Math.round(Number(part.props.reflect) * 85 + 10)}%)`} stroke="#2f4a3e" />
+                </g>
+            )}
             {part.kind === 'tmp102' && <text x={w / 2} y={h / 2 + 16} textAnchor="middle" fill="#ffd60a" fontSize={11} data-readout="temperature">{Number(part.props.temperature).toFixed(1)} °C</text>}
             {part.kind === 'mpu6050' && (
                 <g transform={`translate(${w / 2},${h / 2 + 14}) rotate(${Number(part.props.roll)})`}>

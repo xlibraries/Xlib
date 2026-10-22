@@ -342,23 +342,32 @@ class AngularServo(Servo):
 
 
 class Motor:
-    """Two pins to a driver: forward and backward (PWM for speed)."""
+    """A motor through a driver. Two pins (forward and backward, PWM for speed), or, with `enable`, two direction pins
+    and a PWM enable pin: the wiring of a TB6612 or L298N (IN1, IN2, PWM/EN)."""
 
-    def __init__(self, forward=None, backward=None, pwm=True):
-        self.forward_device = PWMOutputDevice(forward) if pwm else DigitalOutputDevice(forward)
-        self.backward_device = PWMOutputDevice(backward) if pwm else DigitalOutputDevice(backward)
+    def __init__(self, forward=None, backward=None, *, enable=None, pwm=True):
+        self.enable_device = PWMOutputDevice(enable) if enable is not None else None
+        direction = DigitalOutputDevice if (enable is not None or not pwm) else PWMOutputDevice
+        self.forward_device = direction(forward)
+        self.backward_device = direction(backward)
+        self._value = 0.0
         self.value = 0
 
     @property
     def value(self):
-        return self.forward_device.value - self.backward_device.value
+        return self._value
 
     @value.setter
     def value(self, value):
         value = float(value)
         if not -1 <= value <= 1:
             raise ValueError("Motor value must be between -1 and 1")
-        if value > 0:
+        self._value = value
+        if self.enable_device is not None:
+            self.forward_device.value = 1 if value > 0 else 0
+            self.backward_device.value = 1 if value < 0 else 0
+            self.enable_device.value = abs(value)
+        elif value > 0:
             self.backward_device.value = 0
             self.forward_device.value = value
         elif value < 0:
@@ -367,6 +376,13 @@ class Motor:
         else:
             self.forward_device.value = 0
             self.backward_device.value = 0
+
+    @property
+    def is_active(self):
+        return self._value != 0
+
+    def reverse(self):
+        self.value = -self.value
 
     def forward(self, speed=1):
         self.value = speed
@@ -380,6 +396,8 @@ class Motor:
     def close(self):
         self.forward_device.close()
         self.backward_device.close()
+        if self.enable_device is not None:
+            self.enable_device.close()
 
 
 class Robot:

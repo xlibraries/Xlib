@@ -417,3 +417,25 @@ describe('the Python prompt', () => {
         expect(output.some(l => l.includes('Traceback'))).toBe(false);
     });
 });
+
+describe('gpiozero Motor with an enable pin', () => {
+    it('the Pi motor template drives a gear motor through the TB6612, both ways', () => {
+        const project = template('pi_motor')!.build();
+        const bench = new Bench(project);
+        const rpm: number[] = [];
+        let next = 0.9;
+        const rt = new PiRuntime(py, bench, {
+            onOutput: () => {},
+            shouldStop: () => bench.time > 4.6,
+            onStep: (b) => { if (b.time >= next) { rpm.push(b.state('motor1').rpm ?? 0); next += 1; } },
+        });
+        rt.install();
+        rt.exec(project.code.sketch);
+        // at 0.9 s: forward 0.25; 1.9 s: 0.5; 2.9 s: 1.0; 4.4 s: backward 0.5
+        expect(rpm[0]).toBeGreaterThan(20);
+        expect(rpm[1]).toBeGreaterThan(rpm[0]);
+        expect(rpm[2]).toBeGreaterThan(150);
+        expect(rpm[3]).toBeLessThan(-40);
+    });
+});
+

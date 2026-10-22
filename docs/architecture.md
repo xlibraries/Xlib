@@ -121,7 +121,9 @@ warns). `boards/pi.ts` is the Raspberry Pi's header (3.3 V logic, pull-ups, soft
 advanced to the bench's time (skipping ahead while the core sleeps), pin edges timestamped for PWM, the net's voltages
 fed back as inputs and ADC readings, scripts sent through MicroPython's raw REPL. Its boot ROM ships without the
 floating-point library (licensed only for real RP2040s); `boards/pico-rom-float.ts` traps calls into that range and
-does the maths in JavaScript. `i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's
+does the maths in JavaScript. Drive parts: a DC motor is a winding resistance and a back-EMF source in the net, its shaft integrated each step from
+the current's torque, friction, inertia and load; the TB6612 sets its output switches from its inputs' last voltages;
+the TCRT5000's outputs follow the surface under it. `i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's
 TWI) reaches the powered devices wired to it (TMP102, ADS1115, MPU-6050, following their register maps).
 `project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links; `boardOf` says which
 board the code runs on. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.
