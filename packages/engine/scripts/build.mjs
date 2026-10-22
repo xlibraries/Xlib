@@ -92,6 +92,21 @@ export function emArgs(root, modules, name, backend, objects = []) {
     return [...COMMON, ...includeFlags(root), ...BACKEND_FLAGS[backend], ...physics, ...(spec.flags ?? []), ...fonts, ...spec.sources.map(s => `native/${s}`), ...runtime, ...objects, '-o', `dist/${name}/${backend}.js`];
 }
 
+/**
+ * A headless module (`headless: true`): no graphics, built once for pages, workers and Node (so tests can drive it),
+ * into dist/<name>/headless.js. For simulations that run off the main thread, like Bot Lab's physics world. Its
+ * EXPORTED_FUNCTIONS come from the module's flags; there's no main loop.
+ */
+export function headlessArgs(root, modules, name, objects = []) {
+    const spec = modules[name];
+    if (!spec) throw new Error(`unknown module: ${name}`);
+    if (!spec.headless) throw new Error(`${name} isn't a headless module`);
+    const runtime = spec.physics ? [join(ENGINE_ROOT, 'native/runtime/xl_physics.cpp')] : [];
+    const physics = spec.physics ? [JOLT_INCLUDE, ...JOLT_DEFINES] : [];
+    const common = COMMON.map(f => f === '-sENVIRONMENT=web' ? '-sENVIRONMENT=web,worker,node' : f.startsWith('-sEXPORT_NAME=') ? `-sEXPORT_NAME=${spec.exportName ?? 'createModule'}` : f);
+    return [...common, ...includeFlags(root), ...physics, ...(spec.flags ?? []), ...spec.sources.map(s => `native/${s}`), ...runtime, ...objects, '-o', `dist/${name}/headless.js`];
+}
+
 /** Compiles a module's C sources (e.g. Box2D) once into build/obj/<name>/, returning the object paths. */
 export function compileC(root, spec, run) {
     if (!spec.cSources) return [];
@@ -185,6 +200,11 @@ export async function build({ root, modules, only = [] }) {
         rmSync(join(root, 'dist', name), { recursive: true, force: true });
         mkdirSync(join(root, 'dist', name), { recursive: true });
         const objects = [...compileC(root, spec, run), ...(spec.physics ? jolt : [])];
+        if (spec.headless) {
+            console.log(`▶ em++ ${name} (headless)`);
+            run('em++', headlessArgs(root, modules, name, objects));
+            continue;
+        }
         for (const backend of BACKENDS) {
             console.log(`▶ em++ ${name} (${backend})`);
             run('em++', emArgs(root, modules, name, backend, objects));

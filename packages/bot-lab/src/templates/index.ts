@@ -1,5 +1,6 @@
 // The templates: ready-wired projects with a sketch and its compiled hex, so the first click is "Run".
 import { addPart, connect, emptyProject, type Project } from '../sim/project';
+import { ovalTrack } from '../sim/track';
 import { sketchHash } from '../compile';
 import { TEMPLATE_CODE } from './generated';
 
@@ -95,6 +96,69 @@ export const TEMPLATES: Template[] = [
             return p;
         },
     },
+    {
+        id: 'motor_driver', title: 'Motor and driver', blurb: 'A TB6612 between the Uno and a gear motor: direction pins, PWM for speed, a battery for the motor.',
+        build() {
+            const p = emptyProject('Motor and driver');
+            p.code = code('motor_driver');
+            addPart(p, 'uno', 4, 4);
+            const d = addPart(p, 'tb6612', 24, 4), m = addPart(p, 'motor', 38, 6), b = addPart(p, 'battery', 38, 16);
+            b.props.volts = 6;
+            for (const [from, to] of [['D5', 'PWMA'], ['D7', 'AIN1'], ['D8', 'AIN2'], ['D9', 'STBY'], ['5V', 'VCC'], ['GND', 'GND']] as const) connect(p, { part: 'uno1', pin: from }, { part: d.id, pin: to });
+            connect(p, { part: d.id, pin: 'AO1' }, { part: m.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'AO2' }, { part: m.id, pin: '-' });
+            connect(p, { part: b.id, pin: '+' }, { part: d.id, pin: 'VM' });
+            connect(p, { part: b.id, pin: '-' }, { part: 'uno1', pin: 'GND2' });
+            return p;
+        },
+    },
+    {
+        id: 'robot_square', title: 'Robot (World)', blurb: 'Two gear motors through a TB6612 on a robot in the World: it drives a square, open-loop.',
+        build() {
+            const p = emptyProject('Robot');
+            p.code = code('robot_square');
+            addPart(p, 'uno', 4, 4);
+            const d = addPart(p, 'tb6612', 24, 4), left = addPart(p, 'motor', 38, 2), right = addPart(p, 'motor', 38, 10), b = addPart(p, 'battery', 38, 18);
+            b.props.volts = 6;
+            for (const [from, to] of [['D5', 'PWMA'], ['D7', 'AIN1'], ['D8', 'AIN2'], ['D6', 'PWMB'], ['D11', 'BIN1'], ['D12', 'BIN2'], ['D9', 'STBY'], ['5V', 'VCC'], ['GND', 'GND']] as const) connect(p, { part: 'uno1', pin: from }, { part: d.id, pin: to });
+            connect(p, { part: d.id, pin: 'AO1' }, { part: left.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'AO2' }, { part: left.id, pin: '-' });
+            connect(p, { part: d.id, pin: 'BO1' }, { part: right.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'BO2' }, { part: right.id, pin: '-' });
+            connect(p, { part: b.id, pin: '+' }, { part: d.id, pin: 'VM' });
+            connect(p, { part: b.id, pin: '-' }, { part: 'uno1', pin: 'GND2' });
+            p.world = { robot: { left: left.id, right: right.id, sensors: [], x: -0.3, z: 0.3, heading: 0 }, track: ovalTrack() };
+            return p;
+        },
+    },
+    {
+        id: 'line_follower', title: 'Line follower (World)', blurb: 'Two line sensors either side of the tape steer a two-wheeled robot round the oval. Laps are timed.',
+        build() {
+            const p = emptyProject('Line follower');
+            p.code = code('line_follower');
+            addPart(p, 'uno', 4, 4);
+            const d = addPart(p, 'tb6612', 24, 4), left = addPart(p, 'motor', 38, 2), right = addPart(p, 'motor', 38, 10), b = addPart(p, 'battery', 38, 18);
+            const sl = addPart(p, 'tcrt5000', 4, 22), sr = addPart(p, 'tcrt5000', 12, 22);
+            b.props.volts = 6;
+            for (const [from, to] of [['D5', 'PWMA'], ['D7', 'AIN1'], ['D8', 'AIN2'], ['D6', 'PWMB'], ['D11', 'BIN1'], ['D12', 'BIN2'], ['D9', 'STBY'], ['5V', 'VCC'], ['GND', 'GND']] as const) connect(p, { part: 'uno1', pin: from }, { part: d.id, pin: to });
+            connect(p, { part: d.id, pin: 'AO1' }, { part: left.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'AO2' }, { part: left.id, pin: '-' });
+            connect(p, { part: d.id, pin: 'BO1' }, { part: right.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'BO2' }, { part: right.id, pin: '-' });
+            connect(p, { part: b.id, pin: '+' }, { part: d.id, pin: 'VM' });
+            connect(p, { part: b.id, pin: '-' }, { part: 'uno1', pin: 'GND2' });
+            for (const [s, pin] of [[sl, 'D2'], [sr, 'D3']] as const) {
+                connect(p, { part: 'uno1', pin: '5V' }, { part: s.id, pin: 'VCC' });
+                connect(p, { part: 'uno1', pin: 'GND' }, { part: s.id, pin: 'GND' });
+                connect(p, { part: s.id, pin: 'DO' }, { part: 'uno1', pin });
+            }
+            const track = ovalTrack();
+            const [x0, z0] = track.points[0];
+            // just behind the start line, facing along the track; the sensors 7.5 cm ahead, 2 cm either side
+            p.world = { robot: { left: left.id, right: right.id, sensors: [{ part: sl.id, x: 0.075, z: -0.02 }, { part: sr.id, x: 0.075, z: 0.02 }], x: x0 - 0.15, z: z0, heading: 0 }, track };
+            return p;
+        },
+    },
 ];
 
 const PI_BLINK = `# Blink, on a Raspberry Pi: an LED on GPIO17 through a resistor.
@@ -179,6 +243,26 @@ with SMBus(1) as bus:
         led.value = max(0.0, min(1.0, volts / 3.3))
         print(f"knob: {volts:.2f} V")
         sleep(0.25)
+`;
+
+const PI_MOTOR = `# A gear motor through a TB6612: gpiozero's Motor with an enable pin (direction on GPIO17/GPIO27, PWM on GPIO18).
+from gpiozero import Motor
+from time import sleep
+
+motor = Motor(forward=17, backward=27, enable=18)
+
+while True:
+    for speed in (0.25, 0.5, 1.0):
+        motor.forward(speed)
+        print("forward", speed)
+        sleep(1)
+    motor.stop()
+    sleep(0.5)
+    motor.backward(0.5)
+    print("backward 0.5")
+    sleep(1)
+    motor.stop()
+    sleep(0.5)
 `;
 
 const PICO_BLINK = `# Blink, on a Raspberry Pi Pico: the LED on the board and one on GP15 take turns.
@@ -293,6 +377,20 @@ TEMPLATES.push(
             connect(p, { part: 'pi1', pin: 'GPIO17' }, { part: r.id, pin: 'a' });
             connect(p, { part: r.id, pin: 'b' }, { part: led.id, pin: 'a' });
             connect(p, { part: led.id, pin: 'k' }, { part: 'pi1', pin: 'GND2' });
+            return p;
+        },
+    },
+    {
+        id: 'pi_motor', title: 'Motor and driver (Raspberry Pi)', blurb: 'gpiozero\u2019s Motor drives a gear motor through a TB6612, a battery for the motor.',
+        build() {
+            const p = piProject('Motor (Pi)', PI_MOTOR);
+            const d = addPart(p, 'tb6612', 24, 4), m = addPart(p, 'motor', 38, 6), b = addPart(p, 'battery', 38, 16);
+            b.props.volts = 6;
+            for (const [from, to] of [['GPIO17', 'AIN1'], ['GPIO27', 'AIN2'], ['GPIO18', 'PWMA'], ['3V3', 'VCC'], ['3V3', 'STBY'], ['GND', 'GND']] as const) connect(p, { part: 'pi1', pin: from }, { part: d.id, pin: to });
+            connect(p, { part: d.id, pin: 'AO1' }, { part: m.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'AO2' }, { part: m.id, pin: '-' });
+            connect(p, { part: b.id, pin: '+' }, { part: d.id, pin: 'VM' });
+            connect(p, { part: b.id, pin: '-' }, { part: 'pi1', pin: 'GND2' });
             return p;
         },
     },

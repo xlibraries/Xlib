@@ -9,6 +9,9 @@ import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets
 import { RuntimeClient } from './runtime/client';
 import type { Snapshot } from './runtime/protocol';
 import { TEMPLATES } from './templates';
+import { ROBOT, headingOf, type RobotPose } from './sim/world';
+import { figureEightTrack, ovalTrack } from './sim/track';
+import type { WorldSpec } from './sim/project';
 import { buildIsStale, sketchHash, UNO_FLASH, type CompileMessage, type Compiler } from './compile';
 
 const GRID = 16;   // px per grid unit on the bench
@@ -85,6 +88,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
     const [snap, setSnap] = useState<Snapshot>(EMPTY);
     const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<Tab>('parts');
+    const [view, setView] = useState<'bench' | 'world'>(saved.project.world ? 'world' : 'bench');
     const [selected, setSelected] = useState<string | null>(null);
     const [pending, setPending] = useState<PinRef | null>(null);
     const client = useRef<RuntimeClient | null>(null);
@@ -159,6 +163,14 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
     };
     const onPartPointerUp = () => { if (drag.current) onChange(project); drag.current = null; };
 
+    // a lap better than the project's best is kept with the project
+    const lapBest = snap.world?.laps.best ?? null;
+    useEffect(() => {
+        if (lapBest === null || !project.world || (project.world.best !== undefined && project.world.best <= lapBest)) return;
+        change({ ...project, world: { ...project.world, best: lapBest } });
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new best lap triggers this
+    }, [lapBest]);
+
     const netList = useMemo(() => nets(project), [project]);
     const board = boardOf(project);
 
@@ -172,8 +184,14 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                     ? <button type="button" onClick={() => client.current?.send({ type: 'run' })} disabled={project.parts.length === 0} className="px-3 py-0.5 rounded-full bg-emerald-500 text-black font-semibold disabled:opacity-40">▶ Run</button>
                     : <button type="button" onClick={() => client.current?.send({ type: 'stop' })} className="px-3 py-0.5 rounded-full bg-red-500 text-black font-semibold">■ Stop</button>}
             </div>
-            <div className="flex-grow min-h-0 flex flex-col md:flex-row">
-                <div className="flex-grow min-h-0 overflow-auto relative" style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-time={snap.time.toFixed(2)}>
+            <div className="flex-grow min-h-0 flex flex-col md:flex-row relative">
+                {project.world && (
+                    <div className="absolute z-10 mt-2 ml-2 flex text-xs rounded-full overflow-hidden border border-white border-opacity-20" role="tablist" aria-label="View">
+                        {(['bench', 'world'] as const).map(v => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={'px-3 py-1 capitalize ' + (view === v ? 'bg-emerald-500 text-black font-semibold' : 'bg-black bg-opacity-40 text-gray-300')}>{v}</button>)}
+                    </div>
+                )}
+                {project.world && view === 'world' && <WorldView spec={project.world} pose={snap.world} states={snap.states} editable={!running} onChange={world => change({ ...project, world })} />}
+                <div className={'flex-grow min-h-0 overflow-auto relative' + (project.world && view === 'world' ? ' hidden' : '')} style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-time={snap.time.toFixed(2)}>
                     <svg width={Math.max(800, ...project.parts.map(p => (p.x + spec(p).width + 4) * GRID))} height={Math.max(500, ...project.parts.map(p => (p.y + spec(p).height + 4) * GRID))} className="block select-none" style={{ touchAction: 'none' }}>
                         {project.wires.map((w, i) => {
                             const a = byId(w.a.part), b = byId(w.b.part);
@@ -209,12 +227,139 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                         ))}
                     </div>
                     <div className="flex-grow min-h-0 overflow-y-auto p-3 text-sm">
-                        {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onRemove={id => { const next = structuredClone(project); removePart(next, id); change(next); setSelected(null); }} />}
+                        {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onWorld={world => { change({ ...project, world }); if (world) setView('world'); }} onRemove={id => { const next = structuredClone(project); removePart(next, id); if (next.world && (id === next.world.robot.left || id === next.world.robot.right)) next.world = undefined; else if (next.world) next.world.robot.sensors = next.world.robot.sensors.filter(m => m.part !== id); change(next); setSelected(null); }} />}
                         {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} compile={compile} compilerAvailable={compilerAvailable} onChange={code => change({ ...project, code: { ...project.code, ...code } })} />}
                         {tab === 'monitor' && <MonitorTab snap={snap} board={board} project={project} nets={netList} onSerial={text => client.current?.send({ type: 'serial', text })} onTerminal={line => client.current?.send({ type: 'terminal', line })} />}
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+/** The robot on its floor, from above (x right, z down), in metres. Stopped, it's an editor: track presets, drawing
+ *  the line point by point, its width, open or closed, and the robot's start (drag it; turn it with the slider). */
+function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec; pose?: RobotPose; states: Record<string, PartState>; editable: boolean; onChange: (spec: WorldSpec) => void }) {
+    const [drawing, setDrawing] = useState(false);
+    const svg = useRef<SVGSVGElement>(null);
+    const dragging = useRef(false);
+    const xs = spec.track.points.map(p => p[0]).concat(spec.robot.x, -0.5, 0.5), zs = spec.track.points.map(p => p[1]).concat(spec.robot.z, -0.4, 0.4);
+    const pad = 0.25, minX = Math.min(...xs) - pad, minZ = Math.min(...zs) - pad, w = Math.max(...xs) + pad - minX, h = Math.max(...zs) + pad - minZ;
+    const x = pose ? pose.chassis[0] : spec.robot.x, z = pose ? pose.chassis[2] : spec.robot.z;
+    const heading = pose ? headingOf(pose.chassis.slice(3, 7)) : spec.robot.heading;
+    const deg = -heading * 180 / Math.PI;
+    const path = spec.track.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ') + (spec.track.closed && spec.track.points.length > 2 ? ' Z' : '');
+    const R = ROBOT;
+    const laps = pose?.laps;
+    /** A pointer event's position on the floor, metres */
+    const floorAt = (e: { clientX: number; clientY: number }): [number, number] | null => {
+        const ctm = svg.current?.getScreenCTM();
+        if (!ctm) return null;
+        const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+        return [Math.round(pt.x * 1000) / 1000, Math.round(pt.y * 1000) / 1000];
+    };
+    const track = (t: Partial<WorldSpec['track']>) => onChange({ ...spec, track: { ...spec.track, ...t }, best: undefined });
+    const robot = (r: Partial<WorldSpec['robot']>) => onChange({ ...spec, robot: { ...spec.robot, ...r } });
+    const start = spec.track.points[0], next = spec.track.points[1];
+    const startLine = start && next ? (() => { const dx = next[0] - start[0], dz = next[1] - start[1], l = Math.hypot(dx, dz) || 1; return { x1: start[0] - dz / l * 0.15, y1: start[1] + dx / l * 0.15, x2: start[0] + dz / l * 0.15, y2: start[1] - dx / l * 0.15 }; })() : null;
+    const time = (t: number | null | undefined) => t == null ? '\u2014' : `${t.toFixed(2)} s`;
+    return (
+        <div className="flex-grow min-h-0 relative flex flex-col" style={{ background: '#151d19' }} data-testid="world">
+            {editable && (
+                <div className="flex flex-wrap items-center gap-1 px-2 pt-10 pb-1 text-xs text-gray-200" aria-label="Track editor">
+                    <button type="button" onClick={() => { setDrawing(false); track(ovalTrack()); }} className="px-2 py-0.5 rounded bg-white bg-opacity-10 hover:bg-opacity-20">Oval</button>
+                    <button type="button" onClick={() => { setDrawing(false); track(figureEightTrack()); }} className="px-2 py-0.5 rounded bg-white bg-opacity-10 hover:bg-opacity-20">Figure 8</button>
+                    <button type="button" aria-pressed={drawing} onClick={() => { if (!drawing) track({ points: [] }); setDrawing(!drawing); }} className={'px-2 py-0.5 rounded ' + (drawing ? 'bg-emerald-500 text-black' : 'bg-white bg-opacity-10 hover:bg-opacity-20')}>{drawing ? 'Done drawing' : 'Draw'}</button>
+                    {drawing && <button type="button" onClick={() => track({ points: spec.track.points.slice(0, -1) })} className="px-2 py-0.5 rounded bg-white bg-opacity-10">Undo point</button>}
+                    <label className="flex items-center gap-1 ml-1"><input type="checkbox" checked={spec.track.closed} onChange={e => track({ closed: e.target.checked })} />loop</label>
+                    <label className="flex items-center gap-1 ml-1">line
+                        <select value={String(Math.round(spec.track.width * 1000))} onChange={e => track({ width: Number(e.target.value) / 1000 })} className="bg-black bg-opacity-40 rounded px-1">
+                            {[12, 19, 25, 38].map(mm => <option key={mm} value={mm}>{mm} mm</option>)}
+                        </select>
+                    </label>
+                    <label className="flex items-center gap-1 ml-1">heading
+                        <input type="range" min={-180} max={180} step={5} value={Math.round(spec.robot.heading * 180 / Math.PI)} onChange={e => robot({ heading: Number(e.target.value) * Math.PI / 180 })} aria-label="Start heading" />
+                    </label>
+                    <span className="text-gray-400 ml-1">{drawing ? 'Click to add points along the line.' : 'Drag the robot to its start.'}</span>
+                </div>
+            )}
+            <svg ref={svg} viewBox={`${minX} ${minZ} ${w} ${h}`} className={'w-full flex-grow min-h-0 block ' + (drawing ? 'cursor-crosshair' : '')} preserveAspectRatio="xMidYMid meet"
+                onClick={e => { if (!drawing) return; const at = floorAt(e); if (at) track({ points: [...spec.track.points, at] }); }}
+                onPointerMove={e => { if (!dragging.current) return; const at = floorAt(e); if (at) robot({ x: at[0], z: at[1] }); }}
+                onPointerUp={() => { dragging.current = false; }}>
+                <rect x={minX} y={minZ} width={w} height={h} fill="#e8e3d6" />
+                <path d={path} fill="none" stroke="#141414" strokeWidth={spec.track.width} strokeLinejoin="round" strokeLinecap="round" data-track={spec.track.points.length} />
+                {drawing && spec.track.points.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={0.008} fill="#2f7cff" />)}
+                {startLine && <line {...startLine} stroke="#ff3b30" strokeWidth={0.006} strokeDasharray="0.012 0.008" />}
+                <g transform={`translate(${x},${z}) rotate(${deg})`} data-robot data-x={x.toFixed(3)} data-z={z.toFixed(3)} data-heading={heading.toFixed(3)}
+                    className={editable && !drawing ? 'cursor-move' : ''} onPointerDown={e => { if (!editable || drawing) return; e.stopPropagation(); dragging.current = true; (e.currentTarget.ownerSVGElement as SVGSVGElement).setPointerCapture(e.pointerId); }}>
+                    <rect x={-R.length / 2} y={-R.width / 2} width={R.length} height={R.width} rx={0.01} fill="#2b6e59" stroke="#0b1511" strokeWidth={0.003} />
+                    <path d={`M${R.length / 2 - 0.03},-0.025 L${R.length / 2 - 0.005},0 L${R.length / 2 - 0.03},0.025`} fill="none" stroke="#9ff5d1" strokeWidth={0.006} />
+                    {[-1, 1].map(side => <rect key={side} x={R.axleX - R.wheelRadius} y={side * R.track / 2 - R.wheelWidth / 2} width={R.wheelRadius * 2} height={R.wheelWidth} rx={0.006} fill="#1b1b1b" />)}
+                    <circle cx={R.casterX} cy={0} r={R.casterRadius} fill="#9db5aa" />
+                    {spec.robot.sensors.map(m => <circle key={m.part} cx={m.x} cy={m.z} r={0.007} fill={states[m.part]?.led ? '#ff3b30' : '#4a4a4a'} stroke="#fff" strokeWidth={0.002} data-sensor={m.part} />)}
+                </g>
+            </svg>
+            <div className="absolute bottom-2 left-2 flex flex-wrap gap-2 text-xs" data-testid="laps">
+                {laps ? (
+                    <>
+                        {spec.track.closed
+                            ? <span className="bg-black bg-opacity-70 text-white rounded px-2 py-0.5" data-laps={laps.laps}>Lap {laps.laps + (laps.current === null ? 0 : 1)} · {time(laps.current)}</span>
+                            : <span className="bg-black bg-opacity-70 text-white rounded px-2 py-0.5">{laps.finished !== null ? `Finished in ${time(laps.finished)}` : time(laps.current)}</span>}
+                        {laps.last !== null && <span className="bg-black bg-opacity-70 text-white rounded px-2 py-0.5">last {time(laps.last)}</span>}
+                        {laps.offTrack && !laps.lost && <span className="bg-yellow-500 text-black rounded px-2 py-0.5">off the track</span>}
+                        {laps.lost && <span className="bg-red-600 text-white rounded px-2 py-0.5">lost the line</span>}
+                    </>
+                ) : <span className="bg-white bg-opacity-70 text-gray-800 rounded px-2 py-0.5">Run to drive the robot.</span>}
+                {spec.best !== undefined && <span className="bg-emerald-500 text-black rounded px-2 py-0.5" data-best={spec.best.toFixed(2)}>best {time(spec.best)}</span>}
+            </div>
+        </div>
+    );
+}
+
+/** The robot's set-up: which motors drive the wheels, where the line sensors sit. */
+function RobotPanel({ project, onChange }: { project: Project; onChange: (world: WorldSpec | undefined) => void }) {
+    const motors = project.parts.filter(p => p.kind === 'motor'), sensors = project.parts.filter(p => p.kind === 'tcrt5000');
+    const world = project.world;
+    if (!world) {
+        if (motors.length < 2) return null;
+        return (
+            <div className="rounded-lg bg-white bg-opacity-5 p-3 text-xs">
+                <div className="font-semibold text-sm mb-1">Robot</div>
+                <div className="text-gray-300 mb-2">Two motors on the bench: put them on a robot\u2019s wheels and drive it in the World.</div>
+                <button type="button" onClick={() => onChange({ robot: { left: motors[0].id, right: motors[1].id, sensors: sensors.map((s, i) => ({ part: s.id, x: 0.075, z: sensors.length > 1 ? -0.02 + 0.04 * i / (sensors.length - 1) : 0 })), x: 0.25, z: -0.35, heading: 0 }, track: ovalTrack() })}
+                    className="px-3 py-1 rounded-full bg-emerald-500 text-black font-semibold">Put a robot in the World</button>
+            </div>
+        );
+    }
+    const robot = (r: Partial<WorldSpec['robot']>) => onChange({ ...world, robot: { ...world.robot, ...r } });
+    const mount = (id: string) => world.robot.sensors.find(m => m.part === id);
+    const setMount = (id: string, m: { x: number; z: number } | null) => robot({ sensors: [...world.robot.sensors.filter(s => s.part !== id), ...(m ? [{ part: id, ...m }] : [])] });
+    return (
+        <div className="rounded-lg bg-white bg-opacity-5 p-3 text-xs space-y-2" data-testid="robot-panel">
+            <div className="flex items-center justify-between"><span className="font-semibold text-sm">Robot</span><button type="button" onClick={() => onChange(undefined)} className="text-gray-400 hover:text-red-300">remove from the World</button></div>
+            {(['left', 'right'] as const).map(side => (
+                <label key={side} className="flex items-center justify-between gap-2">{side === 'left' ? 'Left wheel' : 'Right wheel'}
+                    <select value={world.robot[side]} onChange={e => robot({ [side]: e.target.value })} className="bg-black bg-opacity-40 rounded px-1 py-0.5" aria-label={`${side} wheel motor`}>
+                        {motors.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
+                    </select>
+                </label>
+            ))}
+            {sensors.map(s => {
+                const m = mount(s.id);
+                return (
+                    <div key={s.id} className="flex items-center gap-2 flex-wrap">
+                        <label className="flex items-center gap-1"><input type="checkbox" checked={!!m} onChange={e => setMount(s.id, e.target.checked ? { x: 0.075, z: 0 } : null)} />{s.id} on the robot</label>
+                        {m && (['x', 'z'] as const).map(axis => (
+                            <label key={axis} className="flex items-center gap-1">{axis === 'x' ? 'ahead' : 'right'}
+                                <input type="number" step={1} min={-150} max={150} value={Math.round(m[axis] * 1000)} onChange={e => { const v = Number(e.target.value); if (Number.isFinite(v)) setMount(s.id, { ...m, [axis]: Math.max(-0.15, Math.min(0.15, v / 1000)) }); }}
+                                    className="w-14 bg-black bg-opacity-40 rounded px-1 py-0.5 text-right" aria-label={`${s.id} ${axis === 'x' ? 'ahead' : 'right'} (mm)`} />mm
+                            </label>
+                        ))}
+                    </div>
+                );
+            })}
+            <div className="text-gray-400">Positive motor speed rolls a wheel forwards: if the robot backs up or spins, swap a motor\u2019s wires or the wheels.</div>
         </div>
     );
 }
@@ -272,6 +417,22 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
                     <text x={w / 2 + 3} y={33} fill="#9db5aa" fontSize={7}>LED</text>
                 </g>
             )}
+            {part.kind === 'motor' && (
+                <g data-rpm={state.rpm?.toFixed(0)}>
+                    <g transform={`translate(${w * 0.62},${h * 0.5}) rotate(${state.turned ?? 0})`}>
+                        <circle r={13} fill="#ffd60a" opacity={0.85} />
+                        <rect x={-2} y={-13} width={4} height={26} rx={2} fill="#0b1511" />
+                        <rect x={-13} y={-2} width={26} height={4} rx={2} fill="#0b1511" opacity={0.6} />
+                    </g>
+                    <text x={w * 0.62} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={9}>{running ? `${Math.round(state.rpm ?? 0)} rpm` : ''}</text>
+                </g>
+            )}
+            {part.kind === 'tcrt5000' && (
+                <g>
+                    <circle cx={w * 0.35} cy={h * 0.62} r={4} fill="#ff3b30" opacity={state.led ? 1 : 0.15} data-led={state.led ? 'on' : 'off'} />
+                    <rect x={w * 0.55} y={h * 0.5} width={w * 0.25} height={h * 0.25} rx={2} fill={`hsl(0 0% ${Math.round(Number(part.props.reflect) * 85 + 10)}%)`} stroke="#2f4a3e" />
+                </g>
+            )}
             {part.kind === 'tmp102' && <text x={w / 2} y={h / 2 + 16} textAnchor="middle" fill="#ffd60a" fontSize={11} data-readout="temperature">{Number(part.props.temperature).toFixed(1)} °C</text>}
             {part.kind === 'mpu6050' && (
                 <g transform={`translate(${w / 2},${h / 2 + 14}) rotate(${Number(part.props.roll)})`}>
@@ -298,10 +459,11 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
 const ohms = (v: number) => v >= 1e6 ? `${v / 1e6} MΩ` : v >= 1000 ? `${v / 1000} kΩ` : `${v} Ω`;
 const farads = (v: number) => v >= 1e-3 ? `${(v * 1e3).toPrecision(3)} mF` : v >= 1e-6 ? `${(v * 1e6).toPrecision(3)} µF` : v >= 1e-9 ? `${(v * 1e9).toPrecision(3)} nF` : `${(v * 1e12).toPrecision(3)} pF`;
 
-function PartsTab({ project, selected, onAdd, onProp, onRemove }: { project: Project; selected: string | null; onAdd: (kind: string) => void; onProp: (id: string, key: string, value: number | string | boolean) => void; onRemove: (id: string) => void }) {
+function PartsTab({ project, selected, onAdd, onProp, onRemove, onWorld }: { project: Project; selected: string | null; onAdd: (kind: string) => void; onProp: (id: string, key: string, value: number | string | boolean) => void; onRemove: (id: string) => void; onWorld: (world: WorldSpec | undefined) => void }) {
     const part = project.parts.find(p => p.id === selected);
     return (
         <div className="space-y-4">
+            <RobotPanel project={project} onChange={onWorld} />
             {part && (
                 <div className="rounded-lg bg-white bg-opacity-5 p-3">
                     <div className="flex items-center justify-between">

@@ -280,6 +280,13 @@ public:
     bool touching(Body a, Body b) const override { return contacts_.touching(a.id, b.id); }
     int body_count() const override { return static_cast<int>(bodies_.size()); }
 
+    void set_tolerances(float penetration_slop, float speculative_distance) override {
+        JPH::PhysicsSettings settings = system_.GetPhysicsSettings();
+        settings.mPenetrationSlop = std::max(0.0f, penetration_slop);
+        settings.mSpeculativeContactDistance = std::max(0.0f, speculative_distance);
+        system_.SetPhysicsSettings(settings);
+    }
+
 private:
     Body add(const JPH::Shape* shape, Motion motion, V3 position, Quat rotation, float mass, Material material) {
         JPH::BodyCreationSettings settings(shape, jr(position), jq(rotation), motion_of(motion), motion == Motion::Static ? Layers::NON_MOVING : Layers::MOVING);

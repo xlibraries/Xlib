@@ -62,3 +62,7 @@ jobs:
         run: pnpm --filter @xlibraries/arcade build:native
       - name: Committed dist/ matches the sources
         run: git diff --exit-code --stat -- packages/arcade/dist
+      - name: Build Bot Lab's native modules (the physics world)
+        run: pnpm --filter @xlibraries/bot-lab build:native
+      - name: Bot Lab's committed dist/ matches the sources
+        run: git diff --exit-code --stat -- packages/bot-lab/dist

@@ -130,6 +130,30 @@ export const CATALOG: Record<string, PartSpec> = {
         pins: [{ id: 'sig', label: 'signal', kind: 'signal', x: 0, y: 0.25 }, { id: 'v', label: '5V', kind: 'power', x: 0, y: 0.5 }, { id: 'gnd', label: 'GND', kind: 'ground', x: 0, y: 0.75 }],
         props: {},
     },
+    motor: {
+        kind: 'motor', title: 'DC gear motor', group: 'drive', width: 6, height: 5,
+        description: 'A small geared motor (the yellow \u201cTT\u201d kind): about 200 rpm at 6 V, 1 A when stalled. Speed follows voltage; current follows load. Drive it through a motor driver, never straight from a pin.',
+        pins: [{ id: '+', label: '+', kind: 'passive', x: 0, y: 0.3 }, { id: '-', label: '−', kind: 'passive', x: 0, y: 0.7 }],
+        props: {
+            volts: { label: 'Rated voltage', default: 6, unit: 'V', min: 1.5, max: 24 }, rpm: { label: 'No-load speed', default: 200, unit: 'rpm', min: 10, max: 20_000 },
+            stall: { label: 'Stall current', default: 1, unit: 'A', min: 0.05, max: 20 }, load: { label: 'Load (of stall torque)', default: 0, min: 0, max: 1 },
+        },
+    },
+    tb6612: {
+        kind: 'tb6612', title: 'Motor driver (TB6612)', group: 'drive', width: 8, height: 10,
+        description: 'Two H-bridges: each turns a motor forward or back from two direction pins and a PWM pin. STBY must be high. VM powers the motors (up to 13.5 V), VCC the logic (2.7–5.5 V).',
+        pins: [
+            ...side(['VM', 'VCC', 'GND', 'STBY', 'AIN1', 'AIN2', 'PWMA', 'BIN1', 'BIN2', 'PWMB'], ['power', 'power', 'ground', 'digital', 'digital', 'digital', 'digital', 'digital', 'digital', 'digital'], 0, 0.06, 0.94),
+            ...side(['AO1', 'AO2', 'BO1', 'BO2'], ['passive', 'passive', 'passive', 'passive'], 1, 0.2, 0.8),
+        ],
+        props: {},
+    },
+    tcrt5000: {
+        kind: 'tcrt5000', title: 'Line sensor (TCRT5000)', group: 'sensor', width: 5, height: 5,
+        description: 'Shines infrared down and measures what comes back. AO rises over dark surfaces; DO goes high over a dark line (its LED lights over white). The knob sets the threshold.',
+        pins: [...side(['VCC', 'GND'], ['power', 'ground'], 0, 0.3, 0.7), ...side(['DO', 'AO'], ['signal', 'analog'], 1, 0.3, 0.7)],
+        props: { reflect: { label: 'Surface (0 black, 1 white)', default: 1, min: 0, max: 1 }, threshold: { label: 'Threshold', default: 0.5, min: 0.05, max: 0.95 } },
+    },
     tmp102: {
         kind: 'tmp102', title: 'Temperature sensor (TMP102)', group: 'sensor', width: 6, height: 5,
         description: 'Reads temperature to 0.0625 °C over I²C (address 0x48–0x4B). Wire SDA and SCL to the board\u2019s I²C pins (Pi GPIO2/GPIO3, Uno A4/A5) and power it from 3.3 V.',

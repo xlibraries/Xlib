@@ -90,6 +90,13 @@ public:
     virtual std::vector<Body> contacts(Body body) const = 0;
     virtual bool touching(Body a, Body b) const = 0;
     virtual int body_count() const = 0;
+
+    /**
+     * Contact tolerances, metres: how far bodies may sink into each other before they're pushed apart (penetration
+     * slop) and how early contacts are found (speculative distance). The defaults (2 cm each) suit human-scale scenes;
+     * small things (a robot on 32 mm wheels) want millimetres, or they settle visibly into the floor.
+     */
+    virtual void set_tolerances(float penetration_slop, float speculative_distance) = 0;
 };
 
 /** Quaternion from an axis (unit) and an angle in radians. */

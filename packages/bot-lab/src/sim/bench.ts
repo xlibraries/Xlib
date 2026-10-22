@@ -32,8 +32,26 @@ export interface PartState {
     /** Volts across it */
     volts?: number;
     dead?: boolean;
-    /** Boards with an LED of their own (the Pico's GP25) */
+    /** Boards with an LED of their own (the Pico's GP25), and sensors with an indicator LED */
     led?: boolean;
+    /** Motors: shaft speed and angle */
+    rpm?: number;
+    turned?: number;
+}
+
+/** A DC motor's model, from its datasheet-style props: winding resistance, back-EMF/torque constant, friction, inertia. */
+export interface MotorModel { ohms: number; ke: number; friction: number; inertia: number; stallTorque: number }
+
+export function motorModel(volts: number, rpm: number, stallAmps: number): MotorModel {
+    const ohms = volts / stallAmps;
+    const noLoadAmps = stallAmps * 0.15;                       // small motors idle at about a sixth of stall current
+    const omega = rpm * 2 * Math.PI / 60;
+    const ke = (volts - noLoadAmps * ohms) / omega;            // V·s/rad, and N·m/A (SI: the same number)
+    const friction = ke * noLoadAmps / omega;                  // viscous: eats the no-load current at no-load speed
+    const stallTorque = ke * stallAmps;
+    // the shaft's inertia (rotor through the gearbox, plus a wheel) for a mechanical time constant of about 30 ms
+    const inertia = 0.03 * ke * ke / ohms;
+    return { ohms, ke, friction, inertia, stallTorque };
 }
 
 /** One board pin on the bench: a source behind an output stage, pull resistors, and how to talk to the board about it. */
@@ -77,6 +95,13 @@ export class Bench {
     private readonly ldrs: { part: string; r: Resistor }[] = [];
     private readonly dead = new Set<string>();
     private picoPart: string | null = null;
+    /** Motors: an internal node, the winding resistance and the back-EMF source, and the shaft's state */
+    /** Motors. One that drives a wheel in the world is `attached`: the world sets its speed and takes its `torque`. */
+    readonly motors: { part: string; r: Resistor; emf: VoltageSource; model: MotorModel; omega: number; angle: number; amps: number; stalled: number; load: number; extLoad: number; attached: boolean; torque: number }[] = [];
+    /** Called after every step (the world couples here) */
+    afterTick?: (dt: number) => void;
+    private readonly drivers6612: { part: string; vcc: Node; gnd: Node; stby: Node; ins: Node[][]; outs: { hi: Switch; lo: Switch }[][] }[] = [];
+    private readonly lineSensors: { part: string; vcc: Node; gnd: Node; ao: VoltageSource; dout: VoltageSource; doStage: Resistor; detecting: boolean }[] = [];
     private readonly i2cDevices: { part: string; device: I2CDevice; sda: Node; scl: Node; vcc: Node; gnd: Node; supplied: boolean }[] = [];
     /** The Pi's I²C bus 1 (GPIO2 = SDA, GPIO3 = SCL), when there's a Pi */
     readonly piBus: I2CBus | null;
@@ -222,6 +247,32 @@ export class Bench {
                 this.i2cDevices.push({ part: id, device, sda: n('SDA'), scl: n('SCL'), vcc, gnd, supplied });
                 break;
             }
+            case 'motor': {
+                const model = motorModel(num('volts'), num('rpm'), num('stall'));
+                const mid = this.net.node();
+                const r = this.net.add(new Resistor(n('+'), mid, model.ohms));
+                const emf = this.net.add(new VoltageSource(mid, n('-'), 0));
+                this.motors.push({ part: id, r, emf, model, omega: 0, angle: 0, amps: 0, stalled: 0, load: num('load'), extLoad: 0, attached: false, torque: 0 });
+                break;
+            }
+            case 'tb6612': {
+                const vm = n('VM'), gnd = n('GND');
+                this.net.add(new Resistor(n('VCC'), gnd, 10_000));                     // logic supply: about 0.5 mA
+                for (const pin of ['STBY', 'AIN1', 'AIN2', 'PWMA', 'BIN1', 'BIN2', 'PWMB']) this.net.add(new Resistor(n(pin), gnd, 200_000));   // its inputs' pull-downs
+                const out = (pin: string) => ({ hi: this.net.add(new Switch(vm, n(pin), false, 0.5)), lo: this.net.add(new Switch(n(pin), gnd, false, 0.5)) });
+                this.drivers6612.push({ part: id, vcc: n('VCC'), gnd, stby: n('STBY'), ins: [[n('AIN1'), n('AIN2'), n('PWMA')], [n('BIN1'), n('BIN2'), n('PWMB')]], outs: [[out('AO1'), out('AO2')], [out('BO1'), out('BO2')]] });
+                break;
+            }
+            case 'tcrt5000': {
+                const gnd = n('GND');
+                this.net.add(new Resistor(n('VCC'), gnd, 330));                         // the IR LED: about 15 mA at 5 V
+                const ao = this.net.add(new VoltageSource(this.net.node(), gnd, 0));
+                this.net.add(new Resistor(ao.a, n('AO'), 10_000));
+                const dout = this.net.add(new VoltageSource(this.net.node(), gnd, 0));
+                const doStage = this.net.add(new Resistor(dout.a, n('DO'), 1000));
+                this.lineSensors.push({ part: id, vcc: n('VCC'), gnd, ao, dout, doStage, detecting: false });
+                break;
+            }
             case 'servo': {
                 this.net.add(new Resistor(n('sig'), GROUND, 1e6));           // the signal input
                 this.net.add(new Resistor(n('v'), n('gnd'), 50));            // ~100 mA from 5 V
@@ -249,6 +300,7 @@ export class Bench {
         for (const p of this.pots) if (p.part === id) { const ohms = Number(part.props.ohms), pos = Math.max(0.001, Math.min(0.999, Number(part.props.position))); p.ra.ohms = ohms * pos; p.rb.ohms = ohms * (1 - pos); }
         for (const l of this.ldrs) if (l.part === id && key === 'light') l.r.ohms = ldrOhms(v);
         for (const s of this.sources) if (s.part === id && key === 'volts') s.source.volts = v;
+        for (const m of this.motors) if (m.part === id && key === 'load') m.load = v;
     }
 
     /** One electrical step: the board runs, the net settles, the parts react. */
@@ -273,9 +325,11 @@ export class Bench {
             }
             d.mode = a.mode;
         }
+        this.preSolve();
         this.solution = this.net.step(dt, this.solution ?? undefined);
         const v = this.solution.v;
         this.time += dt;
+        this.postSolve(v, dt);
 
         for (const d of this.drivers) if (d.mode !== 'output') d.feed(v[d.node] > d.logicVolts * 0.6, v[d.node]);
         // parts
@@ -307,6 +361,67 @@ export class Bench {
             if (d.mode !== 'output') continue;
             const amps = Math.abs(this.solution.current(d.source));
             if (amps > d.maxAmps) this.warn(d.board, `Pin ${d.name} is sourcing ${Math.round(amps * 1000)} mA; a${d.board === 'uno' ? 'n Uno' : d.board === 'pi' ? ' Pi' : ' Pico'} pin is rated ${Math.round(d.maxAmps * 1000)} mA.`);
+        }
+        this.afterTick?.(dt);
+    }
+
+    /** Parts whose outputs depend on their inputs: set from the last step's voltages (one tick of delay, 0.2 ms). */
+    private preSolve() {
+        const v = this.solution?.v;
+        const volts = (node: Node) => v ? v[node] : 0;
+        for (const d of this.drivers6612) {
+            const vcc = volts(d.vcc) - volts(d.gnd);
+            const high = (node: Node) => volts(node) - volts(d.gnd) > Math.max(1.4, vcc * 0.7);
+            const on = vcc >= 2.7 && high(d.stby);
+            d.ins.forEach(([in1, in2, pwm], ch) => {
+                const a = high(in1), b = high(in2), p = high(pwm);
+                // TB6612's truth table: forward, reverse, short brake (both low sides) or off
+                const [o1, o2] = !on ? ['off', 'off'] : a && b ? ['low', 'low'] : !a && !b ? ['off', 'off'] : !p ? ['low', 'low'] : a ? ['high', 'low'] : ['low', 'high'];
+                [o1, o2].forEach((state, k) => { const sw = d.outs[ch][k]; sw.hi.closed = state === 'high'; sw.lo.closed = state === 'low'; });
+            });
+        }
+        for (const s of this.lineSensors) {
+            const vcc = volts(s.vcc) - volts(s.gnd);
+            const part = this.project.parts.find(p => p.id === s.part)!;
+            const reflect = Math.max(0, Math.min(1, Number(part.props.reflect))), threshold = Number(part.props.threshold);
+            const powered = vcc > 2.5;
+            const ao = powered ? vcc * (0.08 + 0.84 * (1 - reflect)) : 0;     // dark surface: little light back, AO high
+            s.ao.volts = ao;
+            const dark = ao > threshold * vcc;
+            s.dout.volts = powered && dark ? vcc : 0;
+            s.doStage.ohms = powered && dark ? 1000 : 50;                     // the comparator's pull-up vs its open collector
+            s.detecting = powered && !dark;
+        }
+        for (const m of this.motors) m.emf.volts = m.model.ke * m.omega;
+    }
+
+    /** Motors turn: current makes torque; friction, load and inertia decide the speed. */
+    private postSolve(v: number[], dt: number) {
+        for (const m of this.motors) {
+            const { ke, friction, inertia, stallTorque } = m.model;
+            m.amps = m.r.current(v);
+            const drive = ke * m.amps - friction * m.omega;
+            m.torque = drive;
+            if (m.attached) {                                                  // the world turns this shaft
+                m.angle += m.omega * dt;
+                this.states.set(m.part, { rpm: m.omega * 60 / (2 * Math.PI), amps: m.amps, turned: (m.angle * 180 / Math.PI) % 360 });
+                continue;
+            }
+            const load = (m.load * stallTorque) + m.extLoad;                   // opposes motion (or a stalled shaft)
+            let torque = drive;
+            if (Math.abs(m.omega) < 1e-3 && Math.abs(drive) <= load) { m.omega = 0; torque = 0; }
+            else torque -= Math.sign(m.omega || drive) * load;
+            m.omega += torque / inertia * dt;
+            m.angle += m.omega * dt;
+            const stallAmps = stallTorque / ke;
+            m.stalled = Math.abs(m.omega) < 0.5 && Math.abs(m.amps) > 0.6 * stallAmps ? m.stalled + dt : 0;
+            if (m.stalled > 2) this.warn(m.part, `${m.part} is stalled and drawing ${Math.abs(m.amps).toFixed(2)} A: a real motor would be getting hot.`);
+            this.states.set(m.part, { rpm: m.omega * 60 / (2 * Math.PI), amps: m.amps, turned: (m.angle * 180 / Math.PI) % 360 });
+        }
+        for (const s of this.lineSensors) this.states.set(s.part, { led: s.detecting, volts: v[s.ao.a] - v[s.gnd] });
+        for (const d of this.drivers6612) {
+            const vcc = v[d.vcc] - v[d.gnd];
+            if (vcc >= 2.7 && v[d.stby] - v[d.gnd] < 1.4 && this.time > 0.2 && this.drivers.some(x => x.mode === 'output')) this.warn(d.part, `${d.part}: STBY is low, so both motor outputs are off. Tie STBY to VCC (or drive it high).`);
         }
     }
 

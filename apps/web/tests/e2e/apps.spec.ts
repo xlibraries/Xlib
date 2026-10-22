@@ -688,6 +688,86 @@ test.describe('Bot Lab', () => {
         await expect(lab.getByRole('button', { name: '▶ Run' })).toBeVisible();
     });
 
+    test('Motor and driver: PWM through the TB6612 spins the motor up, then the other way', async ({ page }) => {
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Motor and driver A TB6612/ }).click();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const rpm = () => lab.locator('[data-part="motor1"] [data-rpm]').getAttribute('data-rpm').then(Number);
+        await expect.poll(rpm, { timeout: 15_000, intervals: [100] }).toBeGreaterThan(150);
+        await expect.poll(rpm, { timeout: 15_000, intervals: [100] }).toBeLessThan(-150);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+    });
+
+    test('the Robot drives in the World: forwards, then it turns; the bench shows its motors', async ({ page }) => {
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Robot \(World\)/ }).click();
+        await expect(lab.getByTestId('world')).toBeVisible();
+        const robot = lab.locator('[data-robot]');
+        const x0 = Number(await robot.getAttribute('data-x'));
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        await expect.poll(() => robot.getAttribute('data-x').then(Number), { timeout: 20_000, intervals: [100] }).toBeGreaterThan(x0 + 0.2);
+        await expect.poll(() => robot.getAttribute('data-heading').then(h => Math.abs(Number(h))), { timeout: 10_000, intervals: [100] }).toBeGreaterThan(0.5);
+        await lab.getByRole('tab', { name: 'bench' }).click();
+        await expect(lab.getByTestId('bench')).toBeVisible();
+        await expect.poll(() => lab.locator('[data-part="motor1"] [data-rpm]').getAttribute('data-rpm').then(r => Math.abs(Number(r))), { timeout: 10_000, intervals: [100] }).toBeGreaterThan(50);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+    });
+
+    test('the line follower laps the oval in the World, timed, and its best lap is kept', async ({ page }) => {
+        test.slow();   // a lap takes about ten simulated seconds
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Line follower \(World\)/ }).click();
+        await expect(lab.getByTestId('world')).toBeVisible();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        await expect(lab.getByTestId('laps')).toContainText('Lap 1', { timeout: 20_000 });
+        await expect(lab.locator('[data-laps="1"]')).toBeVisible({ timeout: 40_000 });
+        await expect(lab.getByTestId('laps')).toContainText('last');
+        await expect(lab.getByTestId('laps')).not.toContainText('off the track');
+        await expect(lab.locator('[data-best]')).toBeVisible();
+        const best = Number(await lab.locator('[data-best]').getAttribute('data-best'));
+        expect(best).toBeGreaterThan(5);
+        expect(best).toBeLessThan(15);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        await lab.getByRole('button', { name: '← Projects' }).click();
+        await page.reload();
+        const again = await openApp(page, 'bot-lab');
+        await again.locator('li').filter({ hasText: 'Line follower' }).getByRole('button').first().click();
+        await expect(again.locator('[data-best]')).toHaveAttribute('data-best', best.toFixed(2));
+    });
+
+    test('the track editor: presets, drawing a line point by point, a loop, the robot\u2019s start', async ({ page }) => {
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Robot \(World\)/ }).click();
+        const track = lab.locator('[data-track]');
+        await lab.getByRole('button', { name: 'Figure 8' }).click();
+        await expect(track).toHaveAttribute('data-track', '64');
+        await lab.getByRole('button', { name: 'Draw' }).click();
+        await expect(track).toHaveAttribute('data-track', '0');
+        const box = (await lab.getByTestId('world').locator('svg').boundingBox())!;
+        for (const [fx, fy] of [[0.3, 0.3], [0.7, 0.3], [0.7, 0.7], [0.3, 0.7]]) await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+        await expect(track).toHaveAttribute('data-track', '4');
+        await lab.getByRole('button', { name: 'Undo point' }).click();
+        await expect(track).toHaveAttribute('data-track', '3');
+        await lab.getByRole('button', { name: 'Done drawing' }).click();
+        await lab.getByLabel('loop').uncheck();
+        await expect(lab.getByLabel('loop')).not.toBeChecked();
+        // drag the robot to a new start
+        const robot = lab.locator('[data-robot]');
+        const before = Number(await robot.getAttribute('data-x'));
+        const rb = (await robot.boundingBox())!;
+        await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(rb.x + rb.width / 2 + 80, rb.y + rb.height / 2, { steps: 5 });
+        await page.mouse.up();
+        await expect.poll(() => robot.getAttribute('data-x').then(Number)).toBeGreaterThan(before + 0.05);
+        await lab.getByLabel('Start heading').fill('90');
+        await expect.poll(() => robot.getAttribute('data-heading').then(Number)).toBeCloseTo(Math.PI / 2, 1);
+    });
+
     test('the Raspberry Pi Button template: a press reaches the script while it sits in pause()', async ({ page }) => {
         test.slow();
         await openDesktop(page);
