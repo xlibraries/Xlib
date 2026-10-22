@@ -1,7 +1,6 @@
-# Deploys Bot Lab's Arduino compile service (services/arduino-compiler) to Cloud Run when it changes on master.
-# Keyless: GitHub's OIDC token is exchanged for the deploy service account through Workload Identity Federation.
-# Set up once with services/arduino-compiler/setup-gcp.sh, which creates everything below and sets these
-# repository variables; until they exist this workflow skips itself.
+# Deploys Bot Lab's Arduino compile service (services/arduino-compiler) to its Hugging Face Space when it changes on
+# master. Set up once with services/arduino-compiler/setup-hf.sh, which creates the Space and stores HF_TOKEN
+# (secret) and HF_SPACE (variable) here; until then this workflow skips itself.
 name: arduino-compiler
 
 on:
@@ -12,40 +11,19 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency: arduino-compiler-deploy
 
 jobs:
   deploy:
-    if: vars.GCP_PROJECT_ID != ''
+    if: vars.HF_SPACE != ''
     runs-on: ubuntu-latest
-    env:
-      PROJECT: ${{ vars.GCP_PROJECT_ID }}
-      REGION: ${{ vars.GCP_REGION }}
-      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/bot-lab/arduino-compiler:${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: Tests
         run: cd services/arduino-compiler && python3 -m unittest discover -p 'test_*.py'
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
-      - name: Build and push the image
-        run: |
-          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-          docker build -t "$IMAGE" services/arduino-compiler
-          docker push "$IMAGE"
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy bot-lab-compiler --project "$PROJECT" --region "$REGION" --image "$IMAGE" \
-            --service-account "bot-lab-compiler-runtime@$PROJECT.iam.gserviceaccount.com" \
-            --set-secrets COMPILER_SECRET=bot-lab-compiler-secret:latest \
-            --allow-unauthenticated --cpu 1 --memory 1Gi --concurrency 2 --min-instances 0 --max-instances 2 --timeout 60 --quiet
-      - name: Smoke test
-        run: |
-          url=$(gcloud run services describe bot-lab-compiler --project "$PROJECT" --region "$REGION" --format 'value(status.url)')
-          curl -fsS "$url/healthz"
-          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url/compile" -d '{}')" = 401
+      - name: Deploy to the Space and wait until it answers
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: services/arduino-compiler/deploy-hf.sh

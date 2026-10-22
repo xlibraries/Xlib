@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { memoryStore } from '@xlibraries/analytics/server';
-import { BUILDS_PER_WINDOW, MAX_SKETCH, build, compilerConfig } from '../../lib/bot-lab-compile';
+import { BUILDS_PER_WINDOW, MAX_SKETCH, WAKING, build, compilerConfig } from '../../lib/bot-lab-compile';
 
 const HEX = ':100000000C9434000C943E000C943E000C943E0082\n:00000001FF\n';
 const config = { url: 'https://compiler.example', secret: 's3cret' };
@@ -71,6 +71,14 @@ describe('build', () => {
         const fetch = service();
         expect((await build({ body: { sketch: 'x' }, ip: 'a', config, store, fetch })).status).toBe(200);
         expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('a sleeping compiler (an HTML 50x, or no answer in time) reads as waking up', async () => {
+        const store = memoryStore();
+        const asleep = vi.fn(async () => new Response('<html>Space is starting</html>', { status: 503, headers: { 'content-type': 'text/html' } }));
+        expect(await build({ body: { sketch: 'x' }, ip: 'a', config, store, fetch: asleep })).toEqual({ status: 503, body: { error: WAKING } });
+        const slow = vi.fn(async () => { throw Object.assign(new Error('timed out'), { name: 'TimeoutError' }); });
+        expect(await build({ body: { sketch: 'x' }, ip: 'a', config, store, fetch: slow })).toEqual({ status: 503, body: { error: WAKING } });
     });
 
     it('works without a store (no limit, no cache)', async () => {

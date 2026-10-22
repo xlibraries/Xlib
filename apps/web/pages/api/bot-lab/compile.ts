@@ -4,7 +4,8 @@ import { build, compilerConfig } from '../../../lib/bot-lab-compile';
 import { getStore } from '../../../lib/kv';
 
 // POST { sketch } → { ok, hex, size, warnings } or { ok: false, errors }; see lib/bot-lab-compile.ts
-export const config = { api: { bodyParser: { sizeLimit: '80kb' } } };
+// up to 60 s: a sleeping compiler takes about a minute to wake
+export const config = { api: { bodyParser: { sizeLimit: '80kb' } }, maxDuration: 60 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.setHeader('Cache-Control', 'no-store');

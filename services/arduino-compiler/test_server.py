@@ -158,9 +158,28 @@ class Http(unittest.TestCase):
         self.assertEqual(self.post({"sketch": '#include "/proc/self/environ"'})[0], 400)
         self.assertEqual(self.post({"sketch": "x"}, path="/nope")[0], 404)
 
+    def test_home_says_what_this_is(self):
+        with urllib.request.urlopen(self.url + "/") as r:
+            self.assertIn("Arduino compiler", json.loads(r.read())["service"])
+
     def test_health(self):
         with urllib.request.urlopen(self.url + "/healthz") as r:
             self.assertEqual(json.loads(r.read()), {"ok": True})
+
+
+
+class Hardening(unittest.TestCase):
+    @unittest.skipUnless(sys.platform.startswith("linux"), "prctl is Linux-only (the image's tests in CI run on Linux)")
+    def test_the_process_becomes_non_dumpable(self):
+        import subprocess
+        code = "import server, ctypes; print(server.protect_environment(), ctypes.CDLL(None).prctl(3, 0, 0, 0, 0))"
+        out = subprocess.run([sys.executable, "-c", code], cwd=os.path.dirname(__file__), capture_output=True, text=True).stdout.split()
+        self.assertEqual(out, ["True", "0"])
+
+    def test_elsewhere_it_reports_failure_instead_of_pretending(self):
+        if sys.platform.startswith("linux"):
+            self.skipTest("Linux has prctl")
+        self.assertFalse(server.protect_environment())
 
 
 if __name__ == "__main__":

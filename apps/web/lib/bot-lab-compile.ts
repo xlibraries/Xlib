@@ -1,5 +1,5 @@
 // Bot Lab's Arduino builds, server side: /api/bot-lab/compile hands sketches to the arduino-compiler service
-// (services/arduino-compiler, on Cloud Run) with its shared secret, which never reaches the browser. Builds are
+// (services/arduino-compiler, a Hugging Face Space) with its shared secret, which never reaches the browser. Builds are
 // rate-limited per visitor and cached by sketch (the same text always builds the same way, so templates and
 // re-runs cost nothing).
 import { createHash } from 'node:crypto';
@@ -10,7 +10,9 @@ export const MAX_SKETCH = 64 * 1024;
 export const BUILDS_PER_WINDOW = 30;
 export const BUILD_WINDOW_SECONDS = 10 * 60;
 export const CACHE_SECONDS = 7 * 24 * 3600;
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 55_000;   // under the endpoint's 60 s limit (pages/api/bot-lab/compile.ts)
+/** The Space sleeps after two idle days; the first request wakes it, which takes about a minute. */
+export const WAKING = 'The compiler is waking up (it sleeps when nobody has built for a while). Try again in a minute.';
 
 export interface CompilerConfig { url: string; secret: string }
 
@@ -56,9 +58,11 @@ export async function build({ body, ip, config, store, fetch: fetchImpl = fetch 
             body: JSON.stringify({ sketch, board: 'uno' }),
             signal: AbortSignal.timeout(TIMEOUT_MS),
         });
-    } catch {
-        return { status: 502, body: { error: 'The compile service didn’t answer.' } };
+    } catch (err) {
+        return (err as Error).name === 'TimeoutError' ? { status: 503, body: { error: WAKING } } : { status: 502, body: { error: 'The compile service didn’t answer.' } };
     }
+    // a sleeping or starting Space answers with an HTML page and a 50x
+    if ([502, 503, 504].includes(res.status) && !res.headers.get('content-type')?.includes('json')) return { status: 503, body: { error: WAKING } };
     if (res.status === 429) return { status: 503, body: { error: 'The compiler is busy: try again in a moment.' } };
     if (res.status === 400 || res.status === 413) {
         const data = safeJson(await res.text()) as { error?: unknown } | null;

@@ -72,8 +72,9 @@ things work.
   Node 24's `--experimental-wasm-jspi` (set in its vitest config). Templates ship their sketches with compiled hexes (`templates/`, bundled into
   `src/templates/generated.ts` by `pnpm sync:templates`; the unit tests check it's current). `services/arduino-compiler/` (a workspace package for its Python tests) is the `arduino-cli` image: it
   compiles the templates (`pnpm compile:templates`, needs Docker; CI recompiles and fails on drift,
-  `.github/workflows/bot-lab-templates.yml`) and serves live builds on Cloud Run (`server.py`, deployed by
-  `.github/workflows/arduino-compiler.yml`, set up once with its `setup-gcp.sh`, never with the flamapp.com account).
+  `.github/workflows/bot-lab-templates.yml`) and serves live builds on a Hugging Face Docker Space (`server.py`, deployed by
+  `.github/workflows/arduino-compiler.yml` via `deploy-hf.sh`, set up once with `setup-hf.sh`, never with a flamapp.com
+  account).
   The site's `/api/bot-lab/compile` (`lib/bot-lab-compile.ts`) proxies to it with `BOT_LAB_COMPILER_URL` +
   `BOT_LAB_COMPILER_SECRET`, rate-limited and cached by sketch; e2e tests mock that endpoint.
 - `packages/arcade` – the games, built on the engine for WebGPU and WebGL2 (`docs/arcade-plan.md`). Build with

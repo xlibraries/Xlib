@@ -135,7 +135,7 @@ which the Music app's YouTube embed rules out; a frame can't be isolated on its 
 
 Arduino sketches are built by the site, not in the browser: `createBotLab({ compile })` receives `lib/bot-lab-client.ts`,
 which posts to `/api/bot-lab/compile`. `lib/bot-lab-compile.ts` limits builds per visitor (Redis), caches results by
-the sketch's SHA-256, and forwards to the arduino-compiler service (`services/arduino-compiler`, Cloud Run) with
+the sketch's SHA-256, and forwards to the arduino-compiler service (`services/arduino-compiler`, a Hugging Face Space that sleeps when idle; a sleeping one reads as "waking up") with
 `BOT_LAB_COMPILER_URL` and `BOT_LAB_COMPILER_SECRET`; without them the endpoint answers 503 and the Uno runs the
 templates' committed builds. A project keeps the hex with `builtFrom`, a fingerprint of the sketch it was built from,
 so the editor can say when the sketch has changed since.

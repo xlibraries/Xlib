@@ -1,6 +1,6 @@
 """Bot Lab's Arduino compile service: POST a sketch, get the Uno's Intel HEX or the compiler's errors with lines.
 
-Runs in the arduino-compiler image (Cloud Run). Standard library only.
+Runs in the arduino-compiler image (a Hugging Face Docker Space). Standard library only.
 
     POST /compile   Authorization: Bearer <COMPILER_SECRET>   {"sketch": "...", "board": "uno"}
         200 {"ok": true, "hex": "...", "size": 924, "warnings": [...]}
@@ -8,9 +8,11 @@ Runs in the arduino-compiler image (Cloud Run). Standard library only.
         400 bad request, 401 wrong secret, 413 too big, 429 busy
     GET /healthz    200 ok
 
-The compiler's messages quote source lines, so a sketch that #includes a file would echo it. The compile therefore
-runs as an unprivileged user with an empty environment (it can't read the secret in this process's environment),
-and includes of absolute paths or paths with .. are refused before compiling.
+The compiler's messages quote source lines, so a sketch that #includes a file would echo it. Three guards keep the
+secret out of reach: includes of absolute paths or paths with .. are refused before compiling; the compiler gets an
+empty environment; and this process marks itself non-dumpable, which makes its /proc files (environ included)
+readable only by root. Where the container runs as root (Docker locally), compiles also drop to the
+unprivileged `builder` user; on Hugging Face Spaces the container already runs as that user (uid 1000).
 """
 import hmac
 import json
@@ -27,7 +29,7 @@ MAX_SKETCH = 64 * 1024
 TIMEOUT = 45                    # seconds for one compile (a warm core takes a few)
 BOARDS = {"uno": "arduino:avr:uno"}
 SKETCH = "sketch"               # the sketch's name inside the job folder: errors refer to sketch.ino
-CONCURRENT = 2                  # compiles at once per instance (Cloud Run concurrency matches)
+CONCURRENT = 2                  # compiles at once (more queue for a slot, up to 20 s)
 
 _slots = threading.BoundedSemaphore(CONCURRENT)
 
@@ -153,6 +155,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/healthz":
             return self._send(200, {"ok": True})
+        if self.path == "/":
+            return self._send(200, {"service": "Bot Lab's Arduino compiler", "source": "https://github.com/xlibraries/Xlib/tree/master/services/arduino-compiler"})
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
@@ -179,7 +183,21 @@ class Handler(BaseHTTPRequestHandler):
         print(f"{self.address_string()} {fmt % args}", flush=True)
 
 
+def protect_environment() -> bool:
+    """Makes this process non-dumpable (Linux): its /proc/<pid>/environ, where the secret is, becomes root-only, so
+    a compile running as the same user can't read it. Returns whether it worked."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        PR_SET_DUMPABLE, PR_GET_DUMPABLE = 4, 3
+        return libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) == 0 and libc.prctl(PR_GET_DUMPABLE, 0, 0, 0, 0) == 0
+    except (OSError, AttributeError):
+        return False
+
+
 def main():
+    if not protect_environment() and os.environ.get("ALLOW_DUMPABLE") != "1":
+        raise SystemExit("could not make the process non-dumpable (Linux prctl); set ALLOW_DUMPABLE=1 to run anyway (development only)")
     secret = os.environ.pop("COMPILER_SECRET", "")
     if not secret:
         raise SystemExit("COMPILER_SECRET is not set")
