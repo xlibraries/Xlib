@@ -96,7 +96,10 @@ export class Bench {
     private readonly dead = new Set<string>();
     private picoPart: string | null = null;
     /** Motors: an internal node, the winding resistance and the back-EMF source, and the shaft's state */
-    readonly motors: { part: string; r: Resistor; emf: VoltageSource; model: MotorModel; omega: number; angle: number; amps: number; stalled: number; load: number; extLoad: number }[] = [];
+    /** Motors. One that drives a wheel in the world is `attached`: the world sets its speed and takes its `torque`. */
+    readonly motors: { part: string; r: Resistor; emf: VoltageSource; model: MotorModel; omega: number; angle: number; amps: number; stalled: number; load: number; extLoad: number; attached: boolean; torque: number }[] = [];
+    /** Called after every step (the world couples here) */
+    afterTick?: (dt: number) => void;
     private readonly drivers6612: { part: string; vcc: Node; gnd: Node; stby: Node; ins: Node[][]; outs: { hi: Switch; lo: Switch }[][] }[] = [];
     private readonly lineSensors: { part: string; vcc: Node; gnd: Node; ao: VoltageSource; dout: VoltageSource; doStage: Resistor; detecting: boolean }[] = [];
     private readonly i2cDevices: { part: string; device: I2CDevice; sda: Node; scl: Node; vcc: Node; gnd: Node; supplied: boolean }[] = [];
@@ -249,7 +252,7 @@ export class Bench {
                 const mid = this.net.node();
                 const r = this.net.add(new Resistor(n('+'), mid, model.ohms));
                 const emf = this.net.add(new VoltageSource(mid, n('-'), 0));
-                this.motors.push({ part: id, r, emf, model, omega: 0, angle: 0, amps: 0, stalled: 0, load: num('load'), extLoad: 0 });
+                this.motors.push({ part: id, r, emf, model, omega: 0, angle: 0, amps: 0, stalled: 0, load: num('load'), extLoad: 0, attached: false, torque: 0 });
                 break;
             }
             case 'tb6612': {
@@ -359,6 +362,7 @@ export class Bench {
             const amps = Math.abs(this.solution.current(d.source));
             if (amps > d.maxAmps) this.warn(d.board, `Pin ${d.name} is sourcing ${Math.round(amps * 1000)} mA; a${d.board === 'uno' ? 'n Uno' : d.board === 'pi' ? ' Pi' : ' Pico'} pin is rated ${Math.round(d.maxAmps * 1000)} mA.`);
         }
+        this.afterTick?.(dt);
     }
 
     /** Parts whose outputs depend on their inputs: set from the last step's voltages (one tick of delay, 0.2 ms). */
@@ -397,6 +401,12 @@ export class Bench {
             const { ke, friction, inertia, stallTorque } = m.model;
             m.amps = m.r.current(v);
             const drive = ke * m.amps - friction * m.omega;
+            m.torque = drive;
+            if (m.attached) {                                                  // the world turns this shaft
+                m.angle += m.omega * dt;
+                this.states.set(m.part, { rpm: m.omega * 60 / (2 * Math.PI), amps: m.amps, turned: (m.angle * 180 / Math.PI) % 360 });
+                continue;
+            }
             const load = (m.load * stallTorque) + m.extLoad;                   // opposes motion (or a stalled shaft)
             let torque = drive;
             if (Math.abs(m.omega) < 1e-3 && Math.abs(drive) <= load) { m.omega = 0; torque = 0; }

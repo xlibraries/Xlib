@@ -45,6 +45,8 @@ export function vendorFiles() {
         ...['pyodide.mjs', 'pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json'].map(f => [join(depDir('@xlibraries/bot-lab', 'pyodide'), f), `vendor/pyodide/${f}`]),
         // Bot Lab's Raspberry Pi Pico: MicroPython and the boot ROM without its float library (firmware/README.md)
         [join(pkgDir('@xlibraries/bot-lab'), 'firmware'), 'vendor/pico'],
+        // Bot Lab's physics world (packages/bot-lab/dist: committed, rebuilt by CI)
+        [join(pkgDir('@xlibraries/bot-lab'), 'dist'), 'vendor/bot-lab'],
     ];
 }
 

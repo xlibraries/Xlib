@@ -699,6 +699,22 @@ test.describe('Bot Lab', () => {
         await lab.getByRole('button', { name: '■ Stop' }).click();
     });
 
+    test('the Robot drives in the World: forwards, then it turns; the bench shows its motors', async ({ page }) => {
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Robot \(World\)/ }).click();
+        await expect(lab.getByTestId('world')).toBeVisible();
+        const robot = lab.locator('[data-robot]');
+        const x0 = Number(await robot.getAttribute('data-x'));
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        await expect.poll(() => robot.getAttribute('data-x').then(Number), { timeout: 20_000, intervals: [100] }).toBeGreaterThan(x0 + 0.2);
+        await expect.poll(() => robot.getAttribute('data-heading').then(h => Math.abs(Number(h))), { timeout: 10_000, intervals: [100] }).toBeGreaterThan(0.5);
+        await lab.getByRole('tab', { name: 'bench' }).click();
+        await expect(lab.getByTestId('bench')).toBeVisible();
+        await expect.poll(() => lab.locator('[data-part="motor1"] [data-rpm]').getAttribute('data-rpm').then(r => Math.abs(Number(r))), { timeout: 10_000, intervals: [100] }).toBeGreaterThan(50);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+    });
+
     test('the Raspberry Pi Button template: a press reaches the script while it sits in pause()', async ({ page }) => {
         test.slow();
         await openDesktop(page);

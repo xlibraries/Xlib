@@ -63,10 +63,12 @@ things work.
   `app-sdk`): the runtime (`xl.h`, audio worklet, text), vendored sokol/stb/HandmadeMath/doctest, the build
   pipeline (`scripts/build.mjs`) and test harness, physics (`xl_physics.h` over vendored Jolt v5.6.0, linked
   into modules with `physics: true`), and `EngineView` (the React canvas host). Apps that ship C++ modules depend
-  on it; it imports no app.
+  on it; it imports no app. Modules with `headless: true` build once without graphics, for workers and Node.
 - `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
   solver, parts, the Uno on avr8js, the Pi's header, the Pico on rp2040js with MicroPython, I²C devices on per-board buses, the
-  bench loop). `firmware/` is vendored (MicroPython, and an RP2040 boot ROM with its float library zeroed for licensing:
+  bench loop), and a robot in a physics world: `native/world` (C++ on the engine's Jolt) is built headless into
+  `dist/world/` by `pnpm --filter @xlibraries/bot-lab build:native` (needs Emscripten; **commit `dist/`**, CI rebuilds and
+  diffs it; the unit tests check its sources stamp, which also covers the engine). `firmware/` is vendored (MicroPython, and an RP2040 boot ROM with its float library zeroed for licensing:
   `pico-rom-float.ts` replaces it; see `firmware/README.md`), copied to `public/vendor/pico/` by `scripts/vendor.mjs`) under a React bench. The bench runs in a worker
   (`runtime/`); the Raspberry Pi runs Python on Pyodide (vendored to `public/vendor/pyodide/`) with `python/`
   (`gpiozero`, `RPi.GPIO`, `pigpio`, `smbus2`, simulated `time`) bundled by `pnpm sync:python` (the unit tests check it's current).

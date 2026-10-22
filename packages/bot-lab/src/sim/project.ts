@@ -1,5 +1,6 @@
 // A project: parts on the bench, wires between pins, the board's code. Saved on this device as JSON (and, later,
 // behind a share link). Loading is forgiving: unknown parts and dangling wires are dropped, props are clamped.
+import type { Track } from './track';
 import { CATALOG, defaultProps, pinSpec } from './parts/catalog';
 
 export interface PinRef { part: string; pin: string }
@@ -27,12 +28,31 @@ export interface Code {
     builtFrom?: string;
 }
 
+/** Where a line sensor sits on the robot: x forward of the chassis centre, z to its right (metres) */
+export interface SensorMount { part: string; x: number; z: number }
+
+/** The robot and its floor (projects without one stay on the bench) */
+export interface WorldSpec {
+    robot: {
+        /** The motors that drive the left and right wheels (positive speed rolls forward) */
+        left: string;
+        right: string;
+        sensors: SensorMount[];
+        /** Where it starts: metres, and radians (0 faces +x) */
+        x: number;
+        z: number;
+        heading: number;
+    };
+    track: Track;
+}
+
 export interface Project {
     version: 1;
     name: string;
     parts: PartInstance[];
     wires: Wire[];
     code: Code;
+    world?: WorldSpec;
 }
 
 /** Which board the code runs on, when a bench has more than one: the Uno, else the Pi, else the Pico. */
@@ -108,7 +128,26 @@ export function parseProject(input: unknown): Project {
         if (typeof input.code.hex === 'string' && /^(:[0-9A-Fa-f]*\s*)*$/.test(input.code.hex)) project.code.hex = input.code.hex.slice(0, 200_000);
         if (typeof input.code.builtFrom === 'string' && /^[0-9a-f]{8}$/.test(input.code.builtFrom)) project.code.builtFrom = input.code.builtFrom;
     }
+    if (isRecord(input.world)) project.world = parseWorld(input.world, project) ?? undefined;
     return project;
+}
+
+const finite = (v: unknown, fallback = 0, limit = 50) => typeof v === 'number' && Number.isFinite(v) ? Math.max(-limit, Math.min(limit, v)) : fallback;
+
+/** A world from storage: motors and sensors must be parts of that kind; the track keeps at most 2000 points. */
+function parseWorld(w: Record<string, unknown>, project: Project): WorldSpec | null {
+    const robot = isRecord(w.robot) ? w.robot : null, track = isRecord(w.track) ? w.track : null;
+    if (!robot || !track) return null;
+    const isKind = (id: unknown, kind: string) => typeof id === 'string' && project.parts.some(p => p.id === id && p.kind === kind);
+    if (!isKind(robot.left, 'motor') || !isKind(robot.right, 'motor')) return null;
+    const sensors = (Array.isArray(robot.sensors) ? robot.sensors : []).filter(isRecord).filter(m => isKind(m.part, 'tcrt5000'))
+        .map(m => ({ part: m.part as string, x: finite(m.x, 0, 0.5), z: finite(m.z, 0, 0.5) })).slice(0, 16);
+    const points = (Array.isArray(track.points) ? track.points : []).filter((p): p is [number, number] => Array.isArray(p) && p.length === 2 && p.every(n => typeof n === 'number' && Number.isFinite(n)))
+        .map(([x, z]) => [finite(x, 0, 10), finite(z, 0, 10)] as [number, number]).slice(0, 2000);
+    return {
+        robot: { left: robot.left as string, right: robot.right as string, sensors, x: finite(robot.x, 0, 10), z: finite(robot.z, 0, 10), heading: finite(robot.heading, 0, 7) },
+        track: { width: Math.max(0.005, Math.min(0.1, finite(track.width, 0.019))), points, closed: track.closed === true },
+    };
 }
 
 function num(v: unknown): number { return typeof v === 'number' && Number.isFinite(v) ? Math.max(-1000, Math.min(1000, v)) : 0; }

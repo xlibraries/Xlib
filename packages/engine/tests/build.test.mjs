@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { BACKENDS, ENGINE_ROOT, JOLT_DEFINES, emArgs, includeFlags, joltSources, shdcBinaryPath, sourceFiles, sourcesHash } from '../scripts/build.mjs';
+import { BACKENDS, ENGINE_ROOT, JOLT_DEFINES, emArgs, headlessArgs, includeFlags, joltSources, shdcBinaryPath, sourceFiles, sourcesHash } from '../scripts/build.mjs';
 
 const MODULES = {
     plain: { sources: ['games/plain/main.cpp'], shaders: [] },
     hud: { sources: ['games/hud/main.cpp'], shaders: ['shaders/hud.glsl'], text: true, fonts: ['LilitaOne-Regular.ttf'], flags: ['-sEXPORTED_FUNCTIONS=_main'] },
     world: { sources: ['world/main.cpp'], shaders: [], physics: true },
+    sim: { sources: ['sim/world.cpp'], headless: true, physics: true, exportName: 'createSim', flags: ['-sEXPORTED_FUNCTIONS=_sim_step'] },
 };
 const ROOT = '/tmp/consumer';
 
@@ -24,6 +25,21 @@ describe('build pipeline', () => {
         expect(BACKENDS).toEqual(['webgpu', 'webgl2']);
         expect(() => emArgs(ROOT, MODULES, 'nope', 'webgl2')).toThrow(/unknown module/);
         expect(() => emArgs(ROOT, MODULES, 'plain', 'metal')).toThrow(/unknown backend/);
+    });
+
+    it('builds a headless module once, for pages, workers and Node, with no graphics backend', () => {
+        const args = headlessArgs(ROOT, MODULES, 'sim', ['/obj/jolt_a.o']);
+        const joined = args.join(' ');
+        expect(args).toContain('-sENVIRONMENT=web,worker,node');
+        expect(args).not.toContain('-sENVIRONMENT=web');
+        expect(args).toContain('-sEXPORT_NAME=createSim');
+        expect(args).toContain('-sDYNAMIC_EXECUTION=0');
+        expect(joined).not.toMatch(/SOKOL_|USE_WEBGL|emdawnwebgpu/);
+        expect(joined).toContain('xl_physics.cpp');
+        expect(joined).toContain('/obj/jolt_a.o');
+        expect(args).toContain('-sEXPORTED_FUNCTIONS=_sim_step');
+        expect(args.slice(-2)).toEqual(['-o', 'dist/sim/headless.js']);
+        expect(() => headlessArgs(ROOT, MODULES, 'plain')).toThrow(/isn't a headless module/);
     });
 
     it('links the text renderer and embeds engine fonts only for modules that ask', () => {

@@ -2,6 +2,7 @@
 // is doing come back about 30 times a second.
 import type { PartState, Warning } from '../sim/bench';
 import type { Project } from '../sim/project';
+import type { RobotPose } from '../sim/world';
 
 export type Command =
     | { type: 'init'; origin: string }
@@ -34,6 +35,8 @@ export interface Snapshot {
     responsive?: boolean;
     /** The Pi terminal's prompt, or absent while a script runs (the terminal only takes Ctrl+C then) */
     prompt?: string;
+    /** The robot in its world, when the project has one and it's running */
+    world?: RobotPose;
 }
 
 export type WorkerToApp = Snapshot | { type: 'error'; message: string };
@@ -41,5 +44,7 @@ export type WorkerToApp = Snapshot | { type: 'error'; message: string };
 export const PYODIDE_PATH = '/vendor/pyodide';
 /** The Pico's boot ROM (float library removed) and MicroPython image, copied from packages/bot-lab/firmware */
 export const PICO_PATH = '/vendor/pico';
+/** The physics world (packages/bot-lab/dist/world) */
+export const WORLD_PATH = '/vendor/bot-lab/world/headless.js';
 export const PICO_FILES = { bootrom: 'rp2040-bootrom-b1-nofp.bin', uf2: 'micropython-rpi-pico-v1.29.0.uf2' };
 export const SNAPSHOT_HZ = 30;

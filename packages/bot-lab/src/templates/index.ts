@@ -1,5 +1,6 @@
 // The templates: ready-wired projects with a sketch and its compiled hex, so the first click is "Run".
 import { addPart, connect, emptyProject, type Project } from '../sim/project';
+import { ovalTrack } from '../sim/track';
 import { sketchHash } from '../compile';
 import { TEMPLATE_CODE } from './generated';
 
@@ -108,6 +109,25 @@ export const TEMPLATES: Template[] = [
             connect(p, { part: d.id, pin: 'AO2' }, { part: m.id, pin: '-' });
             connect(p, { part: b.id, pin: '+' }, { part: d.id, pin: 'VM' });
             connect(p, { part: b.id, pin: '-' }, { part: 'uno1', pin: 'GND2' });
+            return p;
+        },
+    },
+    {
+        id: 'robot_square', title: 'Robot (World)', blurb: 'Two gear motors through a TB6612 on a robot in the World: it drives a square, open-loop.',
+        build() {
+            const p = emptyProject('Robot');
+            p.code = code('robot_square');
+            addPart(p, 'uno', 4, 4);
+            const d = addPart(p, 'tb6612', 24, 4), left = addPart(p, 'motor', 38, 2), right = addPart(p, 'motor', 38, 10), b = addPart(p, 'battery', 38, 18);
+            b.props.volts = 6;
+            for (const [from, to] of [['D5', 'PWMA'], ['D7', 'AIN1'], ['D8', 'AIN2'], ['D6', 'PWMB'], ['D11', 'BIN1'], ['D12', 'BIN2'], ['D9', 'STBY'], ['5V', 'VCC'], ['GND', 'GND']] as const) connect(p, { part: 'uno1', pin: from }, { part: d.id, pin: to });
+            connect(p, { part: d.id, pin: 'AO1' }, { part: left.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'AO2' }, { part: left.id, pin: '-' });
+            connect(p, { part: d.id, pin: 'BO1' }, { part: right.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'BO2' }, { part: right.id, pin: '-' });
+            connect(p, { part: b.id, pin: '+' }, { part: d.id, pin: 'VM' });
+            connect(p, { part: b.id, pin: '-' }, { part: 'uno1', pin: 'GND2' });
+            p.world = { robot: { left: left.id, right: right.id, sensors: [], x: -0.3, z: 0.3, heading: 0 }, track: ovalTrack() };
             return p;
         },
     },

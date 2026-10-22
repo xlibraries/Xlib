@@ -9,6 +9,8 @@ import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets
 import { RuntimeClient } from './runtime/client';
 import type { Snapshot } from './runtime/protocol';
 import { TEMPLATES } from './templates';
+import { ROBOT, headingOf, type RobotPose } from './sim/world';
+import type { WorldSpec } from './sim/project';
 import { buildIsStale, sketchHash, UNO_FLASH, type CompileMessage, type Compiler } from './compile';
 
 const GRID = 16;   // px per grid unit on the bench
@@ -85,6 +87,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
     const [snap, setSnap] = useState<Snapshot>(EMPTY);
     const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<Tab>('parts');
+    const [view, setView] = useState<'bench' | 'world'>(saved.project.world ? 'world' : 'bench');
     const [selected, setSelected] = useState<string | null>(null);
     const [pending, setPending] = useState<PinRef | null>(null);
     const client = useRef<RuntimeClient | null>(null);
@@ -172,8 +175,14 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                     ? <button type="button" onClick={() => client.current?.send({ type: 'run' })} disabled={project.parts.length === 0} className="px-3 py-0.5 rounded-full bg-emerald-500 text-black font-semibold disabled:opacity-40">▶ Run</button>
                     : <button type="button" onClick={() => client.current?.send({ type: 'stop' })} className="px-3 py-0.5 rounded-full bg-red-500 text-black font-semibold">■ Stop</button>}
             </div>
-            <div className="flex-grow min-h-0 flex flex-col md:flex-row">
-                <div className="flex-grow min-h-0 overflow-auto relative" style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-time={snap.time.toFixed(2)}>
+            <div className="flex-grow min-h-0 flex flex-col md:flex-row relative">
+                {project.world && (
+                    <div className="absolute z-10 mt-2 ml-2 flex text-xs rounded-full overflow-hidden border border-white border-opacity-20" role="tablist" aria-label="View">
+                        {(['bench', 'world'] as const).map(v => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={'px-3 py-1 capitalize ' + (view === v ? 'bg-emerald-500 text-black font-semibold' : 'bg-black bg-opacity-40 text-gray-300')}>{v}</button>)}
+                    </div>
+                )}
+                {project.world && view === 'world' && <WorldView spec={project.world} pose={snap.world} states={snap.states} />}
+                <div className={'flex-grow min-h-0 overflow-auto relative' + (project.world && view === 'world' ? ' hidden' : '')} style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-time={snap.time.toFixed(2)}>
                     <svg width={Math.max(800, ...project.parts.map(p => (p.x + spec(p).width + 4) * GRID))} height={Math.max(500, ...project.parts.map(p => (p.y + spec(p).height + 4) * GRID))} className="block select-none" style={{ touchAction: 'none' }}>
                         {project.wires.map((w, i) => {
                             const a = byId(w.a.part), b = byId(w.b.part);
@@ -215,6 +224,33 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+/** The robot on its floor, from above (x right, z down), in metres: the track, the chassis, wheels, caster and sensors. */
+function WorldView({ spec, pose, states }: { spec: WorldSpec; pose?: RobotPose; states: Record<string, PartState> }) {
+    const xs = spec.track.points.map(p => p[0]).concat(spec.robot.x), zs = spec.track.points.map(p => p[1]).concat(spec.robot.z);
+    const pad = 0.25, minX = Math.min(...xs) - pad, minZ = Math.min(...zs) - pad, w = Math.max(...xs) + pad - minX, h = Math.max(...zs) + pad - minZ;
+    const x = pose ? pose.chassis[0] : spec.robot.x, z = pose ? pose.chassis[2] : spec.robot.z;
+    const heading = pose ? headingOf(pose.chassis.slice(3, 7)) : spec.robot.heading;
+    const deg = -heading * 180 / Math.PI;
+    const path = spec.track.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ') + (spec.track.closed ? ' Z' : '');
+    const R = ROBOT;
+    return (
+        <div className="flex-grow min-h-0 relative" style={{ background: '#151d19' }} data-testid="world">
+            <svg viewBox={`${minX} ${minZ} ${w} ${h}`} className="w-full h-full block" preserveAspectRatio="xMidYMid meet">
+                <rect x={minX} y={minZ} width={w} height={h} fill="#e8e3d6" />
+                <path d={path} fill="none" stroke="#141414" strokeWidth={spec.track.width} strokeLinejoin="round" strokeLinecap="round" />
+                <g transform={`translate(${x},${z}) rotate(${deg})`} data-robot data-x={x.toFixed(3)} data-z={z.toFixed(3)} data-heading={heading.toFixed(3)}>
+                    <rect x={-R.length / 2} y={-R.width / 2} width={R.length} height={R.width} rx={0.01} fill="#2b6e59" stroke="#0b1511" strokeWidth={0.003} />
+                    <path d={`M${R.length / 2 - 0.03},-0.025 L${R.length / 2 - 0.005},0 L${R.length / 2 - 0.03},0.025`} fill="none" stroke="#9ff5d1" strokeWidth={0.006} />
+                    {[-1, 1].map(side => <rect key={side} x={R.axleX - R.wheelRadius} y={side * R.track / 2 - R.wheelWidth / 2} width={R.wheelRadius * 2} height={R.wheelWidth} rx={0.006} fill="#1b1b1b" />)}
+                    <circle cx={R.casterX} cy={0} r={R.casterRadius} fill="#9db5aa" />
+                    {spec.robot.sensors.map(m => <circle key={m.part} cx={m.x} cy={m.z} r={0.007} fill={states[m.part]?.led ? '#ff3b30' : '#4a4a4a'} stroke="#fff" strokeWidth={0.002} data-sensor={m.part} />)}
+                </g>
+            </svg>
+            {!pose && <div className="absolute bottom-2 left-2 text-xs text-gray-700 bg-white bg-opacity-70 rounded px-2 py-0.5">Run to drive the robot.</div>}
         </div>
     );
 }

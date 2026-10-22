@@ -4,8 +4,9 @@
 // synchronously with busy-wait pacing, and the app restarts the worker to stop it.
 import { Bench, TICK } from '../sim/bench';
 import { parseProject, type Project } from '../sim/project';
-import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, type Command, type Snapshot, type WorkerToApp } from './protocol';
+import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, WORLD_PATH, type Command, type Snapshot, type WorkerToApp } from './protocol';
 import type { PicoFirmware } from '../sim/boards/pico';
+import { RobotWorld, type WorldModule } from '../sim/world';
 import { PiRuntime, canSuspend, type PyodideLike } from './pi';
 import { PY_MORE, PY_PROMPT, SHELL_PROMPT, shell } from './terminal';
 
@@ -23,6 +24,9 @@ const piConsole: string[] = [];
 /** The Pi terminal: a shell, or the Python prompt (a session on a live bench) */
 let python: { runtime: PiRuntime; more: boolean; queue: Promise<void> } | null = null;
 let picoFirmware: Promise<PicoFirmware> | null = null;
+let worldModule: Promise<WorldModule> | null = null;
+/** The robot's world while a project with one runs */
+let world: RobotWorld | null = null;
 /** The Pico's script: sent once its USB serial is up */
 let picoScript: { started: boolean } | null = null;
 
@@ -38,7 +42,7 @@ function snapshot(extra: Partial<Snapshot> = {}): Snapshot {
     }
     const pico = bench?.pico;
     const consoleLines = pico && running ? [...pico.console.slice(-200), ...(pico.partial ? [pico.partial] : [])] : piConsole.slice(-200);
-    return { type: 'snapshot', time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: consoleLines, warnings: bench?.warnings ?? [], finished, responsive, prompt: prompt(), ...extra };
+    return { type: 'snapshot', world: running && world ? world.pose() : undefined, time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: consoleLines, warnings: bench?.warnings ?? [], finished, responsive, prompt: prompt(), ...extra };
 }
 
 let lastSnapshot = 0;
@@ -56,6 +60,8 @@ function prompt(): string | undefined {
 
 function stop() {
     running = false;
+    world?.dispose();
+    world = null;
     script?.stop();
     python?.runtime.stop();
     python = null;
@@ -72,7 +78,16 @@ async function run() {
     if (!project) return;
     if (python) stop();
     if (running) return;
+    running = true;
+    let module: WorldModule | null = null;
+    if (project.world) {
+        post(snapshot({ loading: 'the world' }));
+        try { module = await loadWorld(); } catch (err) { post({ type: 'error', message: `The world failed to load: ${(err as Error).message}` }); running = false; snapshotIfDue(true); return; }
+        if (!running) return;                                   // stopped while loading
+    }
+    worldFor = module;
     bench = new Bench(structuredClone(project));
+    attachWorld(bench);
     piConsole.length = 0;
     finished = false;
     running = true;
@@ -134,6 +149,7 @@ async function runPico() {
     }
     if (!running || !project) return;
     bench = new Bench(structuredClone(project), { pico: firmware });
+    attachWorld(bench);
     picoScript = { started: false };
     startRealTime();
 }
@@ -235,6 +251,29 @@ function pythonLine(session: NonNullable<typeof python>, line: string) {
         else startRealTime();
         snapshotIfDue(true);
     });
+}
+
+/** The world module loaded for this run (null for projects without a world) */
+let worldFor: WorldModule | null = null;
+
+/** Puts the project's robot in the world, coupled to this bench. */
+function attachWorld(b: Bench) {
+    world?.dispose();
+    world = null;
+    if (!project?.world || !worldFor) return;
+    try { world = new RobotWorld(worldFor, b, project.world); }
+    catch (err) { post({ type: 'error', message: (err as Error).message }); }
+}
+
+function loadWorld(): Promise<WorldModule> {
+    if (!worldModule) {
+        worldModule = (async () => {
+            const mod = (await import(/* webpackIgnore: true */ `${origin}${WORLD_PATH}`)) as { default: () => Promise<WorldModule> };
+            return mod.default();
+        })();
+        worldModule.catch(() => { worldModule = null; });
+    }
+    return worldModule;
 }
 
 async function loadPython(): Promise<PyodideLike> {
