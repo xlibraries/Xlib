@@ -14,6 +14,12 @@ PROJECT="${1:?usage: setup-gcp.sh <project-id> [region]}"
 REGION="${2:-us-central1}"          # a Cloud Run free-tier region
 REPO_SLUG="xlibraries/Xlib"
 
+if ! [[ "$PROJECT" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
+    echo "'$PROJECT' isn't a valid project ID: 6 to 30 characters, lowercase letters, digits and hyphens, starting with" >&2
+    echo "a letter and not ending with a hyphen (it's global and permanent), e.g. xlibraries-bot-lab" >&2
+    exit 1
+fi
+
 ACCOUNT="$(gcloud config get-value account 2>/dev/null)"
 case "$ACCOUNT" in
     ""|*@flamapp.com) echo "gcloud is signed in as '${ACCOUNT:-nobody}'. Sign in with your personal account first: gcloud auth login" >&2; exit 1 ;;
