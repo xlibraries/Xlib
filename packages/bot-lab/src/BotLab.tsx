@@ -3,6 +3,7 @@
 // (runtime/client.ts → runtime/worker.ts with sim/bench.ts); this file draws its snapshots and forwards clicks.
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { AppProps } from '@xlibraries/app-sdk';
+import { EngineView, type EngineInstance } from '@xlibraries/engine';
 import { TICK, type PartState } from './sim/bench';
 import { CATALOG, GROUPS, LED_MODELS, type PartSpec } from './sim/parts/catalog';
 import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets, removePart, samePin, saveProjects, type Board, type PartInstance, type PinRef, type Project, type Saved } from './sim/project';
@@ -241,6 +242,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
  *  the line point by point, its width, open or closed, and the robot's start (drag it; turn it with the slider). */
 function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec; pose?: RobotPose; states: Record<string, PartState>; editable: boolean; onChange: (spec: WorldSpec) => void }) {
     const [drawing, setDrawing] = useState(false);
+    const [mode, setMode] = useState<'top' | '3d'>('top');
     const svg = useRef<SVGSVGElement>(null);
     const dragging = useRef(false);
     const xs = spec.track.points.map(p => p[0]).concat(spec.robot.x, -0.5, 0.5), zs = spec.track.points.map(p => p[1]).concat(spec.robot.z, -0.4, 0.4);
@@ -265,7 +267,11 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
     const time = (t: number | null | undefined) => t == null ? '\u2014' : `${t.toFixed(2)} s`;
     return (
         <div className="flex-grow min-h-0 relative flex flex-col" style={{ background: '#151d19' }} data-testid="world">
-            {editable && (
+            <div className="absolute z-10 bottom-2 right-2 flex text-xs rounded-full overflow-hidden border border-white border-opacity-20" role="tablist" aria-label="Camera">
+                {(['top', '3d'] as const).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setDrawing(false); }} className={'px-3 py-1 ' + (mode === m ? 'bg-emerald-500 text-black font-semibold' : 'bg-black bg-opacity-40 text-gray-300')}>{m === 'top' ? 'Top' : '3D'}</button>)}
+            </div>
+            {mode === '3d' && <World3D spec={spec} pose={pose} states={states} />}
+            {mode === 'top' && editable && (
                 <div className="flex flex-wrap items-center gap-1 px-2 pt-10 pb-1 text-xs text-gray-200" aria-label="Track editor">
                     <button type="button" onClick={() => { setDrawing(false); track(ovalTrack()); }} className="px-2 py-0.5 rounded bg-white bg-opacity-10 hover:bg-opacity-20">Oval</button>
                     <button type="button" onClick={() => { setDrawing(false); track(figureEightTrack()); }} className="px-2 py-0.5 rounded bg-white bg-opacity-10 hover:bg-opacity-20">Figure 8</button>
@@ -283,7 +289,7 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
                     <span className="text-gray-400 ml-1">{drawing ? 'Click to add points along the line.' : 'Drag the robot to its start.'}</span>
                 </div>
             )}
-            <svg ref={svg} viewBox={`${minX} ${minZ} ${w} ${h}`} className={'w-full flex-grow min-h-0 block ' + (drawing ? 'cursor-crosshair' : '')} preserveAspectRatio="xMidYMid meet"
+            <svg ref={svg} viewBox={`${minX} ${minZ} ${w} ${h}`} className={'w-full flex-grow min-h-0 block ' + (drawing ? 'cursor-crosshair' : '') + (mode === '3d' ? ' hidden' : '')} preserveAspectRatio="xMidYMid meet"
                 onClick={e => { if (!drawing) return; const at = floorAt(e); if (at) track({ points: [...spec.track.points, at] }); }}
                 onPointerMove={e => { if (!dragging.current) return; const at = floorAt(e); if (at) robot({ x: at[0], z: at[1] }); }}
                 onPointerUp={() => { dragging.current = false; }}>
@@ -313,6 +319,57 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
                 ) : <span className="bg-white bg-opacity-70 text-gray-800 rounded px-2 py-0.5">Run to drive the robot.</span>}
                 {spec.best !== undefined && <span className="bg-emerald-500 text-black rounded px-2 py-0.5" data-best={spec.best.toFixed(2)}>best {time(spec.best)}</span>}
             </div>
+        </div>
+    );
+}
+
+/** The 3D view module's exports (native/view) */
+interface ViewModule extends EngineInstance {
+    _malloc(bytes: number): number;
+    _free(ptr: number): void;
+    _bl_view_robot(params: number): void;
+    _bl_view_track(points: number, n: number, width: number, closed: number): void;
+    _bl_view_start(x: number, z: number, heading: number): void;
+    _bl_view_state(state: number, sensors: number, n: number): void;
+    HEAPF32: Float32Array;
+}
+
+/** Copies floats into the module's memory for one call. A view that has failed (its module aborted) is left alone:
+ *  the error stays in the view, never the app. */
+function withFloats(m: ViewModule, values: number[], call: (ptr: number) => void) {
+    try {
+        const ptr = m._malloc(Math.max(4, values.length * 4));
+        m.HEAPF32.set(values, ptr >> 2);
+        try { call(ptr); } finally { m._free(ptr); }
+    } catch (err) {
+        console.warn('[Bot Lab view]', (err as Error).message);
+    }
+}
+
+/** The world in 3D (native/view, on the engine): it draws what the snapshots say; drag to orbit, scroll to zoom. */
+function World3D({ spec, pose, states }: { spec: WorldSpec; pose?: RobotPose; states: Record<string, PartState> }) {
+    const [view, setView] = useState<ViewModule | null>(null);
+    useEffect(() => {
+        if (!view) return;
+        const R = ROBOT;
+        withFloats(view, [R.length, R.width, R.height, R.wheelRadius, R.wheelWidth, R.track, R.axleX, R.casterX, R.casterRadius], p => view._bl_view_robot(p));
+    }, [view]);
+    useEffect(() => {
+        if (!view) return;
+        withFloats(view, spec.track.points.flat(), p => view._bl_view_track(p, spec.track.points.length, spec.track.width, spec.track.closed ? 1 : 0));
+    }, [view, spec.track]);
+    useEffect(() => { if (view) withFloats(view, [], () => view._bl_view_start(spec.robot.x, spec.robot.z, spec.robot.heading)); }, [view, spec.robot.x, spec.robot.z, spec.robot.heading]);
+    useEffect(() => {
+        if (!view) return;
+        const sensors = spec.robot.sensors.flatMap(m => [m.x, m.z, states[m.part]?.led ? 1 : 0]);   // red = its LED, lit over the white floor (as in the top view)
+        withFloats(view, sensors, sp => {
+            if (!pose) { view._bl_view_state(0, sp, spec.robot.sensors.length); return; }
+            withFloats(view, [...pose.chassis, ...pose.left, ...pose.right, ...pose.caster, 0, 0], ps => view._bl_view_state(ps, sp, spec.robot.sensors.length));
+        });
+    }, [view, pose, states, spec.robot.sensors]);
+    return (
+        <div className="flex-grow min-h-0" data-testid="world-3d">
+            <EngineView id="view" title="Bot Lab world" baseUrl="/vendor/bot-lab" choice="auto" embedded onBack={() => {}} onReady={instance => setView(instance as ViewModule)} />
         </div>
     );
 }

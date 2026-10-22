@@ -56,9 +56,13 @@ export interface EngineViewProps {
     backLabel?: string;
     /** Something beside the canvas once the module runs (an app's panel), given the running instance */
     renderPanel?: (instance: EngineInstance, backend: Backend) => ReactNode;
+    /** A view inside an app rather than a game page: no back button, no fullscreen or sideways lock on phones, no tilt */
+    embedded?: boolean;
+    /** Called with the running instance once it has started (to feed it data through its exports) */
+    onReady?: (instance: EngineInstance) => void;
 }
 
-export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, backLabel = '← Back', renderPanel }: EngineViewProps) {
+export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, backLabel = '← Back', renderPanel, embedded = false, onReady }: EngineViewProps) {
     const canvasId = 'arcade-' + useId().replace(/[^a-zA-Z0-9]/g, '');
     const canvas = useRef<HTMLCanvasElement>(null);
     const frame = useRef<HTMLDivElement>(null);
@@ -68,6 +72,8 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
     const [fps, setFps] = useState(0);
     const [padConnected, setPadConnected] = useState(false);
     const [portrait, setPortrait] = useState(false);
+    const onReadyRef = useRef(onReady);
+    onReadyRef.current = onReady;
 
     // Load the game; shut it down when the view closes
     useEffect(() => {
@@ -96,6 +102,7 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
             if (frame.current) Object.defineProperty(frame.current, 'xlGame', { value: created, configurable: true });
             setRunning(created);
             setStatus({ kind: 'running', backend });
+            onReadyRef.current?.(created);
         })().catch((err: Error) => { if (!disposed) setStatus({ kind: 'error', message: err.message }); });
         return () => {
             disposed = true;
@@ -110,7 +117,7 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
     // Phones: play full-screen and sideways (the lock only works in fullscreen, and only on some browsers), and
     // say so while the phone is upright
     useEffect(() => {
-        if (!coarsePointer()) return;
+        if (embedded || !coarsePointer()) return;
         const el = frame.current;
         const orientation = screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> };
         el?.requestFullscreen?.().then(() => orientation.lock?.('landscape')).catch(() => { /* needs a gesture or unsupported */ });
@@ -119,12 +126,12 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
         update();
         media.addEventListener('change', update);
         return () => { media.removeEventListener('change', update); if (el && document.fullscreenElement === el) document.exitFullscreen?.().catch(() => { }); };
-    }, []);
+    }, [embedded]);
 
     // Phones: tilt to lean. iOS asks permission, which must come from a tap (pointerup, not pointerdown); the
     // first reading after that is "level"
     useEffect(() => {
-        if (!coarsePointer() || typeof DeviceOrientationEvent === 'undefined') return;
+        if (embedded || !coarsePointer() || typeof DeviceOrientationEvent === 'undefined') return;
         let baseline: number | null = null, listening = false;
         const onOrientation = (e: DeviceOrientationEvent) => {
             const pitch = screenPitch(e.beta, e.gamma, screen.orientation?.type ?? 'landscape-primary');
@@ -144,7 +151,7 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
         const recalibrate = () => { baseline = null; };
         screen.orientation?.addEventListener('change', recalibrate);
         return () => { el?.removeEventListener('pointerup', start); screen.orientation?.removeEventListener('change', recalibrate); window.removeEventListener('deviceorientation', onOrientation); };
-    }, []);
+    }, [embedded]);
 
     // Pause while the window is minimized or the tab is hidden
     useEffect(() => {
@@ -199,10 +206,10 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
             <div className="absolute top-2 right-2 flex items-center gap-1.5 text-xs">
                 {status.kind === 'running' && <span className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white">{padConnected ? '🎮 · ' : ''}{BACKEND_LABEL[status.backend]} · {fps} fps</span>}
                 <button type="button" onClick={() => frame.current?.requestFullscreen?.()} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80" aria-label="Fullscreen">⛶</button>
-                <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80">{backLabel}</button>
+                {!embedded && <button type="button" onClick={onBack} className="px-2 py-0.5 rounded-full bg-black bg-opacity-60 text-white hover:bg-opacity-80">{backLabel}</button>}
             </div>
             {status.kind === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm pointer-events-none">Loading {title}…</div>}
-            {portrait && status.kind === 'running' && (
+            {portrait && !embedded && status.kind === 'running' && (
                 <div data-testid="rotate-hint" className="absolute inset-x-0 bottom-10 flex justify-center pointer-events-none">
                     <div className="px-4 py-2 rounded-full bg-black bg-opacity-70 text-white text-sm">🔄 Turn your phone sideways to play</div>
                 </div>
