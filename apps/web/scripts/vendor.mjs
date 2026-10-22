@@ -3,6 +3,7 @@
 //   security policy only has to allow 'self'). Versions come from package.json via the lockfile.
 // - public/arcade/: the Arcade's compiled games (@xlibraries/arcade dist/).
 // - public/vendor/pyodide/: CPython for Bot Lab's Raspberry Pi (from the bot-lab package's pyodide dependency).
+// - public/vendor/pico/: MicroPython and the RP2040 boot ROM for Bot Lab's Pico (the bot-lab package's firmware/).
 // - public/drop/: the Photo Drop page from @xlibraries/photo-drop, plus config.js made from this site's settings
 //   (content/photo-drop.json).
 // Runs on install (prepare), before dev and before every build.
@@ -42,6 +43,8 @@ export function vendorFiles() {
         [join(pkgDir('@xlibraries/arcade'), 'dist'), 'arcade'],
         // Bot Lab's Raspberry Pi: CPython in WebAssembly (loaded only when a project has a Pi)
         ...['pyodide.mjs', 'pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json'].map(f => [join(depDir('@xlibraries/bot-lab', 'pyodide'), f), `vendor/pyodide/${f}`]),
+        // Bot Lab's Raspberry Pi Pico: MicroPython and the boot ROM without its float library (firmware/README.md)
+        [join(pkgDir('@xlibraries/bot-lab'), 'firmware'), 'vendor/pico'],
     ];
 }
 

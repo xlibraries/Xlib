@@ -5,6 +5,7 @@
 import { Capacitor, Diode, GROUND, Netlist, Resistor, Switch, VoltageSource, type Node, type Solution } from './circuit/mna';
 import { Uno, UNO_CLOCK, type PinActivity } from './boards/uno';
 import { PI_GPIO, PI_LOGIC_VOLTS, PI_PIN_MAX_AMPS, PI_PIN_OUT_OHMS, PI_PULL_OHMS, PiBoard } from './boards/pi';
+import { PICO_GPIO, PICO_LED, PICO_LOGIC_VOLTS, PICO_PIN_MAX_AMPS, PICO_PIN_OUT_OHMS, PICO_PULL_OHMS, Pico, type PicoFirmware } from './boards/pico';
 import { CATALOG, LED_MODELS } from './parts/catalog';
 import { Ads1115, I2CBus, Mpu6050, Tmp102, type I2CDevice } from './i2c';
 import { nets, type PinRef, type Project } from './project';
@@ -31,11 +32,13 @@ export interface PartState {
     /** Volts across it */
     volts?: number;
     dead?: boolean;
+    /** Boards with an LED of their own (the Pico's GP25) */
+    led?: boolean;
 }
 
 /** One board pin on the bench: a source behind an output stage, pull resistors, and how to talk to the board about it. */
 interface PinDriver {
-    board: 'uno' | 'pi';
+    board: 'uno' | 'pi' | 'pico';
     name: string;
     source: VoltageSource;
     stage: Resistor;
@@ -58,6 +61,8 @@ export class Bench {
     readonly board: Uno | null;
     /** The Raspberry Pi, when the project has one (its Python runtime drives it) */
     readonly pi: PiBoard | null;
+    /** The Pico, when the project has one and its firmware was given */
+    readonly pico: Pico | null;
     readonly nodeOf = new Map<string, Node>();   // "part.pin" → node
     readonly warnings: Warning[] = [];
     readonly states = new Map<string, PartState>();
@@ -71,14 +76,16 @@ export class Bench {
     private readonly pots: { part: string; ra: Resistor; rb: Resistor }[] = [];
     private readonly ldrs: { part: string; r: Resistor }[] = [];
     private readonly dead = new Set<string>();
-    private readonly i2cDevices: { part: string; device: I2CDevice; sda: Node; scl: Node; vcc: Node; gnd: Node }[] = [];
+    private picoPart: string | null = null;
+    private readonly i2cDevices: { part: string; device: I2CDevice; sda: Node; scl: Node; vcc: Node; gnd: Node; supplied: boolean }[] = [];
     /** The Pi's I²C bus 1 (GPIO2 = SDA, GPIO3 = SCL), when there's a Pi */
     readonly piBus: I2CBus | null;
     /** The Uno's I²C (A4 = SDA, A5 = SCL), when there's an Uno */
     readonly unoBus: I2CBus | null;
     time = 0;
 
-    constructor(readonly project: Project) {
+    /** `firmware.pico`: the Pico's boot ROM and MicroPython image (loaded by the caller: the worker fetches them) */
+    constructor(readonly project: Project, firmware: { pico?: PicoFirmware } = {}) {
         // nets → nodes (any net with a ground pin is node 0)
         for (const group of nets(project)) {
             const grounded = group.some(k => { const [part, pin] = k.split('.'); return CATALOG[project.parts.find(p => p.id === part)!.kind].pins.find(p => p.id === pin)!.kind === 'ground'; });
@@ -87,11 +94,14 @@ export class Bench {
         }
         this.board = project.parts.some(p => p.kind === 'uno') && project.code.board === 'uno' && project.code.hex ? new Uno(project.code.hex) : null;
         this.pi = project.parts.some(p => p.kind === 'pi') ? new PiBoard() : null;
+        this.pico = project.parts.some(p => p.kind === 'pico') && firmware.pico ? new Pico(firmware.pico) : null;
         for (const part of project.parts) this.place(part.id, part.kind, part.props);
         const piPart = project.parts.find(p => p.kind === 'pi'), unoPart = project.parts.find(p => p.kind === 'uno');
         this.piBus = piPart ? this.bus(piPart.id, 'GPIO2', 'GPIO3') : null;
         this.unoBus = unoPart ? this.bus(unoPart.id, 'A4', 'A5') : null;
         this.board?.attachI2C(() => this.unoBus);
+        const picoPart = project.parts.find(p => p.kind === 'pico');
+        if (this.pico && picoPart) this.pico.attachI2C((sda, scl) => this.bus(picoPart.id, `GP${sda}`, `GP${scl}`));
     }
 
     /** A board's I²C bus: the powered, grounded devices whose SDA and SCL share its nets. Two on one address clash. */
@@ -100,7 +110,7 @@ export class Bench {
         return new I2CBus(() => {
             if (!this.solution) this.tick();     // a script's first words can come before the first step: settle the circuit (power on)
             const v = this.solution?.v;
-            const on = this.i2cDevices.filter(d => d.sda === sda && d.scl === scl && d.gnd === GROUND && !!v && v[d.vcc] >= I2C_MIN_VOLTS);
+            const on = this.i2cDevices.filter(d => d.supplied && d.sda === sda && d.scl === scl && d.gnd === GROUND && !!v && v[d.vcc] >= I2C_MIN_VOLTS);
             const seen = new Map<number, string>();
             for (const d of on) {
                 const other = seen.get(d.device.address);
@@ -152,6 +162,23 @@ export class Bench {
                 }
                 break;
             }
+            case 'pico': {
+                this.net.add(new VoltageSource(n('VSYS'), GROUND, 5));
+                this.net.add(new VoltageSource(n('3V3'), GROUND, PICO_LOGIC_VOLTS));
+                const pico = this.pico;
+                for (const gp of PICO_GPIO) {
+                    const name = `GP${gp}`;
+                    this.driver('pico', name, n(name), n('3V3'), PICO_LOGIC_VOLTS, PICO_PIN_OUT_OHMS, PICO_PIN_MAX_AMPS, PICO_PULL_OHMS,
+                        () => pico ? pico.pin(gp) : { mode: 'input', high: false, duty: 0, pulseUs: 0, periodUs: 0 },
+                        (_high, volts) => {
+                            if (!pico) return;
+                            if (gp >= 26) pico.setAdc(gp - 26, volts);
+                            if (volts > 2.0) pico.setInput(gp, true); else if (volts < 0.8) pico.setInput(gp, false);
+                        });
+                }
+                this.picoPart = id;
+                break;
+            }
             case 'battery': {
                 const src = this.net.add(new VoltageSource(this.net.node(), n('-'), num('volts')));
                 this.net.add(new Resistor(src.a, n('+'), Math.max(0.01, num('ohms'))));
@@ -178,6 +205,8 @@ export class Bench {
                 const address = parseInt(String(props.address), 16);
                 const vcc = n(kind === 'ads1115' ? 'VDD' : 'VCC'), gnd = n('GND');
                 this.net.add(new Resistor(vcc, gnd, 33_000));     // ~100 µA from 3.3 V
+                this.net.add(new Resistor(n('SDA'), vcc, 10_000)); // breakout boards carry I²C pull-ups
+                this.net.add(new Resistor(n('SCL'), vcc, 10_000));
                 let device: I2CDevice;
                 if (kind === 'tmp102') device = new Tmp102(address, () => prop('temperature'));
                 else if (kind === 'mpu6050') device = new Mpu6050(address, () => ({ pitch: prop('pitch'), roll: prop('roll'), gx: 0, gy: 0, gz: prop('turn'), celsius: prop('temperature') }));
@@ -185,7 +214,12 @@ export class Bench {
                     const inputs = ['A0', 'A1', 'A2', 'A3'].map(pin => { const node = n(pin); this.net.add(new Resistor(node, gnd, 10e6)); return node; });
                     device = new Ads1115(address, ch => { const v = this.solution?.v; return v ? v[inputs[ch]] - v[gnd] : 0; });
                 }
-                this.i2cDevices.push({ part: id, device, sda: n('SDA'), scl: n('SCL'), vcc, gnd });
+                // its VCC must reach a supply (a board's 3.3 V/5 V, a battery): its own pull-ups on SDA/SCL would
+                // otherwise back-feed it from the bus, and an unwired sensor should simply be off
+                const vccPin = kind === 'ads1115' ? 'VDD' : 'VCC';
+                const net = nets(this.project).find(g => g.includes(`${id}.${vccPin}`)) ?? [];
+                const supplied = net.some(k => { const [pid, pin] = k.split('.'); const other = this.project.parts.find(p => p.id === pid); return pid !== id && !!other && CATALOG[other.kind].pins.find(p => p.id === pin)?.kind === 'power' && (other.kind === 'battery' || CATALOG[other.kind].group === 'board'); });
+                this.i2cDevices.push({ part: id, device, sda: n('SDA'), scl: n('SCL'), vcc, gnd, supplied });
                 break;
             }
             case 'servo': {
@@ -198,7 +232,7 @@ export class Bench {
     }
 
     /** A board pin: a source behind an output stage (high impedance while an input), with pull resistors held aside. */
-    private driver(board: 'uno' | 'pi', name: string, node: Node, rail: Node, logicVolts: number, outOhms: number, maxAmps: number, pullOhms: number, read: () => PinActivity, feed: (high: boolean, volts: number) => void) {
+    private driver(board: 'uno' | 'pi' | 'pico', name: string, node: Node, rail: Node, logicVolts: number, outOhms: number, maxAmps: number, pullOhms: number, read: () => PinActivity, feed: (high: boolean, volts: number) => void) {
         const source = this.net.add(new VoltageSource(this.net.node(), GROUND, 0));
         const stage = this.net.add(new Resistor(source.a, node, 1e9));
         this.drivers.push({ board, name, source, stage, pullup: new Resistor(node, rail, pullOhms), pulldown: new Resistor(node, GROUND, pullOhms), node, mode: 'input', pulled: 'none', logicVolts, outOhms, maxAmps, read, feed });
@@ -222,13 +256,16 @@ export class Bench {
         const dt = TICK;
         this.board?.run(CYCLES_PER_TICK);
         this.pi?.run(dt);
+        this.pico?.run(dt);
         for (const d of this.drivers) {
             const a = d.read();
             d.activity = a;
             if (a.mode === 'output') { d.stage.ohms = d.outOhms; d.source.volts = a.high ? d.logicVolts : 0; }
             else d.stage.ohms = 1e9;
             // pull resistors come and go with the pin's configuration
-            const pulled = a.mode === 'input_pullup' ? 'up' : d.board === 'pi' && a.mode === 'input' && this.pi?.pull(Number(d.name.slice(4))) === 'down' ? 'down' : 'none';
+            const pulled = a.mode === 'input_pullup' ? 'up'
+                : a.mode === 'input' && d.board === 'pi' && this.pi?.pull(Number(d.name.slice(4))) === 'down' ? 'down'
+                    : a.mode === 'input' && d.board === 'pico' && this.pico?.pull(Number(d.name.slice(2))) === 'down' ? 'down' : 'none';
             if (pulled !== d.pulled) {
                 if (d.pulled === 'up') this.net.remove(d.pullup); else if (d.pulled === 'down') this.net.remove(d.pulldown);
                 if (pulled === 'up') this.net.add(d.pullup); else if (pulled === 'down') this.net.add(d.pulldown);
@@ -263,12 +300,13 @@ export class Bench {
             this.states.set(s.part, { angle: s.angle });
         }
         for (const r of this.resistors) this.states.set(r.part, { amps: r.r.current(v), volts: v[r.r.a] - v[r.r.b] });
+        if (this.pico && this.picoPart) this.states.set(this.picoPart, { led: this.pico.pin(PICO_LED).duty > 0.5 });
         for (const b of this.sources) this.states.set(b.part, { amps: -this.solution.current(b.source), volts: b.source.volts });
         // pins over their limit
         for (const d of this.drivers) {
             if (d.mode !== 'output') continue;
             const amps = Math.abs(this.solution.current(d.source));
-            if (amps > d.maxAmps) this.warn(d.board, `Pin ${d.name} is sourcing ${Math.round(amps * 1000)} mA; a${d.board === 'uno' ? 'n Uno' : ' Pi'} pin is rated ${Math.round(d.maxAmps * 1000)} mA.`);
+            if (amps > d.maxAmps) this.warn(d.board, `Pin ${d.name} is sourcing ${Math.round(amps * 1000)} mA; a${d.board === 'uno' ? 'n Uno' : d.board === 'pi' ? ' Pi' : ' Pico'} pin is rated ${Math.round(d.maxAmps * 1000)} mA.`);
         }
     }
 

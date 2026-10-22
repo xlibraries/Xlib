@@ -15,11 +15,11 @@ export interface PartInstance {
 
 export interface Wire { a: PinRef; b: PinRef }
 
-export type Board = 'uno' | 'pi';
+export type Board = 'uno' | 'pi' | 'pico';
 
 export interface Code {
     board: Board;
-    /** Arduino C++ for the Uno, Python for the Pi */
+    /** Arduino C++ for the Uno, Python for the Pi, MicroPython for the Pico */
     sketch: string;
     /** The compiled sketch, when it has been built (templates ship with theirs) */
     hex: string;
@@ -35,9 +35,10 @@ export interface Project {
     code: Code;
 }
 
-/** Which board the code runs on: the Pi when the bench has one and no Uno; the Uno otherwise. */
+/** Which board the code runs on, when a bench has more than one: the Uno, else the Pi, else the Pico. */
 export function boardOf(project: Project): Board {
-    return project.parts.some(p => p.kind === 'pi') && !project.parts.some(p => p.kind === 'uno') ? 'pi' : 'uno';
+    const has = (kind: string) => project.parts.some(p => p.kind === kind);
+    return has('uno') ? 'uno' : has('pi') ? 'pi' : has('pico') ? 'pico' : 'uno';
 }
 
 export const STORAGE_KEY = 'bot-lab:projects';
@@ -102,7 +103,7 @@ export function parseProject(input: unknown): Project {
         if (isRecord(raw) && validPin(raw.a) && validPin(raw.b)) connect(project, { part: raw.a.part, pin: raw.a.pin }, { part: raw.b.part, pin: raw.b.pin });
     }
     if (isRecord(input.code)) {
-        if (input.code.board === 'pi') project.code.board = 'pi';
+        if (input.code.board === 'pi' || input.code.board === 'pico') project.code.board = input.code.board;
         if (typeof input.code.sketch === 'string') project.code.sketch = input.code.sketch.slice(0, 65536);
         if (typeof input.code.hex === 'string' && /^(:[0-9A-Fa-f]*\s*)*$/.test(input.code.hex)) project.code.hex = input.code.hex.slice(0, 200_000);
         if (typeof input.code.builtFrom === 'string' && /^[0-9a-f]{8}$/.test(input.code.builtFrom)) project.code.builtFrom = input.code.builtFrom;

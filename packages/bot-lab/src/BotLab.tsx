@@ -233,11 +233,11 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
     const w = spec.width * GRID, h = spec.height * GRID, x = part.x * GRID, y = part.y * GRID;
     const led = part.kind === 'led' ? LED_MODELS[String(part.props.colour)] ?? LED_MODELS.red : null;
     const brightness = state.brightness ?? 0;
-    const isBoard = part.kind === 'uno' || part.kind === 'pi';
+    const isBoard = part.kind === 'uno' || part.kind === 'pi' || part.kind === 'pico';
     return (
         <g transform={`translate(${x},${y})`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} className="cursor-move"
             data-part={part.id} data-kind={part.kind} data-brightness={state.brightness?.toFixed(2)} data-angle={state.angle?.toFixed(0)} data-dead={state.dead ? 'true' : undefined}>
-            <rect width={w} height={h} rx={8} fill={part.kind === 'uno' ? '#1f6f8b' : part.kind === 'pi' ? '#8b2f5a' : '#1a2b24'} stroke={selected ? '#9ff5d1' : '#2f4a3e'} strokeWidth={selected ? 2 : 1} />
+            <rect width={w} height={h} rx={8} fill={part.kind === 'uno' ? '#1f6f8b' : part.kind === 'pi' ? '#8b2f5a' : part.kind === 'pico' ? '#1f6b45' : '#1a2b24'} stroke={selected ? '#9ff5d1' : '#2f4a3e'} strokeWidth={selected ? 2 : 1} />
             <text x={w / 2} y={isBoard ? 18 : h / 2 + 4} textAnchor="middle" fill="#e6f7ef" fontSize={isBoard ? 13 : 11} fontWeight={600}>{spec.title}</text>
             {part.kind === 'resistor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{ohms(Number(part.props.ohms))}</text>}
             {part.kind === 'capacitor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{farads(Number(part.props.farads))}</text>}
@@ -262,6 +262,14 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
             {part.kind === 'potentiometer' && (
                 <g transform={`translate(${w / 2},${h * 0.55}) rotate(${-135 + 270 * Number(part.props.position)})`}>
                     <circle r={12} fill="#3ddc97" /><rect x={-2} y={-12} width={4} height={8} fill="#0b1511" />
+                </g>
+            )}
+            {part.kind === 'pico' && (
+                <g data-led={state.led ? 'on' : 'off'}>
+                    <rect x={w / 2 - 10} y={26} width={20} height={8} rx={2} fill="#0b1511" />
+                    <circle cx={w / 2 - 4} cy={30} r={3} fill="#34c759" opacity={state.led ? 1 : 0.15} />
+                    {state.led && <circle cx={w / 2 - 4} cy={30} r={7} fill="#34c759" opacity={0.35} />}
+                    <text x={w / 2 + 3} y={33} fill="#9db5aa" fontSize={7}>LED</text>
                 </g>
             )}
             {part.kind === 'tmp102' && <text x={w / 2} y={h / 2 + 16} textAnchor="middle" fill="#ffd60a" fontSize={11} data-readout="temperature">{Number(part.props.temperature).toFixed(1)} °C</text>}
@@ -345,9 +353,10 @@ function CodeTab({ project, board, running, snap, compile: compileProp, compiler
     }, [compileProp, compilerAvailable]);
     const compile = available ? compileProp : undefined;
     const editor = useRef<HTMLTextAreaElement>(null);
-    const hasBoard = project.parts.some(p => p.kind === 'uno' || p.kind === 'pi');
+    const hasBoard = project.parts.some(p => p.kind === 'uno' || p.kind === 'pi' || p.kind === 'pico');
     const stale = buildIsStale(project.code);
-    const note = !hasBoard ? 'Add an Arduino Uno or a Raspberry Pi to run code.'
+    const note = !hasBoard ? 'Add an Arduino Uno, a Raspberry Pi or a Pico to run code.'
+        : board === 'pico' ? (snap.finished ? 'The script ended; the REPL is in the terminal.' : 'MicroPython on the Pico (the official firmware). Run powers the board and runs this; the terminal is its REPL (Ctrl+C interrupts).')
         : board === 'pi' ? (snap.finished ? 'The script ended. Run starts it again.' : 'Python on the Raspberry Pi: gpiozero, RPi.GPIO and time work as on the real board. Run starts the script; Stop ends it.')
             : !compile && available === null ? 'Checking whether this site can build sketches\u2026'
             : !compile ? (project.code.hex ? 'The Uno runs this sketch\u2019s last build. Building edited sketches needs the compile service, which isn\u2019t set up here.' : 'No build yet, and the compile service isn\u2019t set up here: start from a template to run one of its sketches.')
@@ -406,7 +415,7 @@ function CodeTab({ project, board, running, snap, compile: compileProp, compiler
                     {build.state === 'unavailable' && <span className="text-yellow-200" role="status">Couldn\u2019t build: {build.message}</span>}
                 </div>
             )}
-            <textarea ref={editor} value={project.code.sketch} onChange={e => onChange({ sketch: e.target.value })} spellCheck={false} readOnly={running} aria-label={board === 'pi' ? 'Python script' : 'Sketch'} className="flex-grow min-h-[16rem] font-mono text-xs leading-4 bg-black bg-opacity-40 rounded p-2 outline-none" />
+            <textarea ref={editor} value={project.code.sketch} onChange={e => onChange({ sketch: e.target.value })} spellCheck={false} readOnly={running} aria-label={board === 'pi' ? 'Python script' : board === 'pico' ? 'MicroPython script' : 'Sketch'} className="flex-grow min-h-[16rem] font-mono text-xs leading-4 bg-black bg-opacity-40 rounded p-2 outline-none" />
             {build.state === 'failed' && <ul className="text-xs space-y-1 max-h-40 overflow-y-auto" data-testid="build-errors">{build.errors.map(message)}</ul>}
             {build.state === 'built' && build.warnings.length > 0 && <ul className="text-xs space-y-1 max-h-32 overflow-y-auto" data-testid="build-warnings">{build.warnings.map(message)}</ul>}
         </div>
@@ -417,10 +426,10 @@ function MonitorTab({ snap, board, project, nets: netList, onSerial, onTerminal 
     const [input, setInput] = useState('');
     const history = useRef<string[]>([]);
     const back = useRef(0);
-    const lines = board === 'pi' ? snap.console : snap.serial;
+    const lines = board === 'pi' || board === 'pico' ? snap.console : snap.serial;
     const scroller = useRef<HTMLDivElement>(null);
     useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [lines.length]);
-    const pi = board === 'pi' && project.parts.some(p => p.kind === 'pi');
+    const pi = (board === 'pi' && project.parts.some(p => p.kind === 'pi')) || (board === 'pico' && project.parts.some(p => p.kind === 'pico'));
     const submit = () => {
         if (pi) { onTerminal(input); if (input.trim()) history.current.push(input); back.current = 0; }
         else onSerial(input);
@@ -440,7 +449,7 @@ function MonitorTab({ snap, board, project, nets: netList, onSerial, onTerminal 
         <div className="space-y-3">
             <div>
                 <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{pi ? 'Terminal' : 'Serial monitor'}</div>
-                <div ref={scroller} data-testid="serial" className={'overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap ' + (pi ? 'h-56' : 'h-40')}>{lines.length ? lines.join('\n') : pi ? 'Type help, or python3 main.py to run the script.' : snap.running ? '' : 'Run the project to see what the code prints.'}</div>
+                <div ref={scroller} data-testid="serial" className={'overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap ' + (pi ? 'h-56' : 'h-40')}>{lines.length ? lines.join('\n') : pi ? (board === 'pico' ? '\u25b6 Run powers the Pico; its MicroPython REPL appears here.' : 'Type help, or python3 main.py to run the script.') : snap.running ? '' : 'Run the project to see what the code prints.'}</div>
                 {(board === 'uno' || pi) && (
                     <form onSubmit={e => { e.preventDefault(); submit(); }} className="flex gap-1 mt-1 items-center">
                         {pi && <span className="font-mono text-xs text-emerald-300 whitespace-pre" data-testid="prompt">{snap.prompt ?? ''}</span>}

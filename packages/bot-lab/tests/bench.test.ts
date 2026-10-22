@@ -78,6 +78,7 @@ describe('the board that runs the code', () => {
             const p = t.build();
             expect(p.code.board).toBe(boardOf(p));
             if (p.code.board === 'pi') expect(p.code.sketch).toMatch(/^from (gpiozero|smbus2) import|^import (RPi|pigpio)/m);
+            else if (p.code.board === 'pico') expect(p.code.sketch).toMatch(/^from machine import/m);
             else if (p.parts.some(x => x.kind === 'uno')) expect(p.code.hex).not.toBe('');
         }
     });

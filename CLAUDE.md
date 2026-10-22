@@ -65,7 +65,9 @@ things work.
   into modules with `physics: true`), and `EngineView` (the React canvas host). Apps that ship C++ modules depend
   on it; it imports no app.
 - `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
-  solver, parts, the Uno on avr8js, the Pi's header, I²C devices on per-board buses, the bench loop) under a React bench. The bench runs in a worker
+  solver, parts, the Uno on avr8js, the Pi's header, the Pico on rp2040js with MicroPython, I²C devices on per-board buses, the
+  bench loop). `firmware/` is vendored (MicroPython, and an RP2040 boot ROM with its float library zeroed for licensing:
+  `pico-rom-float.ts` replaces it; see `firmware/README.md`), copied to `public/vendor/pico/` by `scripts/vendor.mjs`) under a React bench. The bench runs in a worker
   (`runtime/`); the Raspberry Pi runs Python on Pyodide (vendored to `public/vendor/pyodide/`) with `python/`
   (`gpiozero`, `RPi.GPIO`, `pigpio`, `smbus2`, simulated `time`) bundled by `pnpm sync:python` (the unit tests check it's current).
   `time.sleep` steps the bench and, with JSPI, suspends Python so messages arrive mid-sleep; the unit tests need
