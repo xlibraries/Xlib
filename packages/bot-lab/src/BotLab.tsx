@@ -15,6 +15,8 @@ import { footprints } from './sim/draw';
 import { figureEightTrack, ovalTrack } from './sim/track';
 import type { WorldSpec } from './sim/project';
 import { buildIsStale, sketchHash, UNO_FLASH, type CompileMessage, type Compiler } from './compile';
+import { plotLines, type Plot } from './plot';
+import { HOVER_HOLD, HOVER_HEIGHT } from './sim/hover';
 
 const GRID = 16;   // px per grid unit on the bench
 
@@ -260,7 +262,7 @@ function WorldView({ spec, state, states, editable, onChange }: { spec: WorldSpe
     const heading = pose ? headingOf(pose.chassis.slice(3, 7)) : robotSpec?.heading ?? 0;
     const path = spec.track.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ') + (spec.track.closed && spec.track.points.length > 2 ? ' Z' : '');
     const R = ROBOT;
-    const laps = pose?.laps, pick = state?.pick;
+    const laps = pose?.laps, pick = state?.pick, hover = state?.hover;
     const floorAt = (e: { clientX: number; clientY: number }): [number, number] | null => {
         const ctm = svg.current?.getScreenCTM();
         if (!ctm) return null;
@@ -338,6 +340,16 @@ function WorldView({ spec, state, states, editable, onChange }: { spec: WorldSpe
                         cubes {pick.delivered} in the bin · {pick.dropped} dropped · {pick.spawned} of {spec.conveyor?.cubes}{pick.finished !== null ? ` · done in ${time(pick.finished)}` : ''}
                     </span>
                 )}
+                {spec.quad && (!hover || hover.phase === 'ready') && <span className="bg-white bg-opacity-70 text-gray-800 rounded px-2 py-0.5">Run to fly: hold {HOVER_HEIGHT * 100} cm, level, for {HOVER_HOLD} s, then land softly.</span>}
+                {hover && (
+                    <>
+                        <span className="bg-black bg-opacity-70 text-white rounded px-2 py-0.5 font-mono" data-testid="hover" data-phase={hover.phase} data-best={hover.best.toFixed(1)} data-passed={hover.passed}>
+                            {Math.round(hover.altitude * 100)} cm · {hover.tilt.toFixed(1)}° · held {Math.min(hover.held, HOVER_HOLD).toFixed(1)} / {HOVER_HOLD} s{hover.best >= HOVER_HOLD ? ' ✓' : ''}
+                        </span>
+                        {hover.phase === 'crashed' && <span className="bg-red-600 text-white rounded px-2 py-0.5">crashed: {hover.crash}</span>}
+                        {hover.phase === 'landed' && <span className={(hover.passed ? 'bg-emerald-500 text-black' : 'bg-yellow-500 text-black') + ' rounded px-2 py-0.5'}>{hover.passed ? `hover done · landed at ${hover.touchdown!.toFixed(2)} m/s` : hover.best >= HOVER_HOLD ? `landed too hard (${hover.touchdown!.toFixed(2)} m/s)` : `landed · best hold ${hover.best.toFixed(1)} s`}</span>}
+                    </>
+                )}
                 {spec.best !== undefined && <span className="bg-emerald-500 text-black rounded px-2 py-0.5" data-best={spec.best.toFixed(2)}>best {time(spec.best)}</span>}
             </div>
         </div>
@@ -352,7 +364,7 @@ interface ViewModule extends EngineInstance {
     _bl_view_bodies(shapes: number, n: number): void;
     _bl_view_poses(poses: number, n: number): void;
     _bl_view_sensors(spots: number, n: number): void;
-    _bl_view_focus(x: number, z: number): void;
+    _bl_view_focus(x: number, y: number, z: number): void;
     HEAPF32: Float32Array;
 }
 
@@ -382,8 +394,9 @@ function World3D({ spec, state, states }: { spec: WorldSpec; state?: WorldState;
         withFloats(view, state.bodies.poses, p => view._bl_view_poses(p, state.bodies.poses.length / 7));
         const spots = (state.robot?.sensors ?? []).flatMap(([x, z], i) => [x, z, states[spec.robot?.sensors[i]?.part ?? '']?.led ? 1 : 0]);
         withFloats(view, spots, p => view._bl_view_sensors(p, spots.length / 3));
-        const focus = state.robot ? [state.robot.chassis[0], state.robot.chassis[2]] : spec.arm ? [spec.arm.x + 0.1, spec.arm.z] : spec.conveyor ? [spec.conveyor.x, spec.conveyor.z] : [0, 0];
-        withFloats(view, [], () => view._bl_view_focus(focus[0], focus[1]));
+        // the camera follows the robot or the quad (up as well), or looks at the arm's work
+        const focus = state.robot ? [state.robot.chassis[0], 0, state.robot.chassis[2]] : state.quad ? state.quad.position : spec.arm ? [spec.arm.x + 0.1, 0, spec.arm.z] : spec.conveyor ? [spec.conveyor.x, 0, spec.conveyor.z] : [0, 0, 0];
+        withFloats(view, [], () => view._bl_view_focus(focus[0], focus[1], focus[2]));
     }, [view, state, states, spec.robot, spec.arm, spec.conveyor]);
     return (
         <div className="flex-grow min-h-0" data-testid="world-3d">
@@ -661,11 +674,42 @@ function CodeTab({ project, board, running, snap, compile: compileProp, compiler
     );
 }
 
+const PLOT_COLOURS = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#c084fc', '#f472b6'];
+
+/** The Serial Plotter: each named value a line, newest on the right, over the last 200 lines */
+function SerialPlot({ plot }: { plot: Plot }) {
+    const W = 300, H = 140, n = Math.max(2, plot.length);
+    const y = (v: number) => H - 6 - (v - plot.min) / (plot.max - plot.min) * (H - 12);
+    const zero = plot.min < 0 && plot.max > 0 ? y(0) : null;
+    return (
+        <div className="bg-black bg-opacity-40 rounded p-2" data-testid="plot" data-series={plot.names.join(',')}>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-36 block" preserveAspectRatio="none">
+                {zero !== null && <line x1={0} x2={W} y1={zero} y2={zero} stroke="#ffffff" strokeOpacity={0.15} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
+                {plot.series.map((values, s) => {
+                    // a missing value breaks the line
+                    const d = values.map((v, i) => Number.isFinite(v) ? `${i && Number.isFinite(values[i - 1]) ? 'L' : 'M'}${(i / (n - 1) * W).toFixed(1)},${y(v).toFixed(1)}` : '').join('');
+                    return <path key={plot.names[s]} d={d} fill="none" stroke={PLOT_COLOURS[s % PLOT_COLOURS.length]} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />;
+                })}
+            </svg>
+            <div className="flex flex-wrap gap-x-3 text-[11px] font-mono mt-1">
+                {plot.names.map((name, s) => {
+                    const last = plot.series[s].filter(Number.isFinite).at(-1);
+                    return <span key={name} style={{ color: PLOT_COLOURS[s % PLOT_COLOURS.length] }}>{name} {last === undefined ? '' : Number(last.toFixed(2))}</span>;
+                })}
+                <span className="text-gray-500 ml-auto">{Number(plot.min.toFixed(2))} … {Number(plot.max.toFixed(2))}</span>
+            </div>
+        </div>
+    );
+}
+
 function MonitorTab({ snap, board, project, nets: netList, onSerial, onTerminal }: { snap: Snapshot; board: Board; project: Project; nets: string[][]; onSerial: (text: string) => void; onTerminal: (line: string) => void }) {
     const [input, setInput] = useState('');
     const history = useRef<string[]>([]);
     const back = useRef(0);
     const lines = board === 'pi' || board === 'pico' ? snap.console : snap.serial;
+    const [view, setView] = useState<'text' | 'plot'>('text');
+    const plot = useMemo(() => plotLines(lines), [lines]);
+    const plottable = plot.length > 1;
     const scroller = useRef<HTMLDivElement>(null);
     useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [lines.length]);
     const pi = (board === 'pi' && project.parts.some(p => p.kind === 'pi')) || (board === 'pico' && project.parts.some(p => p.kind === 'pico'));
@@ -687,8 +731,16 @@ function MonitorTab({ snap, board, project, nets: netList, onSerial, onTerminal 
     return (
         <div className="space-y-3">
             <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{pi ? 'Terminal' : 'Serial monitor'}</div>
-                <div ref={scroller} data-testid="serial" className={'overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap ' + (pi ? 'h-56' : 'h-40')}>{lines.length ? lines.join('\n') : pi ? (board === 'pico' ? '\u25b6 Run powers the Pico; its MicroPython REPL appears here.' : 'Type help, or python3 main.py to run the script.') : snap.running ? '' : 'Run the project to see what the code prints.'}</div>
+                <div className="flex items-center mb-1">
+                    <div className="text-xs uppercase tracking-wide text-gray-400 flex-grow">{pi ? 'Terminal' : 'Serial monitor'}</div>
+                    {(plottable || view === 'plot') && (
+                        <div className="flex text-[11px] rounded-full overflow-hidden border border-white border-opacity-20" role="tablist" aria-label="Serial view">
+                            {(['text', 'plot'] as const).map(v => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={'px-2 ' + (view === v ? 'bg-emerald-500 text-black font-semibold' : 'text-gray-300')}>{v === 'text' ? 'Text' : 'Plot'}</button>)}
+                        </div>
+                    )}
+                </div>
+                {view === 'plot' && <SerialPlot plot={plot} />}
+                <div ref={scroller} data-testid="serial" className={'overflow-y-auto font-mono text-xs bg-black bg-opacity-40 rounded p-2 whitespace-pre-wrap ' + (view === 'plot' ? 'h-16 mt-1' : pi ? 'h-56' : 'h-40')}>{lines.length ? lines.join('\n') : pi ? (board === 'pico' ? '\u25b6 Run powers the Pico; its MicroPython REPL appears here.' : 'Type help, or python3 main.py to run the script.') : snap.running ? '' : 'Run the project to see what the code prints.'}</div>
                 {(board === 'uno' || pi) && (
                     <form onSubmit={e => { e.preventDefault(); submit(); }} className="flex gap-1 mt-1 items-center">
                         {pi && <span className="font-mono text-xs text-emerald-300 whitespace-pre" data-testid="prompt">{snap.prompt ?? ''}</span>}

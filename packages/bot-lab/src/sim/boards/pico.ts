@@ -21,7 +21,7 @@ export const PICO_PULL_OHMS = 50_000;
 /** rp2040js's default clock (SimulationClock, not exported by the package): simulated time we advance ourselves */
 interface SimClock { readonly nanos: number; readonly nanosToNextAlarm: number; tick(deltaNanos: number): void }
 
-interface PinTrack { rose: number; pulseUs: number; periodUs: number; highNanos: number; lastEdge: number; high: boolean }
+interface PinTrack { rose: number; pulseUs: number; periodUs: number; highNanos: number; lastEdge: number; high: boolean; falls: number; fell: number }
 
 /** One SDA/SCL pair's bit-level I²C state (see bitBangI2C) */
 interface SoftI2C {
@@ -84,7 +84,7 @@ export class Pico {
         this.cdc.onDeviceConnected = () => { this.connected = true; };
         this.cdc.onSerialData = (bytes) => this.receive(bytes);
         for (const index of [...PICO_GPIO, PICO_LED]) {
-            const track: PinTrack = { rose: -1, pulseUs: 0, periodUs: 0, highNanos: 0, lastEdge: 0, high: false };
+            const track: PinTrack = { rose: -1, pulseUs: 0, periodUs: 0, highNanos: 0, lastEdge: 0, high: false, falls: 0, fell: 0 };
             this.tracks.set(index, track);
             const gpio = this.mcu.gpio[index];
             gpio.addListener((state) => {
@@ -104,7 +104,7 @@ export class Pico {
         const now = this.clock.nanos;
         if (t.high) t.highNanos += now - Math.max(t.lastEdge, this.windowStart);
         if (high) { if (t.rose >= 0) t.periodUs = (now - t.rose) / 1000; t.rose = now; }
-        else if (t.rose >= 0) t.pulseUs = (now - t.rose) / 1000;
+        else { if (t.rose >= 0) t.pulseUs = (now - t.rose) / 1000; t.falls++; t.fell = now; }
         t.high = high;
         t.lastEdge = now;
     }
@@ -129,7 +129,7 @@ export class Pico {
         const state = this.mcu.gpio[index].value, t = this.tracks.get(index)!;
         const mode: PinMode = state === GPIOPinState.High || state === GPIOPinState.Low ? 'output' : state === GPIOPinState.InputPullUp ? 'input_pullup' : 'input';
         const high = state === GPIOPinState.High;
-        return { mode, high, duty: this.windowNanos > 0 ? Math.min(1, t.highNanos / this.windowNanos) : high ? 1 : 0, pulseUs: t.pulseUs, periodUs: t.periodUs };
+        return { mode, high, duty: this.windowNanos > 0 ? Math.min(1, t.highNanos / this.windowNanos) : high ? 1 : 0, pulseUs: t.pulseUs, periodUs: t.periodUs, falls: t.falls, fellAgo: (this.clock.nanos - t.fell) / 1e9 };
     }
 
     /** The pull a pin's input has (the bench adds the resistor) */

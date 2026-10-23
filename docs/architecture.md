@@ -123,12 +123,14 @@ fed back as inputs and ADC readings, scripts sent through MicroPython's raw REPL
 floating-point library (licensed only for real RP2040s); `boards/pico-rom-float.ts` traps calls into that range and
 does the maths in JavaScript. Drive parts: a DC motor is a winding resistance and a back-EMF source in the net, its shaft integrated each step from
 the current's torque, friction, inertia and load; the TB6612 sets its output switches from its inputs' last voltages;
-the TCRT5000's outputs follow the surface under it. A project with a `world` puts machines on a floor (a robot, a five-servo arm, a conveyor with cubes and a bin): `native/world`
+the TCRT5000's outputs follow the surface under it. A project with a `world` puts machines on a floor (a robot, a five-servo arm, a conveyor with cubes and a bin, a quadcopter): `native/world`
 (C++ on the engine's Jolt, built headless into `dist/world/`) is the physics, and `sim/world.ts` couples it to the
 bench every two steps (the wheel motors' torques in, the wheels' speeds out as their shaft speeds; line sensors read
 `sim/track.ts`'s line under them). The worker loads it from `/vendor/bot-lab/world/` for any board, and snapshots carry
 the world's state for the World view: every body's look and pose (drawn generically, from above with `sim/draw.ts` or
-in 3D), the robot's lap state (`sim/laps.ts`) and the pick-and-place score. An arm's servos hand their pulses' angles to
+in 3D), the robot's lap state (`sim/laps.ts`), the pick-and-place score and the hover challenge (`sim/hover.ts`). A quad's
+four brushless motors hand their thrust and twist to the frame; its MPU-6050 feels the frame's motion and its HC-SR04 the
+height under it. An arm's servos hand their pulses' angles to
 its joints (slewed at their rated speed, up to their stall torque) and get the joints' real angles back; `sim/arm.ts`
 is its inverse kinematics. The worker builds the world on load too, so a stopped project shows its machines. The view draws
 them from above (SVG) or in 3D: `native/view` is a sokol module hosted by `EngineView` (embedded), fed through its
@@ -136,6 +138,7 @@ exports (the track, the start pose, each snapshot's poses). Stopped, the World
 view edits the track and the robot's start; the Parts tab's Robot panel picks the wheel motors and mounts the sensors.
 `i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's
 TWI) reaches the powered devices wired to it (TMP102, ADS1115, MPU-6050, following their register maps).
+The Monitor's Serial Plotter (`plot.ts`) draws lines of `name:value` pairs, as the Arduino IDE's does.
 `project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links; `boardOf` says which
 board the code runs on. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.
 

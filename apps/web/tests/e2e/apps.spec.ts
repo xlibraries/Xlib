@@ -775,6 +775,27 @@ test.describe('Bot Lab', () => {
         await lab.getByRole('button', { name: '■ Stop' }).click();
     });
 
+    test('the quadcopter: the Uno flight controller takes off, holds its hover, lands; the Monitor plots what it prints', async ({ page }) => {
+        test.slow();   // about 20 simulated seconds of flight
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Quadcopter hover \(World\)/ }).click();
+        await expect.poll(() => lab.locator('[data-bodies]').getAttribute('data-bodies').then(Number), { timeout: 20_000 }).toBeGreaterThan(0);
+        await expect(lab.getByTestId('laps')).toContainText('Run to fly');
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const hover = lab.getByTestId('hover');
+        await expect(hover).toHaveAttribute('data-phase', 'flying', { timeout: 30_000 });
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        await lab.getByRole('tab', { name: 'Plot' }).click();
+        await expect(lab.getByTestId('plot')).toHaveAttribute('data-series', 'roll,pitch,height,target');
+        await expect(hover).toHaveAttribute('data-passed', 'true', { timeout: 90_000 });
+        await expect(hover).toHaveAttribute('data-phase', 'landed');
+        await expect(lab.getByText(/hover done · landed at/)).toBeVisible();
+        await lab.getByRole('tab', { name: 'Text' }).click();
+        await expect(lab.getByTestId('serial')).toContainText('roll:');
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+    });
+
     test('the track editor: presets, drawing a line point by point, a loop, the robot\u2019s start', async ({ page }) => {
         await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');

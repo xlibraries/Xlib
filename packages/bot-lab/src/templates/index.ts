@@ -195,6 +195,39 @@ export const TEMPLATES: Template[] = [
             return p;
         },
     },
+    {
+        id: 'quad_hover', title: 'Quadcopter hover (World)', blurb: 'A flight controller on an Uno: gyro, accelerometer and an ultrasonic rangefinder keep a quad level at 50 cm. Three knobs tune it in flight.',
+        build() {
+            const p = emptyProject('Quadcopter hover');
+            p.code = code('quad_hover');
+            addPart(p, 'uno', 4, 4);
+            const pack = addPart(p, 'battery', 46, 26);
+            pack.props.volts = 11.1; pack.props.ohms = 0.02;
+            // front-left and back-right spin clockwise, the other two anticlockwise, so their twists cancel
+            const motors = ['D3', 'D5', 'D6', 'D9'].map((pin, i) => {
+                const m = addPart(p, 'quadmotor', 46, 2 + i * 6);
+                m.props.spin = i === 0 || i === 3 ? 'CW' : 'CCW';
+                connect(p, { part: 'uno1', pin }, { part: m.id, pin: 'sig' });
+                connect(p, { part: pack.id, pin: '+' }, { part: m.id, pin: 'v' });
+                connect(p, { part: pack.id, pin: '-' }, { part: m.id, pin: 'gnd' });
+                return m.id;
+            });
+            connect(p, { part: pack.id, pin: '-' }, { part: 'uno1', pin: 'GND2' });
+            const imu = addPart(p, 'mpu6050', 26, 2), ranger = addPart(p, 'hcsr04', 26, 10);
+            for (const [from, to] of [['A4', 'SDA'], ['A5', 'SCL'], ['5V', 'VCC'], ['GND', 'GND']] as const) connect(p, { part: 'uno1', pin: from }, { part: imu.id, pin: to });
+            for (const [from, to] of [['5V', 'VCC'], ['GND', 'GND'], ['D7', 'TRIG'], ['D8', 'ECHO']] as const) connect(p, { part: 'uno1', pin: from }, { part: ranger.id, pin: to });
+            // the gain knobs: attitude P, attitude D, height P
+            ['A0', 'A1', 'A2'].forEach((pin, i) => {
+                const k = addPart(p, 'potentiometer', 4 + i * 6, 22);
+                connect(p, { part: 'uno1', pin: '5V' }, { part: k.id, pin: 'a' });
+                connect(p, { part: k.id, pin: 'w' }, { part: 'uno1', pin });
+                connect(p, { part: k.id, pin: 'b' }, { part: 'uno1', pin: 'GND' });
+            });
+            const [frontLeft, frontRight, backLeft, backRight] = motors;
+            p.world = { quad: { frontLeft, frontRight, backLeft, backRight, imu: imu.id, range: ranger.id, x: 0, z: 0, heading: 0 }, track: { width: 0.019, points: [], closed: false } };
+            return p;
+        },
+    },
 ];
 
 const PI_BLINK = `# Blink, on a Raspberry Pi: an LED on GPIO17 through a resistor.

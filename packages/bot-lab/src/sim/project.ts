@@ -46,6 +46,9 @@ export interface ArmSpec {
 /** A conveyor belt driven by a motor; cubes appear at its near end every `spawn` seconds, up to `cubes` of them */
 export interface ConveyorSpec { motor: string; x: number; z: number; heading: number; length: number; spawn: number; cubes: number }
 
+/** A quadcopter: which brushless motor sits at each corner (X layout), its IMU and downward rangefinder, where it lands */
+export interface QuadSpec { frontLeft: string; frontRight: string; backLeft: string; backRight: string; imu?: string; range?: string; x: number; z: number; heading: number }
+
 /** A line sensor fixed above the floor (not on a robot): it sees cubes below it */
 export interface SpotterMount { part: string; x: number; z: number; height: number }
 
@@ -56,6 +59,9 @@ export interface WorldSpec {
     /** Where cubes should end up */
     bin?: { x: number; z: number; size: number };
     spotters?: SpotterMount[];
+    quad?: QuadSpec;
+    /** Wind, m/s along x and z, with gusts up to `gust` m/s */
+    wind?: { x: number; z: number; gust: number };
     robot?: {
         /** The motors that drive the left and right wheels (positive speed rolls forward) */
         left: string;
@@ -177,6 +183,15 @@ function parseWorld(w: Record<string, unknown>, project: Project): WorldSpec | n
     const spotters = (Array.isArray(w.spotters) ? w.spotters : []).filter(isRecord).filter(m => isKind(m.part, 'tcrt5000'))
         .map(m => ({ part: m.part as string, x: finite(m.x, 0, 10), z: finite(m.z, 0, 10), height: Math.max(0.01, Math.min(0.5, finite(m.height, 0.1))) })).slice(0, 8);
     if (spotters.length) out.spotters = spotters;
+    if (isRecord(w.quad)) {
+        const q = w.quad, corners = ['frontLeft', 'frontRight', 'backLeft', 'backRight'] as const;
+        if (corners.every(c => isKind(q[c], 'quadmotor'))) out.quad = {
+            frontLeft: q.frontLeft as string, frontRight: q.frontRight as string, backLeft: q.backLeft as string, backRight: q.backRight as string,
+            ...(isKind(q.imu, 'mpu6050') ? { imu: q.imu as string } : {}), ...(isKind(q.range, 'hcsr04') ? { range: q.range as string } : {}),
+            x: finite(q.x, 0, 10), z: finite(q.z, 0, 10), heading: finite(q.heading, 0, 7),
+        };
+    }
+    if (isRecord(w.wind)) out.wind = { x: finite(w.wind.x, 0, 15), z: finite(w.wind.z, 0, 15), gust: Math.max(0, finite(w.wind.gust, 0, 15)) };
     if (robot && !(isKind(robot.left, 'motor') && isKind(robot.right, 'motor'))) return null;
     const sensors = (Array.isArray(robot?.sensors) ? robot.sensors : []).filter(isRecord).filter(m => isKind(m.part, 'tcrt5000'))
         .map(m => ({ part: m.part as string, x: finite(m.x, 0, 0.5), z: finite(m.z, 0, 0.5) })).slice(0, 16);
@@ -185,7 +200,7 @@ function parseWorld(w: Record<string, unknown>, project: Project): WorldSpec | n
     if (robot) out.robot = { left: robot.left as string, right: robot.right as string, sensors, x: finite(robot.x, 0, 10), z: finite(robot.z, 0, 10), heading: finite(robot.heading, 0, 7) };
     out.track = { width: Math.max(0.005, Math.min(0.1, finite(track.width, 0.019))), points, closed: track.closed === true };
     if (typeof w.best === 'number' && Number.isFinite(w.best) && w.best > 0) out.best = w.best;
-    if (!out.robot && !out.arm && !out.conveyor) return null;
+    if (!out.robot && !out.arm && !out.conveyor && !out.quad) return null;
     return out;
 }
 
@@ -235,6 +250,9 @@ export function dropFromWorld(world: WorldSpec | undefined, id: string): WorldSp
     if (next.arm && [next.arm.base, next.arm.shoulder, next.arm.elbow, next.arm.wrist, next.arm.gripper].includes(id)) delete next.arm;
     if (next.conveyor?.motor === id) delete next.conveyor;
     if (next.spotters) next.spotters = next.spotters.filter(m => m.part !== id);
-    return next.robot || next.arm || next.conveyor ? next : undefined;
+    if (next.quad && [next.quad.frontLeft, next.quad.frontRight, next.quad.backLeft, next.quad.backRight].includes(id)) delete next.quad;
+    if (next.quad?.imu === id) delete next.quad.imu;
+    if (next.quad?.range === id) delete next.quad.range;
+    return next.robot || next.arm || next.conveyor || next.quad ? next : undefined;
 }
 

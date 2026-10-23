@@ -167,6 +167,9 @@ export interface Motion {
     gy: number;
     gz: number;
     celsius: number;
+    /** The accelerometer's reading in g along the chip's X, Y, Z, when it's moving (a flying quad): replaces the
+     *  gravity worked out from pitch and roll */
+    accel?: [number, number, number];
 }
 
 /** MPU-6050: a 3-axis accelerometer and gyroscope. Wakes asleep (PWR_MGMT_1 = 0x40), as the real one does. */
@@ -183,7 +186,7 @@ export class Mpu6050 extends RegisterDevice {
     private latch() {
         if (this.asleep) return;
         const m = this.motion(), rad = Math.PI / 180;
-        const g = [-Math.sin(m.pitch * rad), Math.sin(m.roll * rad) * Math.cos(m.pitch * rad), Math.cos(m.roll * rad) * Math.cos(m.pitch * rad)];
+        const g = m.accel ?? [-Math.sin(m.pitch * rad), Math.sin(m.roll * rad) * Math.cos(m.pitch * rad), Math.cos(m.roll * rad) * Math.cos(m.pitch * rad)];
         const aScale = 16384 / (1 << ((this.regs[0x1c] >> 3) & 3));
         const gScale = 131 / (1 << ((this.regs[0x1b] >> 3) & 3));
         const words = [...g.map(a => a * aScale), (m.celsius - 36.53) * 340, m.gx * gScale, m.gy * gScale, m.gz * gScale];

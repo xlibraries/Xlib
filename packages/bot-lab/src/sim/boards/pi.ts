@@ -22,6 +22,8 @@ interface SoftPin {
     input: boolean;
     rose: number;       // time of the last rising edge, s
     pulseUs: number;
+    falls: number;
+    fell: number;
     periodUs: number;
     highTime: number;   // within the current step
 }
@@ -35,7 +37,7 @@ export class PiBoard {
     private stepLength = 0;
 
     constructor() {
-        for (const bcm of PI_GPIO) this.pins.set(bcm, { mode: 'input', pull: 'none', high: false, pwm: null, input: false, rose: -1, pulseUs: 0, periodUs: 0, highTime: 0 });
+        for (const bcm of PI_GPIO) this.pins.set(bcm, { mode: 'input', pull: 'none', high: false, pwm: null, input: false, rose: -1, pulseUs: 0, periodUs: 0, highTime: 0, falls: 0, fell: 0 });
     }
 
     private pin(bcm: number): SoftPin {
@@ -99,7 +101,7 @@ export class PiBoard {
     /** What a pin did over the last step, in the bench's terms. */
     activity(bcm: number): PinActivity {
         const p = this.pin(bcm);
-        return { mode: this.mode(bcm), high: p.mode === 'output' ? p.high : p.input, duty: this.stepLength > 0 ? Math.min(1, p.highTime / this.stepLength) : (p.high ? 1 : 0), pulseUs: p.pulseUs, periodUs: p.periodUs };
+        return { mode: this.mode(bcm), high: p.mode === 'output' ? p.high : p.input, duty: this.stepLength > 0 ? Math.min(1, p.highTime / this.stepLength) : (p.high ? 1 : 0), pulseUs: p.pulseUs, periodUs: p.periodUs, falls: p.falls, fellAgo: this.time - p.fell };
     }
 
     /** The circuit's level on an input pin. */
@@ -108,7 +110,7 @@ export class PiBoard {
     private level(p: SoftPin, high: boolean) { if (high !== p.high) this.edge(p, high, this.time); }
     private edge(p: SoftPin, high: boolean, at: number) {
         if (high) { if (p.rose >= 0) p.periodUs = (at - p.rose) * 1e6; p.rose = at; }
-        else if (p.rose >= 0) p.pulseUs = (at - p.rose) * 1e6;
+        else { if (p.rose >= 0) p.pulseUs = (at - p.rose) * 1e6; p.falls++; p.fell = at; }
         p.high = high;
     }
 }
