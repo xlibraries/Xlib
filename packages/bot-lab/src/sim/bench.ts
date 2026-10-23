@@ -2,12 +2,12 @@
 // become sources in the net, the net is solved, and what the circuit did comes back: input levels and analog
 // voltages to the board, currents and voltages to the parts (an LED's brightness, a servo's command, a pin's
 // load). Rules that teach come from the numbers: a pin over 40 mA, an LED over its rating, drivers fighting.
-import { Capacitor, Diode, GROUND, Netlist, Resistor, Switch, VoltageSource, type Node, type Solution } from './circuit/mna';
+import { Capacitor, CurrentSource, Diode, GROUND, Netlist, Resistor, Switch, VoltageSource, type Node, type Solution } from './circuit/mna';
 import { Uno, UNO_CLOCK, type PinActivity } from './boards/uno';
 import { PI_GPIO, PI_LOGIC_VOLTS, PI_PIN_MAX_AMPS, PI_PIN_OUT_OHMS, PI_PULL_OHMS, PiBoard } from './boards/pi';
 import { PICO_GPIO, PICO_LED, PICO_LOGIC_VOLTS, PICO_PIN_MAX_AMPS, PICO_PIN_OUT_OHMS, PICO_PULL_OHMS, Pico, type PicoFirmware } from './boards/pico';
 import { CATALOG, LED_MODELS, SERVO_MODELS } from './parts/catalog';
-import { Ads1115, I2CBus, Mpu6050, Tmp102, type I2CDevice } from './i2c';
+import { Ads1115, I2CBus, Mpu6050, Tmp102, type I2CDevice, type Motion } from './i2c';
 import { nets, type PinRef, type Project } from './project';
 
 export const TICK = 1 / 4800;           // the electrical step
@@ -36,7 +36,19 @@ export interface PartState {
     led?: boolean;
     /** Motors: shaft speed and angle */
     rpm?: number;
+    /** Brushless motors: thrust (N) and whether the ESC is armed */
+    thrust?: number;
+    armed?: boolean;
     turned?: number;
+}
+
+/** The brushless motor, ESC and prop: 2300 kV on a 5" prop, sized so full throttle on 11.1 V gives about 5 N */
+export const QUAD_MOTOR = { kv: 2300, efficiency: 0.85, nominalVolts: 11.1, maxThrust: 5, yawRatio: 0.015, maxAmps: 18, lag: 0.03 };
+
+/** An ESC's throttle from its pulse width: 1000 µs is off, 2000 µs full; anything else isn't a valid signal */
+export function escThrottle(pulseUs: number): number | null {
+    if (pulseUs < 800 || pulseUs > 2200) return null;
+    return Math.max(0, Math.min(1, (pulseUs - 1050) / 900));   // a little dead band above 1000 µs
 }
 
 /** A DC motor's model, from its datasheet-style props: winding resistance, back-EMF/torque constant, friction, inertia. */
@@ -99,6 +111,11 @@ export class Bench {
     /** Motors: an internal node, the winding resistance and the back-EMF source, and the shaft's state */
     /** Motors. One that drives a wheel in the world is `attached`: the world sets its speed and takes its `torque`. */
     readonly motors: { part: string; r: Resistor; emf: VoltageSource; model: MotorModel; omega: number; angle: number; amps: number; stalled: number; load: number; extLoad: number; attached: boolean; torque: number }[] = [];
+    /** Brushless motors behind ESCs: the throttle their pulses ask for, the prop's speed, thrust and yaw torque */
+    readonly quadMotors: { part: string; sigNode: Node; supply: Node; ground: Node; draw: CurrentSource; omega: number; thrust: number; yaw: number; spin: 1 | -1; armed: boolean; lowFor: number; badFor: number; amps: number; lastHigh: number }[] = [];
+    private readonly rangers: { part: string; vcc: Node; gnd: Node; trig: Node; echoPin: Node; echo: VoltageSource; trigHigh: number; falls: number; echoStart: number; echoEnd: number }[] = [];
+    /** Sensors moved by the world (an IMU on a quad): their live readings, in place of their props */
+    readonly motion = new Map<string, Motion>();
     /** Called after every step (the world couples here) */
     afterTick?: (dt: number) => void;
     private readonly drivers6612: { part: string; vcc: Node; gnd: Node; stby: Node; ins: Node[][]; outs: { hi: Switch; lo: Switch }[][] }[] = [];
@@ -235,7 +252,7 @@ export class Bench {
                 this.net.add(new Resistor(n('SCL'), vcc, 10_000));
                 let device: I2CDevice;
                 if (kind === 'tmp102') device = new Tmp102(address, () => prop('temperature'));
-                else if (kind === 'mpu6050') device = new Mpu6050(address, () => ({ pitch: prop('pitch'), roll: prop('roll'), gx: 0, gy: 0, gz: prop('turn'), celsius: prop('temperature') }));
+                else if (kind === 'mpu6050') device = new Mpu6050(address, () => this.motion.get(id) ?? { pitch: prop('pitch'), roll: prop('roll'), gx: 0, gy: 0, gz: prop('turn'), celsius: prop('temperature') });
                 else {
                     const inputs = ['A0', 'A1', 'A2', 'A3'].map(pin => { const node = n(pin); this.net.add(new Resistor(node, gnd, 10e6)); return node; });
                     device = new Ads1115(address, ch => { const v = this.solution?.v; return v ? v[inputs[ch]] - v[gnd] : 0; });
@@ -272,6 +289,22 @@ export class Bench {
                 const dout = this.net.add(new VoltageSource(this.net.node(), gnd, 0));
                 const doStage = this.net.add(new Resistor(dout.a, n('DO'), 1000));
                 this.lineSensors.push({ part: id, vcc: n('VCC'), gnd, ao, dout, doStage, detecting: false });
+                break;
+            }
+            case 'quadmotor': {
+                const draw = this.net.add(new CurrentSource(n('v'), n('gnd'), 0));
+                this.net.add(new Resistor(n('sig'), n('gnd'), 1e6));
+                this.net.add(new Resistor(n('v'), n('gnd'), 5000));                    // the ESC's own electronics
+                this.quadMotors.push({ part: id, sigNode: n('sig'), supply: n('v'), ground: n('gnd'), draw, omega: 0, thrust: 0, yaw: 0, spin: props.spin === 'CCW' ? -1 : 1, armed: false, lowFor: 0, badFor: 0, amps: 0, lastHigh: -1 });
+                break;
+            }
+            case 'hcsr04': {
+                const gnd = n('GND');
+                this.net.add(new Resistor(n('VCC'), gnd, 330));                         // ~15 mA
+                this.net.add(new Resistor(n('TRIG'), gnd, 100_000));
+                const echo = this.net.add(new VoltageSource(this.net.node(), gnd, 0));
+                this.net.add(new Resistor(echo.a, n('ECHO'), 1000));
+                this.rangers.push({ part: id, vcc: n('VCC'), gnd, trig: n('TRIG'), echoPin: n('ECHO'), echo, trigHigh: 0, falls: 0, echoStart: -1, echoEnd: -1 });
                 break;
             }
             case 'servo': {
@@ -395,6 +428,15 @@ export class Bench {
             s.detecting = powered && !dark;
         }
         for (const m of this.motors) m.emf.volts = m.model.ke * m.omega;
+        // an ESC draws power with the cube of its prop's speed (a prop's load)
+        const omegaMax = QUAD_MOTOR.kv * QUAD_MOTOR.nominalVolts * QUAD_MOTOR.efficiency * 2 * Math.PI / 60;
+        for (const q of this.quadMotors) { q.amps = QUAD_MOTOR.maxAmps * Math.pow(Math.min(1.2, q.omega / omegaMax), 3); q.draw.amps = q.amps; }
+        // the rangefinder: a trigger pulse starts a burst; the echo pin then stays high for 58 µs per centimetre
+        for (const r of this.rangers) {
+            const powered = volts(r.vcc) - volts(r.gnd) > 4;
+            const now = this.time + TICK;                                     // where the boards' clocks are now
+            r.echo.volts = powered && now >= r.echoStart && now < r.echoEnd ? volts(r.vcc) - volts(r.gnd) : 0;
+        }
     }
 
     /** Motors turn: current makes torque; friction, load and inertia decide the speed. */
@@ -421,9 +463,59 @@ export class Bench {
             this.states.set(m.part, { rpm: m.omega * 60 / (2 * Math.PI), amps: m.amps, turned: (m.angle * 180 / Math.PI) % 360 });
         }
         for (const s of this.lineSensors) this.states.set(s.part, { led: s.detecting, volts: v[s.ao.a] - v[s.gnd] });
+        this.escs(v, dt);
+        for (const r of this.rangers) {
+            // when the trigger pulse ended: a board pin's own record of its edges (a 10 µs pulse is shorter than a
+            // step), otherwise the level the circuit settled at
+            let ended: number | null = null;
+            const trigger = this.drivers.find(d => d.node === r.trig && d.mode === 'output')?.activity;
+            if (trigger?.falls !== undefined) {
+                if (trigger.falls !== r.falls) ended = this.time - (trigger.fellAgo ?? 0);
+                r.falls = trigger.falls;
+            } else if (v[r.trig] - v[r.gnd] > 2.5) r.trigHigh += dt;
+            else { if (r.trigHigh > 0) ended = this.time; r.trigHigh = 0; }
+            if (ended === null || ended < r.echoEnd || v[r.vcc] - v[r.gnd] <= 4) continue;   // busy, or unpowered
+            const cm = Number(this.project.parts.find(p => p.id === r.part)!.props.distance);
+            r.echoStart = ended + 0.00025;                                     // the 8-cycle 40 kHz burst
+            r.echoEnd = r.echoStart + (cm >= 2 && cm <= 400 ? cm * 58e-6 : 0.038);   // out of range: a 38 ms echo
+            // an Uno times pulseIn() to the cycle, so it gets the echo's edges exactly; other boards see them per step
+            const echoPin = this.drivers.find(d => d.node === r.echoPin && d.board === 'uno');
+            if (echoPin && this.board) {
+                const pin = echoPin.name.startsWith('A') ? 14 + Number(echoPin.name.slice(1)) : Number(echoPin.name.slice(1));
+                this.board.scheduleInput(pin, true, r.echoStart - this.time);
+                this.board.scheduleInput(pin, false, r.echoEnd - this.time);
+            }
+        }
         for (const d of this.drivers6612) {
             const vcc = v[d.vcc] - v[d.gnd];
             if (vcc >= 2.7 && v[d.stby] - v[d.gnd] < 1.4 && this.time > 0.2 && this.drivers.some(x => x.mode === 'output')) this.warn(d.part, `${d.part}: STBY is low, so both motor outputs are off. Tie STBY to VCC (or drive it high).`);
+        }
+    }
+
+    /** ESCs: arm on a low pulse after power-up, follow their throttle with the prop's lag, give up on a lost signal. */
+    private escs(v: number[], dt: number) {
+        const omegaNominal = QUAD_MOTOR.kv * QUAD_MOTOR.nominalVolts * QUAD_MOTOR.efficiency * 2 * Math.PI / 60;
+        const kT = QUAD_MOTOR.maxThrust / (omegaNominal * omegaNominal);
+        for (const q of this.quadMotors) {
+            const supply = v[q.supply] - v[q.ground];
+            const driver = this.drivers.find(d => d.node === q.sigNode && d.mode === 'output' && d.activity);
+            // a signal is pulses: a pin that hasn't gone high for 50 ms (two and a half frames) is no signal, whatever
+            // width its last pulse had
+            const a = driver?.activity;
+            if (a && (a.high || a.duty > 0)) q.lastHigh = this.time;
+            const live = q.lastHigh >= 0 && this.time - q.lastHigh < 0.05;
+            const throttle = supply > 6 && live ? escThrottle(a?.pulseUs ?? 0) : null;
+            if (throttle === null) { q.badFor += dt; if (q.badFor > 0.5) { q.armed = false; q.lowFor = 0; } }
+            else {
+                q.badFor = 0;
+                if (!q.armed) { q.lowFor = throttle === 0 ? q.lowFor + dt : 0; if (q.lowFor >= 0.3) q.armed = true; }
+            }
+            const target = q.armed && throttle !== null ? throttle * omegaNominal * (supply / QUAD_MOTOR.nominalVolts) : 0;
+            q.omega += (target - q.omega) * Math.min(1, dt / QUAD_MOTOR.lag);
+            q.thrust = kT * q.omega * q.omega;
+            q.yaw = q.spin * QUAD_MOTOR.yawRatio * q.thrust;                    // a CW prop twists the frame CCW (+)
+            if (supply > 6 && !q.armed && throttle !== null && throttle > 0 && this.time > 1) this.warn(q.part, `${q.part}: the ESC isn\u2019t armed. Send it 1000 µs for a moment after power-up, then raise the throttle.`);
+            this.states.set(q.part, { rpm: q.omega * 60 / (2 * Math.PI), thrust: q.thrust, amps: q.amps, armed: q.armed });
         }
     }
 

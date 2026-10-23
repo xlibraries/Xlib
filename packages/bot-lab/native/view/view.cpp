@@ -31,7 +31,7 @@ struct {
     std::vector<float> shapes;        // 7 per body: shape (0 box, 1 cylinder, 2 sphere), size a b c, colour r g b
     std::vector<float> poses;         // 7 per body: position xyz, rotation xyzw
     std::vector<float> sensors;       // 3 per spot: x, z on the floor, lit (0/1)
-    float focus_x = 0, focus_z = 0;
+    float focus_x = 0, focus_y = 0.03f, focus_z = 0;
     // the page may send the track before sokol is up (its first frame): it's built then
     std::vector<float> track_points;
     float track_width = 0.019f;
@@ -181,7 +181,7 @@ void frame() {
     const float dt = static_cast<float>(sapp_frame_duration());
     xl::report_frame(dt);
     xl::end_frame();
-    const HMM_Vec3 target = HMM_V3(st.focus_x, 0.03f, st.focus_z);
+    const HMM_Vec3 target = HMM_V3(st.focus_x, st.focus_y, st.focus_z);
     const HMM_Vec3 eye = HMM_AddV3(target, HMM_V3(std::cos(st.yaw) * std::cos(st.pitch) * st.distance, std::sin(st.pitch) * st.distance, std::sin(st.yaw) * std::cos(st.pitch) * st.distance));
     const HMM_Mat4 view_proj = HMM_MulM4(HMM_Perspective_RH_NO(HMM_AngleDeg(45.0f), sapp_widthf() / sapp_heightf(), 0.01f, 30.0f), HMM_LookAt_RH(eye, target, HMM_V3(0, 1, 0)));
 
@@ -259,7 +259,7 @@ EMSCRIPTEN_KEEPALIVE void bl_view_poses(const float* poses, int n) { st.poses.as
 EMSCRIPTEN_KEEPALIVE void bl_view_sensors(const float* spots, int n) { st.sensors.assign(spots, spots + std::max(0, n) * 3); }
 
 /** What the camera looks at (it orbits this point on the floor) */
-EMSCRIPTEN_KEEPALIVE void bl_view_focus(float x, float z) { st.focus_x = x; st.focus_z = z; }
+EMSCRIPTEN_KEEPALIVE void bl_view_focus(float x, float y, float z) { st.focus_x = x; st.focus_y = std::max(0.03f, y); st.focus_z = z; }
 
 }  // extern "C"
 

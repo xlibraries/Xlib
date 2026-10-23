@@ -10,6 +10,7 @@ import type { Bench } from './bench';
 import type { WorldSpec } from './project';
 import { reflectance, LINE_REFLECTANCE, FLOOR_REFLECTANCE } from './track';
 import { LapTracker, type LapState } from './laps';
+import { HoverJudge, type HoverState } from './hover';
 
 /** The headless module's exports (Emscripten) */
 export interface WorldModule {
@@ -28,6 +29,11 @@ export interface WorldModule {
     _bl_cube_pos(i: number, out: number): void;
     _bl_bin(x: number, z: number, size: number, depth: number): void;
     _bl_sees_cube(x: number, height: number, z: number, range: number): number;
+    _bl_quad(x: number, z: number, heading: number, mass: number, arm: number): number;
+    _bl_quad_motors(params: number): void;
+    _bl_wind(x: number, y: number, z: number): void;
+    _bl_quad_state(out: number): void;
+    _bl_quad_range(x: number, y: number, z: number, range: number): number;
     _bl_body_count(): number;
     _bl_shapes(out: number): void;
     _bl_poses(out: number): void;
@@ -45,6 +51,12 @@ export const CONVEYOR = { width: 0.07, height: 0.05, roller: 0.015 };
 export const CUBE = { size: 0.025, mass: 0.015 };
 /** The gripper's force limit (N), whatever its servo (a little linkage turns torque into squeeze) */
 const GRIP_FORCE = 4;
+/** A 250 mm racing quad: frame mass with battery (kg), motors' distance from the centre (m) */
+export const QUAD = { mass: 0.6, arm: 0.125 };
+
+/** The flight's state (world frame): position, rotation, velocity, angular velocity */
+export interface QuadState { position: number[]; rotation: number[]; velocity: number[]; spin: number[] }
+
 /** Bench steps per physics step: 2 × 1/4800 s, comfortably inside the wheels' and joints' time constants */
 export const PHYSICS_TICKS = 2;
 
@@ -82,6 +94,8 @@ export interface Bodies { shapes: number[]; poses: number[] }
 export interface WorldState {
     robot?: RobotPose;
     pick?: PickState;
+    quad?: QuadState;
+    hover?: HoverState;
     bodies: Bodies;
 }
 
@@ -96,11 +110,19 @@ export class MachineWorld {
     private readonly servos: Bench['servos'][number][] = [];
     private readonly belt?: Bench['motors'][number];
     readonly laps?: LapTracker;
+    readonly hover?: HoverJudge;
+    private restHeight = 0;
     private cubesSpawned = 0;
     private lastSpawn = -Infinity;
     private firstCube: number | null = null;
     private finished: number | null = null;
     private shapes: number[] = [];
+    private readonly rotors: Bench['quadMotors'][number][] = [];
+    private readonly quadState = new Float32Array(13);
+    private lastVelocity: number[] | null = null;
+    private accel = [0, 0, 0];
+    private gust = [0, 0];
+    private random = seeded(7);
 
     constructor(private readonly m: WorldModule, private readonly bench: Bench, readonly spec: WorldSpec) {
         const motor = (id: string) => {
@@ -119,6 +141,14 @@ export class MachineWorld {
         if (spec.robot) { this.left = motor(spec.robot.left); this.right = motor(spec.robot.right); }
         if (spec.arm) this.servos = [spec.arm.base, spec.arm.shoulder, spec.arm.elbow, spec.arm.wrist, spec.arm.gripper].map(servo);
         if (spec.conveyor) this.belt = motor(spec.conveyor.motor);
+        if (spec.quad) {
+            const q = spec.quad;
+            this.rotors = [q.frontLeft, q.frontRight, q.backLeft, q.backRight].map(id => {
+                const found = bench.quadMotors.find(x => x.part === id);
+                if (!found) throw new Error(`the motor ${id} isn't on the bench`);
+                return found;
+            });
+        }
         this.scratch = m._malloc(4 * 32);
         m._bl_reset();
         if (spec.robot) {
@@ -137,10 +167,12 @@ export class MachineWorld {
             if (!m._bl_conveyor(c.x, c.z, c.heading, c.length, CONVEYOR.width, CONVEYOR.height)) throw new Error('the world refused the conveyor');
         }
         if (spec.bin) m._bl_bin(spec.bin.x, spec.bin.z, spec.bin.size, 0.04);
+        if (spec.quad && !m._bl_quad(spec.quad.x, spec.quad.z, spec.quad.heading, QUAD.mass, QUAD.arm)) throw new Error('the world refused the quad');
         this.applyServos();
         this.settle();
         this.read();
         this.sense();
+        if (spec.quad) { this.hover = new HoverJudge(); this.restHeight = this.quadState[1]; }
         bench.afterTick = (dt) => this.tick(dt);
     }
 
@@ -151,6 +183,10 @@ export class MachineWorld {
         if (this.spec.robot) {
             this.m._bl_state(this.scratch);
             this.robotState.set(this.m.HEAPF32.subarray(this.scratch >> 2, (this.scratch >> 2) + 26));
+        }
+        if (this.spec.quad) {
+            this.m._bl_quad_state(this.scratch);
+            this.quadState.set(this.m.HEAPF32.subarray(this.scratch >> 2, (this.scratch >> 2) + 13));
         }
         if (this.spec.arm) {
             this.m._bl_arm_state(this.scratch);
@@ -189,6 +225,7 @@ export class MachineWorld {
         }
         this.applyServos(step);
         if (this.belt) this.m._bl_belt(this.belt.omega * CONVEYOR.roller);
+        if (this.rotors.length) { this.write([...this.rotors.map(r => r.thrust), ...this.rotors.map(r => r.yaw)]); this.m._bl_quad_motors(this.scratch); this.blow(step); }
         this.spawn();
         this.m._bl_step(step, 1);
         this.read();
@@ -202,8 +239,63 @@ export class MachineWorld {
             this.belt.omega += rate * step;
         }
         this.sense();
+        if (this.spec.quad) this.feel(step);
         this.laps?.update(this.robotState[0], this.robotState[2], this.bench.time);
+        if (this.hover) {
+            const up = rotateVec(Array.from(this.quadState.subarray(3, 7)), [0, 1, 0]);
+            this.hover.update(this.quadState[1] - this.restHeight, Math.acos(Math.max(-1, Math.min(1, up[1]))) * 180 / Math.PI, this.quadState[8], this.bench.time);
+        }
         this.score();
+    }
+
+    /** The wind: a steady breeze plus gusts that wander (a slow random walk, pulled back towards zero). */
+    private blow(step: number) {
+        const w = this.spec.wind;
+        if (!w) return;
+        for (let i = 0; i < 2; i++) this.gust[i] += (-this.gust[i] * 0.5 + this.gaussian() * w.gust * 1.2) * step;
+        this.m._bl_wind(w.x + this.gust[0], 0, w.z + this.gust[1]);
+    }
+
+    private gaussian() { const u = Math.max(1e-12, this.random()), v = this.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+
+    /**
+     * The quad's sensors. The IMU (mounted flat, its X forward, Y to the left, Z up) reads the frame's turning rates
+     * and its specific force (what an accelerometer feels: acceleration minus gravity), in its own axes, with noise
+     * that grows with throttle (vibration). The rangefinder measures straight down along the frame.
+     */
+    private feel(step: number) {
+        const q = this.spec.quad!, st = this.quadState;
+        const rot = Array.from(st.subarray(3, 7)), vel = Array.from(st.subarray(7, 10)), spin = Array.from(st.subarray(10, 13));
+        if (this.lastVelocity) {
+            const raw = vel.map((v, i) => (v - this.lastVelocity![i]) / step);
+            const k = Math.min(1, step * 2 * Math.PI * 40);                 // a 40 Hz low-pass, like the chip's own filter
+            this.accel = this.accel.map((a, i) => a + (raw[i] - a) * k);
+        }
+        this.lastVelocity = vel;
+        if (q.imu) {
+            const inv = [-rot[0], -rot[1], -rot[2], rot[3]];
+            const f = rotateVec(inv, [this.accel[0], this.accel[1] + 9.81, this.accel[2]]);
+            const w = rotateVec(inv, spin);
+            const throttle = Math.max(...this.rotors.map(r => r.thrust)) / 5;
+            const gn = 0.1 + 0.6 * throttle, an = 0.004 + 0.03 * throttle;
+            const deg = 180 / Math.PI;
+            this.bench.motion.set(q.imu, {
+                pitch: 0, roll: 0, celsius: 30,
+                gx: w[0] * deg + this.gaussian() * gn, gy: -w[2] * deg + this.gaussian() * gn, gz: w[1] * deg + this.gaussian() * gn,
+                accel: [f[0] / 9.81 + this.gaussian() * an, -f[2] / 9.81 + this.gaussian() * an, f[1] / 9.81 + this.gaussian() * an],
+            });
+        }
+        if (q.range) {
+            const d = this.m._bl_quad_range(0, 0, 0, 4);
+            this.bench.setProp(q.range, 'distance', d < 0 ? 999 : Math.max(2, d * 100));
+        }
+    }
+
+    /** The flight's state */
+    quad(): QuadState | undefined {
+        if (!this.spec.quad) return undefined;
+        const s = Array.from(this.quadState);
+        return { position: s.slice(0, 3), rotation: s.slice(3, 7), velocity: s.slice(7, 10), spin: s.slice(10, 13) };
     }
 
     /** A new cube at the belt's near end every `spawn` seconds while the belt runs, when the spot is clear. */
@@ -281,7 +373,7 @@ export class MachineWorld {
 
     /** Everything a snapshot carries */
     state(): WorldState {
-        return { robot: this.spec.robot ? this.pose() : undefined, pick: this.pick(), bodies: this.bodies() };
+        return { robot: this.spec.robot ? this.pose() : undefined, pick: this.pick(), quad: this.quad(), hover: this.hover?.state, bodies: this.bodies() };
     }
 
     /** Heading, radians (0 = facing +x), from the chassis's rotation */
@@ -300,3 +392,16 @@ export { MachineWorld as RobotWorld };
 export function headingOf([x, y, z, w]: number[]): number {
     return Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
 }
+
+/** Rotates v by the unit quaternion q = [x, y, z, w] */
+export function rotateVec([qx, qy, qz, qw]: number[], [x, y, z]: number[]): [number, number, number] {
+    const ix = qw * x + qy * z - qz * y, iy = qw * y + qz * x - qx * z, iz = qw * z + qx * y - qy * x, iw = -qx * x - qy * y - qz * z;
+    return [ix * qw + iw * -qx + iy * -qz - iz * -qy, iy * qw + iw * -qy + iz * -qx - ix * -qz, iz * qw + iw * -qz + ix * -qy - iy * -qx];
+}
+
+/** A small deterministic random source (mulberry32), so a run's noise is repeatable */
+function seeded(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+

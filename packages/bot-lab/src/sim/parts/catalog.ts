@@ -154,6 +154,18 @@ export const CATALOG: Record<string, PartSpec> = {
         pins: [...side(['VCC', 'GND'], ['power', 'ground'], 0, 0.3, 0.7), ...side(['DO', 'AO'], ['signal', 'analog'], 1, 0.3, 0.7)],
         props: { reflect: { label: 'Surface (0 black, 1 white)', default: 1, min: 0, max: 1 }, threshold: { label: 'Threshold', default: 0.5, min: 0.05, max: 0.95 } },
     },
+    quadmotor: {
+        kind: 'quadmotor', title: 'Brushless motor + ESC + prop', group: 'drive', width: 6, height: 5,
+        description: 'A racing quad\u2019s 2300 kV motor with its speed controller and a 5" prop: about 500 g of thrust at full throttle on 3S (11.1 V). The ESC reads a servo pulse (1000 µs off, 2000 µs full) and must be armed first: send 1000 µs for a moment after power-up.',
+        pins: [{ id: 'sig', label: 'signal', kind: 'signal', x: 0, y: 0.25 }, { id: 'v', label: 'BAT+', kind: 'power', x: 0, y: 0.5 }, { id: 'gnd', label: 'GND', kind: 'ground', x: 0, y: 0.75 }],
+        props: { spin: { label: 'Prop spins (from above)', default: 'CW', options: ['CW', 'CCW'] } },
+    },
+    hcsr04: {
+        kind: 'hcsr04', title: 'Ultrasonic rangefinder (HC-SR04)', group: 'sensor', width: 6, height: 4,
+        description: 'Measures distance with sound: a 10 µs pulse on TRIG, and ECHO goes high for 58 µs per centimetre (2–400 cm). 5 V.',
+        pins: [...side(['VCC', 'GND'], ['power', 'ground'], 0, 0.3, 0.7), ...side(['TRIG', 'ECHO'], ['digital', 'digital'], 1, 0.3, 0.7)],
+        props: { distance: { label: 'Distance', default: 100, unit: 'cm', min: 2, max: 400 } },
+    },
     tmp102: {
         kind: 'tmp102', title: 'Temperature sensor (TMP102)', group: 'sensor', width: 6, height: 5,
         description: 'Reads temperature to 0.0625 °C over I²C (address 0x48–0x4B). Wire SDA and SCL to the board\u2019s I²C pins (Pi GPIO2/GPIO3, Uno A4/A5) and power it from 3.3 V.',

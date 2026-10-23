@@ -20,8 +20,9 @@ namespace {
 
 enum Shape { BOX = 0, CYLINDER = 1, SPHERE = 2 };
 
-/** A body as views draw it: shape, size (box: half extents; cylinder: radius, half height; sphere: radius), colour */
-struct Drawn { Body body; Shape shape; float a, b, c; float r, g, bl; };
+/** A body as views draw it: shape, size (box: half extents; cylinder: radius, half height; sphere: radius), colour. A
+ *  decoration has no body of its own: it's drawn at an offset from its parent's pose (a quad's arms and motors). */
+struct Drawn { Body body; Shape shape; float a, b, c; float r, g, bl; bool decoration = false; V3 offset = {}; Quat local = {}; };
 
 struct Robot {
     Body chassis, left, right, caster;
@@ -53,6 +54,17 @@ Conveyor conveyor;
 bool has_conveyor = false;
 std::vector<Body> cubes;
 
+/** A quadcopter: one rigid body (a 250 mm frame's mass and inertia); four motors' thrusts and yaw torques each step */
+struct Quad {
+    Body frame;
+    V3 motors[4];             // in the frame's own coordinates (x forward, y up, z right)
+    float thrust[4] = {}, yaw[4] = {};
+    V3 wind = {};
+    float drag = 0.25f;       // N per m/s of airspeed
+};
+Quad quad;
+bool has_quad = false;
+
 V3 add(V3 a, V3 b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
 V3 scale(V3 a, float s) { return {a.x * s, a.y * s, a.z * s}; }
 float dot(V3 a, V3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
@@ -77,6 +89,12 @@ Body sphere(Motion m, V3 at, float radius, float mass, Material mat, float r, fl
     return body;
 }
 
+void decorate(Body parent, Shape shape, V3 offset, Quat local, float a, float b, float c, float r, float g, float bl) {
+    drawn.push_back({parent, shape, a, b, c, r, g, bl, true, offset, local});
+}
+
+V3 cross(V3 a, V3 b) { return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x}; }
+
 V3 axle() { return rotate(world->pose(robot.chassis).rotation, {0, 0, -1}); }
 float wheel_speed(Body wheel) {
     const V3 a = axle();
@@ -86,6 +104,14 @@ void write_pose(Body body, float* out) {
     const Pose p = world->pose(body);
     out[0] = p.position.x; out[1] = p.position.y; out[2] = p.position.z;
     out[3] = p.rotation.x; out[4] = p.rotation.y; out[5] = p.rotation.z; out[6] = p.rotation.w;
+}
+
+void write_drawn(const Drawn& d, float* out) {
+    if (!d.decoration) { write_pose(d.body, out); return; }
+    const Pose parent = world->pose(d.body);
+    const V3 p = add(parent.position, rotate(parent.rotation, d.offset));
+    const Quat q = mul(parent.rotation, d.local);
+    out[0] = p.x; out[1] = p.y; out[2] = p.z; out[3] = q.x; out[4] = q.y; out[5] = q.z; out[6] = q.w;
 }
 
 /** The belt's surface moves (friction carries what rests on it); cubes on it are kept awake while it runs. */
@@ -107,7 +133,7 @@ EMSCRIPTEN_KEEPALIVE void bl_reset() {
     world->add_box(Motion::Static, {0, -0.05f, 0}, {}, {10, 0.05f, 10}, 0, {1.0f, 0.0f});
     drawn.clear();
     cubes.clear();
-    has_robot = has_arm = has_conveyor = false;
+    has_robot = has_arm = has_conveyor = has_quad = false;
 }
 
 /**
@@ -257,6 +283,80 @@ EMSCRIPTEN_KEEPALIVE int bl_sees_cube(float x, float height, float z, float rang
     return std::find(cubes.begin(), cubes.end(), hit.body) != cubes.end() ? 1 : 0;
 }
 
+/**
+ * A quadcopter in the X layout, landed at (x, z) facing `heading`: a frame of `mass` (kg) with its motors `arm` (m) from
+ * the centre, at front-left, front-right, back-left, back-right. Drawn with its arms, motors and props.
+ */
+EMSCRIPTEN_KEEPALIVE int bl_quad(float x, float z, float heading, float mass, float arm) {
+    if (!world) bl_reset();
+    if (mass < 0.05f || mass > 5 || arm < 0.05f || arm > 0.5f) return 0;
+    const Quat yaw = axis_angle({0, 1, 0}, heading);
+    const float half = arm * 0.7071f;   // each motor's offset along x and z
+    // the collision box: the arms' span, a few cm tall (it lands flat on its feet)
+    quad.frame = world->add_box(Motion::Dynamic, {x, 0.022f, z}, yaw, {half + 0.02f, 0.02f, half + 0.02f}, mass, {0.6f, 0.05f});
+    drawn.push_back({quad.frame, BOX, 0.045f, 0.015f, 0.035f, 0.15f, 0.16f, 0.18f});          // the body (battery, board)
+    const V3 m[4] = {{half, 0.012f, -half}, {half, 0.012f, half}, {-half, 0.012f, -half}, {-half, 0.012f, half}};
+    for (int i = 0; i < 4; i++) quad.motors[i] = m[i];
+    const float diag = arm * 1.0f;
+    decorate(quad.frame, BOX, {0, 0.004f, 0}, axis_angle({0, 1, 0}, 0.7854f), diag, 0.004f, 0.008f, 0.1f, 0.1f, 0.12f);
+    decorate(quad.frame, BOX, {0, 0.004f, 0}, axis_angle({0, 1, 0}, -0.7854f), diag, 0.004f, 0.008f, 0.1f, 0.1f, 0.12f);
+    for (int i = 0; i < 4; i++) {
+        const bool front = i < 2;
+        decorate(quad.frame, CYLINDER, m[i], {}, 0.012f, 0.008f, 0, 0.75f, 0.75f, 0.78f);                                   // motor bell
+        decorate(quad.frame, CYLINDER, add(m[i], {0, 0.012f, 0}), {}, 0.064f, 0.0012f, 0, front ? 0.95f : 0.2f, front ? 0.3f : 0.2f, front ? 0.25f : 0.22f);   // prop disc: red at the front
+        decorate(quad.frame, SPHERE, {m[i].x, -0.016f, m[i].z}, {}, 0.004f, 0, 0, 0.2f, 0.2f, 0.2f);                         // a foot
+    }
+    quad.wind = {};
+    has_quad = true;
+    return 1;
+}
+
+/** Each motor's thrust (N, along the frame's up) and the yaw torque its prop puts on the frame (N·m, about up) */
+EMSCRIPTEN_KEEPALIVE void bl_quad_motors(const float* p) {
+    for (int i = 0; i < 4; i++) { quad.thrust[i] = p[i]; quad.yaw[i] = p[4 + i]; }
+}
+
+/** The wind, m/s (world frame): the air the quad moves through */
+EMSCRIPTEN_KEEPALIVE void bl_wind(float x, float y, float z) { quad.wind = {x, y, z}; }
+
+/** The frame's state into out[13]: position xyz, rotation xyzw, velocity xyz, angular velocity xyz (world frame) */
+EMSCRIPTEN_KEEPALIVE void bl_quad_state(float* out) {
+    if (!has_quad) return;
+    write_pose(quad.frame, out);
+    const Velocity v = world->velocity(quad.frame);
+    out[7] = v.linear.x; out[8] = v.linear.y; out[9] = v.linear.z;
+    out[10] = v.angular.x; out[11] = v.angular.y; out[12] = v.angular.z;
+}
+
+/** How far below a point of the frame (its own coordinates) the nearest thing is, along the frame's down (−1: nothing
+ *  within `range`) — a downward rangefinder */
+EMSCRIPTEN_KEEPALIVE float bl_quad_range(float lx, float ly, float lz, float range) {
+    if (!has_quad) return -1;
+    const Pose p = world->pose(quad.frame);
+    const V3 from = add(p.position, rotate(p.rotation, {lx, ly - 0.025f, lz}));   // from just under the frame's box
+    RayHit hit;
+    return world->raycast(from, rotate(p.rotation, {0, -1, 0}), range, hit) ? hit.distance + 0.005f : -1;
+}
+
+void fly() {
+    if (!has_quad) return;
+    const Pose p = world->pose(quad.frame);
+    const V3 up = rotate(p.rotation, {0, 1, 0});
+    V3 force = {}, torque = {};
+    for (int i = 0; i < 4; i++) {
+        const V3 f = scale(up, quad.thrust[i]);
+        force = add(force, f);
+        torque = add(torque, cross(rotate(p.rotation, quad.motors[i]), f));
+        torque = add(torque, scale(up, quad.yaw[i]));
+    }
+    const Velocity v = world->velocity(quad.frame);
+    force = add(force, scale({quad.wind.x - v.linear.x, quad.wind.y - v.linear.y, quad.wind.z - v.linear.z}, quad.drag));
+    torque = add(torque, scale(v.angular, -0.004f));       // air resists turning, a little
+    if (force.x != 0 || force.y != 0 || force.z != 0) world->wake(quad.frame);
+    world->apply_force(quad.frame, force);
+    world->apply_torque(quad.frame, torque);
+}
+
 EMSCRIPTEN_KEEPALIVE void bl_step(float dt, int substeps) {
     if (!world) return;
     if (has_robot) {
@@ -272,6 +372,7 @@ EMSCRIPTEN_KEEPALIVE void bl_step(float dt, int substeps) {
         world->motor_position(arm.second_finger, arm.target[4], arm.limit[4], 40, 1);
     }
     run_belt();
+    fly();
     world->step(dt, substeps < 1 ? 1 : substeps);
 }
 
@@ -313,7 +414,7 @@ EMSCRIPTEN_KEEPALIVE void bl_shapes(float* out) {
 
 /** Each body's pose into out[7 × count]: position xyz, rotation xyzw */
 EMSCRIPTEN_KEEPALIVE void bl_poses(float* out) {
-    for (size_t i = 0; i < drawn.size(); i++) write_pose(drawn[i].body, out + i * 7);
+    for (size_t i = 0; i < drawn.size(); i++) write_drawn(drawn[i], out + i * 7);
 }
 
 }  // extern "C"

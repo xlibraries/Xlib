@@ -21,6 +21,9 @@ export interface PinActivity {
     pulseUs: number;
     /** Time between the last two rising edges, µs (PWM period), 0 if unknown */
     periodUs: number;
+    /** Falling edges so far, and how long ago the last one was (s): a pulse shorter than a bench step still shows */
+    falls?: number;
+    fellAgo?: number;
 }
 
 export const DIGITAL_PINS = 14, ANALOG_PINS = 6;
@@ -46,7 +49,7 @@ export class Uno {
     readonly serial: string[] = [];
     onSerial?: (line: string) => void;
     private serialLine = '';
-    private readonly state = Array.from({ length: PIN_COUNT }, () => ({ high: false, since: 0, highCycles: 0, rose: -1, lastRose: -1, pulseUs: 0, periodUs: 0 }));
+    private readonly state = Array.from({ length: PIN_COUNT }, () => ({ high: false, since: 0, highCycles: 0, rose: -1, lastRose: -1, pulseUs: 0, periodUs: 0, falls: 0, fell: 0 }));
     private stepStart = 0;
 
     constructor(hex: string) {
@@ -107,13 +110,18 @@ export class Uno {
     pin(pin: number): PinActivity {
         const s = this.state[pin];
         const stepCycles = Math.max(1, this.cpu.cycles - this.stepStart);
-        return { mode: this.mode(pin), high: s.high, duty: Math.min(1, s.highCycles / stepCycles), pulseUs: s.pulseUs, periodUs: s.periodUs };
+        return { mode: this.mode(pin), high: s.high, duty: Math.min(1, s.highCycles / stepCycles), pulseUs: s.pulseUs, periodUs: s.periodUs, falls: s.falls, fellAgo: (this.cpu.cycles - s.fell) / UNO_CLOCK };
     }
 
     /** What the circuit holds an input pin at (ignored for outputs). */
     setDigital(pin: number, high: boolean) {
         const p = PINS[pin];
         this.ports[p.port].setPin(p.bit, high);
+    }
+
+    /** Sets an input's level `delay` seconds from now, to the cycle (an echo pulse finer than a bench step). */
+    scheduleInput(pin: number, high: boolean, delay: number) {
+        this.cpu.addClockEvent(() => this.setDigital(pin, high), Math.max(1, Math.round(delay * UNO_CLOCK)));
     }
 
     /** The voltage on an analog pin (A0–A5 = 0–5), 0..5 V. */
@@ -139,8 +147,10 @@ export class Uno {
             if (s.rose >= 0) s.periodUs = (now - s.rose) / (UNO_CLOCK / 1e6);
             s.lastRose = s.rose;
             s.rose = now;
-        } else if (s.rose >= 0) {
-            s.pulseUs = (now - s.rose) / (UNO_CLOCK / 1e6);
+        } else {
+            if (s.rose >= 0) s.pulseUs = (now - s.rose) / (UNO_CLOCK / 1e6);
+            s.falls++;
+            s.fell = now;
         }
     }
 }
