@@ -1,6 +1,6 @@
 # arduino-compiler
 
-Bot Lab's Arduino compiler: `arduino-cli` 1.2.2 with the `arduino:avr` 1.8.6 core and the Servo library, in a
+Bot Lab's Arduino compiler: `arduino-cli` 1.2.2 with the `arduino:avr` 1.8.6 core and the Servo, LiquidCrystal I2C and Adafruit SSD1306 (with GFX and BusIO) libraries, in a
 container that builds visitors' sketches (one GitHub Actions run per build, or an HTTP service for local development)
 and compiles the committed templates.
 

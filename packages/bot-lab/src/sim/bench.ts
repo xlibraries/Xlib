@@ -8,6 +8,7 @@ import { PI_GPIO, PI_LOGIC_VOLTS, PI_PIN_MAX_AMPS, PI_PIN_OUT_OHMS, PI_PULL_OHMS
 import { PICO_GPIO, PICO_LED, PICO_LOGIC_VOLTS, PICO_PIN_MAX_AMPS, PICO_PIN_OUT_OHMS, PICO_PULL_OHMS, Pico, type PicoFirmware } from './boards/pico';
 import { CATALOG, LED_MODELS, SERVO_MODELS } from './parts/catalog';
 import { Ads1115, I2CBus, Mpu6050, Tmp102, type I2CDevice, type Motion } from './i2c';
+import { LcdBackpack, Ssd1306, type ScreenState } from './displays';
 import { nets, type PinRef, type Project } from './project';
 
 export const TICK = 1 / 4800;           // the electrical step
@@ -40,6 +41,10 @@ export interface PartState {
     thrust?: number;
     armed?: boolean;
     turned?: number;
+    /** 7-segment digits: each segment's brightness, a–g then the dot */
+    segments?: number[];
+    /** Screens: what they show */
+    screen?: ScreenState;
 }
 
 /** The brushless motor, ESC and prop: 2300 kV on a 5" prop, sized so full throttle on 11.1 V gives about 5 N */
@@ -99,6 +104,8 @@ export class Bench {
     private solution: Solution | null = null;
     private drivers: PinDriver[] = [];
     private readonly leds: { part: string; diode: Diode; model: (typeof LED_MODELS)[string]; hot: number }[] = [];
+    private readonly digits: { part: string; segments: Diode[] }[] = [];
+    private readonly screens: { part: string; device: LcdBackpack | Ssd1306 }[] = [];
     /** Servos. One that drives a joint in the world is `attached`: it hands over `target`, the world sets `angle`. */
     readonly servos: { part: string; sigNode: Node; angle: number; target: number; speed: number; torque: number; attached: boolean }[] = [];
     private readonly buttons: { part: string; sw: Switch }[] = [];
@@ -235,6 +242,13 @@ export class Bench {
                 this.leds.push({ part: id, diode: this.net.add(new Diode(n('a'), n('k'), model.is, model.n)), model, hot: 0 });
                 break;
             }
+            case 'sevenseg': {
+                // eight LEDs sharing one pin: their cathodes (common cathode) or their anodes (common anode)
+                const model = LED_MODELS[String(props.colour)] ?? LED_MODELS.red, anode = props.common === 'anode';
+                const segments = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map(seg => this.net.add(anode ? new Diode(n('com'), n(seg), model.is, model.n) : new Diode(n(seg), n('com'), model.is, model.n)));
+                this.digits.push({ part: id, segments });
+                break;
+            }
             case 'button': this.buttons.push({ part: id, sw: this.net.add(new Switch(n('a'), n('b'), props.pressed === true)) }); break;
             case 'potentiometer': {
                 const ohms = num('ohms'), pos = Math.max(0.001, Math.min(0.999, num('position')));
@@ -242,16 +256,23 @@ export class Bench {
                 break;
             }
             case 'ldr': this.ldrs.push({ part: id, r: this.net.add(new Resistor(n('a'), n('b'), ldrOhms(num('light')))) }); break;
-            case 'tmp102': case 'ads1115': case 'mpu6050': {
+            case 'tmp102': case 'ads1115': case 'mpu6050': case 'lcd': case 'oled': {
                 const part = this.project.parts.find(p => p.id === id)!;
                 const prop = (key: string) => Number(part.props[key]);
                 const address = parseInt(String(props.address), 16);
                 const vcc = n(kind === 'ads1115' ? 'VDD' : 'VCC'), gnd = n('GND');
-                this.net.add(new Resistor(vcc, gnd, 33_000));     // ~100 µA from 3.3 V
-                this.net.add(new Resistor(n('SDA'), vcc, 10_000)); // breakout boards carry I²C pull-ups
-                this.net.add(new Resistor(n('SCL'), vcc, 10_000));
+                // what it draws: a sensor ~100 µA; the LCD's backlight ~20 mA and an OLED ~15 mA from 5 V
+                this.net.add(new Resistor(vcc, gnd, kind === 'lcd' ? 250 : kind === 'oled' ? 330 : 33_000));
+                const pullup = kind === 'lcd' || kind === 'oled' ? 4700 : 10_000;
+                this.net.add(new Resistor(n('SDA'), vcc, pullup));  // breakout boards carry I²C pull-ups
+                this.net.add(new Resistor(n('SCL'), vcc, pullup));
                 let device: I2CDevice;
-                if (kind === 'tmp102') device = new Tmp102(address, () => prop('temperature'));
+                if (kind === 'lcd' || kind === 'oled') {
+                    const [w, h] = String(props.size).split('x').map(Number);
+                    const screen = kind === 'lcd' ? new LcdBackpack(address, w === 20 ? 20 : 16, h === 4 ? 4 : 2) : new Ssd1306(address, 128, h === 32 ? 32 : 64);
+                    this.screens.push({ part: id, device: screen });
+                    device = screen;
+                } else if (kind === 'tmp102') device = new Tmp102(address, () => prop('temperature'));
                 else if (kind === 'mpu6050') device = new Mpu6050(address, () => this.motion.get(id) ?? { pitch: prop('pitch'), roll: prop('roll'), gx: 0, gy: 0, gz: prop('turn'), celsius: prop('temperature') });
                 else {
                     const inputs = ['A0', 'A1', 'A2', 'A3'].map(pin => { const node = n(pin); this.net.add(new Resistor(node, gnd, 10e6)); return node; });
@@ -377,6 +398,13 @@ export class Bench {
             if (led.hot > 0.05 && !this.dead.has(led.part)) { this.dead.add(led.part); this.warn(led.part, `${led.part}: ${Math.round(amps * 1000)} mA through an LED rated 20 mA. It burnt out; add a resistor and replace it.`, true); }
             state.dead = this.dead.has(led.part);
             this.states.set(led.part, state);
+        }
+        for (const d of this.digits) this.states.set(d.part, { segments: d.segments.map(seg => ledBrightness(seg.current(v))) });
+        for (const s of this.screens) {
+            // an unpowered screen is blank; a powered one shows what its controller holds
+            const dev = this.i2cDevices.find(x => x.part === s.part)!;
+            const powered = dev.supplied && v[dev.vcc] - v[dev.gnd] >= I2C_MIN_VOLTS;
+            this.states.set(s.part, { screen: powered ? s.device.screen : undefined });
         }
         for (const s of this.servos) {
             const driver = this.drivers.find(d => d.node === s.sigNode && d.mode === 'output' && d.activity);
