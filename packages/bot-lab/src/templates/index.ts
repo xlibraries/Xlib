@@ -228,6 +228,51 @@ export const TEMPLATES: Template[] = [
             return p;
         },
     },
+    {
+        id: 'lcd_hello', title: 'Character LCD', blurb: 'A 16×2 LCD on I²C with LiquidCrystal_I2C: a greeting with a custom heart, and a knob as a number and a bar.',
+        build() {
+            const p = emptyProject('Character LCD');
+            p.code = code('lcd_hello');
+            addPart(p, 'uno', 4, 4);
+            const lcd = addPart(p, 'lcd', 4, 18), k = addPart(p, 'potentiometer', 22, 6);
+            for (const [from, to] of [['GND', 'GND'], ['5V', 'VCC'], ['A4', 'SDA'], ['A5', 'SCL']] as const) connect(p, { part: 'uno1', pin: from }, { part: lcd.id, pin: to });
+            connect(p, { part: 'uno1', pin: '5V' }, { part: k.id, pin: 'b' });
+            connect(p, { part: k.id, pin: 'a' }, { part: 'uno1', pin: 'GND2' });
+            connect(p, { part: k.id, pin: 'w' }, { part: 'uno1', pin: 'A0' });
+            return p;
+        },
+    },
+    {
+        id: 'oled_graphics', title: 'OLED graphics', blurb: 'A 128×64 SSD1306 OLED with Adafruit_GFX: text, a bouncing ball, and a knob as a bar.',
+        build() {
+            const p = emptyProject('OLED graphics');
+            p.code = code('oled_graphics');
+            addPart(p, 'uno', 4, 4);
+            const oled = addPart(p, 'oled', 4, 18), k = addPart(p, 'potentiometer', 22, 6);
+            for (const [from, to] of [['GND', 'GND'], ['5V', 'VCC'], ['A5', 'SCL'], ['A4', 'SDA']] as const) connect(p, { part: 'uno1', pin: from }, { part: oled.id, pin: to });
+            connect(p, { part: 'uno1', pin: '5V' }, { part: k.id, pin: 'b' });
+            connect(p, { part: k.id, pin: 'a' }, { part: 'uno1', pin: 'GND2' });
+            connect(p, { part: k.id, pin: 'w' }, { part: 'uno1', pin: 'A0' });
+            return p;
+        },
+    },
+    {
+        id: 'sevenseg_counter', title: '7-segment counter', blurb: 'One common-cathode digit on pins 2–9, a resistor per segment, counting 0 to 9.',
+        build() {
+            const p = emptyProject('7-segment counter');
+            p.code = code('sevenseg_counter');
+            addPart(p, 'uno', 4, 4);
+            const digit = addPart(p, 'sevenseg', 26, 7);
+            ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].forEach((seg, i) => {
+                const r = addPart(p, 'resistor', 19, 1 + i * 3);
+                r.props.ohms = 330;
+                connect(p, { part: 'uno1', pin: `D${2 + i}` }, { part: r.id, pin: 'a' });
+                connect(p, { part: r.id, pin: 'b' }, { part: digit.id, pin: seg });
+            });
+            connect(p, { part: digit.id, pin: 'com' }, { part: 'uno1', pin: 'GND' });
+            return p;
+        },
+    },
 ];
 
 const PI_BLINK = `# Blink, on a Raspberry Pi: an LED on GPIO17 through a resistor.
@@ -347,6 +392,84 @@ while True:
     time.sleep(0.5)
 `;
 
+const PICO_OLED = `# An SSD1306 OLED on the Pico's I2C0 (GP4 = SDA, GP5 = SCL) at 0x3C, drawn with MicroPython's built-in framebuf.
+# The driver is a dozen lines: start-up commands, then the whole picture as one data write.
+from machine import Pin, I2C
+import framebuf, time
+
+i2c = I2C(0, sda=Pin(4), scl=Pin(5), freq=400_000)
+print('I2C devices:', [hex(a) for a in i2c.scan()])
+
+W, H, ADDR = 128, 64, 0x3C
+buf = bytearray(W * H // 8)
+fb = framebuf.FrameBuffer(buf, W, H, framebuf.MONO_VLSB)
+
+def cmd(*codes):
+    for c in codes:
+        i2c.writeto(ADDR, bytes((0x80, c)))    # 0x80: one command byte follows
+
+# display off, clock, multiplex, offset, start line, charge pump on, horizontal addressing, upright (segment remap,
+# COM direction), COM pins, contrast, precharge, VCOMH, follow RAM, not inverted, display on
+cmd(0xAE, 0xD5, 0x80, 0xA8, H - 1, 0xD3, 0, 0x40, 0x8D, 0x14, 0x20, 0, 0xA1, 0xC8, 0xDA, 0x12, 0x81, 0xCF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0xAF)
+
+def show():
+    cmd(0x21, 0, W - 1, 0x22, 0, H // 8 - 1)   # the whole screen
+    i2c.writeto(ADDR, b'\\x40' + buf)          # 0x40: data follows
+
+n = 0
+while True:
+    fb.fill(0)
+    fb.text('Pico + OLED', 0, 0)
+    fb.text('count %d' % n, 0, 16)
+    fb.rect(0, 32, W, 20, 1)
+    fb.fill_rect(2, 34, (n * 4) % (W - 4), 16, 1)
+    show()
+    n += 1
+    time.sleep(0.1)
+`;
+
+const PI_LCD = `# A 16x2 character LCD with an I2C backpack (0x27), from a Raspberry Pi with smbus2 and no library: the backpack's
+# PCF8574 drives the LCD's pins, so each byte goes as two four-bit halves, each latched by pulsing EN.
+from smbus2 import SMBus
+import time
+
+ADDR = 0x27
+RS, EN, BACKLIGHT = 0x01, 0x04, 0x08
+bus = SMBus(1)
+
+def nibble(bits, rs):
+    data = (bits & 0xF0) | BACKLIGHT | (RS if rs else 0)
+    bus.write_byte(ADDR, data | EN)     # EN high...
+    bus.write_byte(ADDR, data)          # ...and low: the LCD takes the four bits
+
+def send(byte, rs=False):
+    nibble(byte, rs)
+    nibble(byte << 4, rs)
+
+def start():
+    for _ in range(3):                  # whatever state it was in, this lands it in 8-bit mode
+        nibble(0x30, False)
+        time.sleep(0.005)
+    nibble(0x20, False)                 # then four-bit mode
+    send(0x28)                          # two lines
+    send(0x0C)                          # display on, no cursor
+    send(0x06)                          # move right after each character
+    send(0x01)                          # clear
+    time.sleep(0.002)
+
+def write(row, text):
+    send(0x80 | (0x40 * row))           # DDRAM address: row 0 starts at 0x00, row 1 at 0x40
+    for ch in text.ljust(16)[:16]:
+        send(ord(ch), rs=True)
+
+start()
+write(0, 'Hello from a Pi')
+began = time.time()
+while True:
+    write(1, 'up %.1f s' % (time.time() - began))
+    time.sleep(0.5)
+`;
+
 const PICO_KNOB = `# A knob on GP26 (ADC0) sets the brightness of the LED on GP15 through PWM.
 from machine import Pin, PWM, ADC
 import time
@@ -392,6 +515,24 @@ TEMPLATES.push(
             connect(p, { part: 'pico1', pin: 'GP15' }, { part: r.id, pin: 'a' });
             connect(p, { part: r.id, pin: 'b' }, { part: led.id, pin: 'a' });
             connect(p, { part: led.id, pin: 'k' }, { part: 'pico1', pin: 'GND2' });
+            return p;
+        },
+    },
+    {
+        id: 'pico_oled', title: 'OLED (Pico, MicroPython)', blurb: 'framebuf draws on an SSD1306 OLED over the Pico\u2019s I²C, with a dozen-line driver.',
+        build() {
+            const p = picoProject('OLED (Pico)', PICO_OLED);
+            const oled = addPart(p, 'oled', 4, 18);
+            for (const [from, to] of [['GND', 'GND'], ['3V3', 'VCC'], ['GP5', 'SCL'], ['GP4', 'SDA']] as const) connect(p, { part: 'pico1', pin: from }, { part: oled.id, pin: to });
+            return p;
+        },
+    },
+    {
+        id: 'pi_lcd', title: 'Character LCD (Raspberry Pi)', blurb: 'smbus2 drives a 16×2 LCD\u2019s I²C backpack directly: four bits at a time, latched by EN.',
+        build() {
+            const p = piProject('Character LCD (Pi)', PI_LCD);
+            const lcd = addPart(p, 'lcd', 4, 18);
+            for (const [from, to] of [['GND', 'GND'], ['5V', 'VCC'], ['GPIO2', 'SDA'], ['GPIO3', 'SCL']] as const) connect(p, { part: 'pi1', pin: from }, { part: lcd.id, pin: to });
             return p;
         },
     },

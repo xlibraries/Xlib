@@ -775,6 +775,32 @@ test.describe('Bot Lab', () => {
         await lab.getByRole('button', { name: '■ Stop' }).click();
     });
 
+    test('screens: a character LCD, an OLED and a 7-segment digit show what their sketches draw', async ({ page }) => {
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Character LCD\b/ }).first().click();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const lcd = lab.locator('[data-screen="lcd"]');
+        await expect(lcd).toHaveAttribute('data-text', /^Hello, Bot Lab \u25a1\n5\d\d/, { timeout: 20_000 });
+        await expect(lcd).toHaveAttribute('data-backlight', 'on');
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        await lab.getByRole('button', { name: '← Projects' }).click();
+
+        await lab.getByRole('button', { name: /^OLED graphics/ }).click();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const oled = lab.locator('[data-screen="oled"]');
+        await expect(oled).toHaveAttribute('data-on', 'true', { timeout: 20_000 });
+        await expect.poll(() => oled.getAttribute('data-runs').then(Number)).toBeGreaterThan(50);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+        await lab.getByRole('button', { name: '← Projects' }).click();
+
+        await lab.getByRole('button', { name: /^7-segment counter/ }).click();
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const digit = lab.locator('[data-screen="sevenseg"]');
+        await expect(digit).toHaveAttribute('data-segments', /^0110000[01]$/, { timeout: 20_000 });   // 1
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+    });
+
     test('the quadcopter: the Uno flight controller takes off, holds its hover, lands; the Monitor plots what it prints', async ({ page }) => {
         test.slow();   // about 20 simulated seconds of flight
         await openDesktop(page);

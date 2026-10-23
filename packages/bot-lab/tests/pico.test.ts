@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { oledPixel } from '../src/sim/displays';
 import { readFileSync } from 'node:fs';
 import { Pico, type PicoFirmware } from '../src/sim/boards/pico';
 import { ROM_FLOAT_END, ROM_FLOAT_ENTRIES, ROM_FLOAT_START } from '../src/sim/boards/pico-rom-float';
@@ -93,6 +94,14 @@ time.sleep(0.05)
         expect(await exec(pico, 'print(1/0)')).toBe(false);
         expect(pico.console.some(l => l.includes('ZeroDivisionError'))).toBe(true);
     }, 120_000);
+
+    it('takes scripts longer than the USB serial FIFO (512 bytes): they go in as the chip drains it', async () => {
+        const pico = boot();
+        const script = Array.from({ length: 60 }, (_, i) => `v${i} = ${i}  # a line long enough to add up`).join('\n') + '\nprint("sum", sum([' + Array.from({ length: 60 }, (_, i) => `v${i}`).join(', ') + ']))\n';
+        expect(script.length).toBeGreaterThan(2000);
+        expect(await exec(pico, script)).toBe(true);
+        expect(pico.console).toContain('sum 1770');
+    }, 120_000);
 });
 
 describe('the Pico on the bench', () => {
@@ -135,6 +144,17 @@ describe('the Pico on the bench', () => {
         });
         expect(bench.pico!.console).toContain('scan [72]');
         expect(bench.pico!.console).toContain('temp 22.0');
+    }, 120_000);
+
+    it('OLED: framebuf draws on the SSD1306 through a dozen-line driver', async () => {
+        const bench = await onBench('pico_oled', 1.5);
+        expect(bench.pico!.console).toContain("I2C devices: ['0x3c']");
+        const s = bench.state('oled1').screen!;
+        if (s.kind !== 'oled') throw new Error('not an OLED');
+        expect(s.on).toBe(true);
+        const lit = (y: number) => Array.from({ length: 128 }, (_, x) => oledPixel(s, x, y)).filter(Boolean).length;
+        expect(lit(32)).toBe(128);                                       // the rectangle's top edge
+        expect([0, 1, 2, 3, 4, 5, 6].reduce((n, y) => n + lit(y), 0)).toBeGreaterThan(40);   // 'Pico + OLED'
     }, 120_000);
 });
 

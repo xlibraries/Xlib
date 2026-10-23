@@ -8,6 +8,7 @@ import { addPart, connect, emptyProject, type Project } from '../src/sim/project
 import { PiRuntime, canSuspend } from '../src/runtime/pi';
 import { generate } from '../scripts/sync-python.mjs';
 import { template } from '../src/templates';
+import type { LcdScreen } from '../src/sim/displays';
 
 // Real CPython, loaded once: a few seconds
 let py: PyodideInterface;
@@ -198,6 +199,23 @@ describe('the Pi templates', () => {
         expect(output).toEqual(['press the button']);
         expect(litWhileHeld).toBe(true);
         expect(bench.state('led1').brightness).toBe(0);    // released again
+    });
+});
+
+describe('the Pi LCD template', () => {
+    it('smbus2 drives the LCD backpack four bits at a time', () => {
+        const project = template('pi_lcd')!.build();
+        const bench = new Bench(project);
+        const output: string[] = [];
+        const rt = new PiRuntime(py, bench, { onOutput: (l) => output.push(...l.split('\n').filter(Boolean)), shouldStop: () => bench.time > 1.2 });
+        rt.install();
+        rt.exec(project.code.sketch);
+        expect(output).toEqual([]);
+        const s = bench.state('lcd1').screen as LcdScreen;
+        expect(s.on && s.backlight).toBe(true);
+        const row = (r: number) => s.cells.slice(r * 16, r * 16 + 16).map(c => String.fromCharCode(c)).join('');
+        expect(row(0)).toBe('Hello from a Pi ');
+        expect(row(1)).toMatch(/^up 1\.0 s +$/);
     });
 });
 

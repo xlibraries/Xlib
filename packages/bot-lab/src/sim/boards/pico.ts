@@ -116,6 +116,7 @@ export class Pico {
         for (const t of this.tracks.values()) t.highNanos = 0;
         this.windowStart = start;
         while (clock.nanos < end) {
+            if (this.outgoing && !this.cdc.txFIFO.full) this.pump();
             if (core.waiting) clock.tick(Math.max(1, Math.min(clock.nanosToNextAlarm, end - clock.nanos)));
             else if (this.romFloat && inRomFloat(core.PC)) clock.tick(runRomFloat(core) * NANOS_PER_CYCLE);
             else clock.tick(core.executeInstruction() * NANOS_PER_CYCLE);
@@ -228,8 +229,15 @@ export class Pico {
         };
     }
 
-    /** Bytes to the REPL (keys typed in the terminal) */
-    write(text: string) { for (const ch of text) this.cdc.sendSerialByte(ch.charCodeAt(0) & 0xff); }
+    /** Bytes to the REPL (keys typed in the terminal, scripts). The USB serial FIFO holds 512 bytes and drops the rest,
+     *  so longer text waits here and goes in as the chip drains it, the way a host's driver paces a real port. */
+    write(text: string) { this.outgoing += text; this.pump(); }
+    private outgoing = '';
+    private pump() {
+        let i = 0;
+        while (i < this.outgoing.length && !this.cdc.txFIFO.full) this.cdc.sendSerialByte(this.outgoing.charCodeAt(i++) & 0xff);
+        if (i) this.outgoing = this.outgoing.slice(i);
+    }
 
     private receive(bytes: Uint8Array) {
         const text = String.fromCharCode(...bytes);

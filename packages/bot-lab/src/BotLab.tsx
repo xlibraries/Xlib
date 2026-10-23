@@ -17,6 +17,7 @@ import type { WorldSpec } from './sim/project';
 import { buildIsStale, sketchHash, UNO_FLASH, type CompileMessage, type Compiler } from './compile';
 import { plotLines, type Plot } from './plot';
 import { HOVER_HOLD, HOVER_HEIGHT } from './sim/hover';
+import { lcdChar, oledPixel, type LcdScreen, type OledScreen } from './sim/displays';
 
 const GRID = 16;   // px per grid unit on the bench
 
@@ -473,7 +474,10 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
         <g transform={`translate(${x},${y})`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} className="cursor-move"
             data-part={part.id} data-kind={part.kind} data-brightness={state.brightness?.toFixed(2)} data-angle={state.angle?.toFixed(0)} data-dead={state.dead ? 'true' : undefined}>
             <rect width={w} height={h} rx={8} fill={part.kind === 'uno' ? '#1f6f8b' : part.kind === 'pi' ? '#8b2f5a' : part.kind === 'pico' ? '#1f6b45' : '#1a2b24'} stroke={selected ? '#9ff5d1' : '#2f4a3e'} strokeWidth={selected ? 2 : 1} />
-            <text x={w / 2} y={isBoard ? 18 : h / 2 + 4} textAnchor="middle" fill="#e6f7ef" fontSize={isBoard ? 13 : 11} fontWeight={600}>{spec.title}</text>
+            <text x={w / 2} y={isBoard || spec.group === 'display' ? (spec.group === 'display' ? 13 : 18) : h / 2 + 4} textAnchor="middle" fill="#e6f7ef" fontSize={isBoard ? 13 : spec.group === 'display' ? 9 : 11} fontWeight={600}>{spec.title}</text>
+            {part.kind === 'lcd' && <LcdFace x={18} y={20} width={w - 26} height={h - 28} size={String(part.props.size)} screen={state.screen?.kind === 'lcd' ? state.screen : undefined} />}
+            {part.kind === 'oled' && <OledFace x={18} y={20} width={w - 26} height={h - 28} size={String(part.props.size)} screen={state.screen?.kind === 'oled' ? state.screen : undefined} />}
+            {part.kind === 'sevenseg' && <SevenSegFace x={w / 2 - 22} y={20} segments={state.segments} colour={(LED_MODELS[String(part.props.colour)] ?? LED_MODELS.red).rgb} />}
             {part.kind === 'resistor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{ohms(Number(part.props.ohms))}</text>}
             {part.kind === 'capacitor' && <text x={w / 2} y={h - 4} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{farads(Number(part.props.farads))}</text>}
             {part.kind === 'battery' && <text x={w / 2} y={h - 6} textAnchor="middle" fill="#9ff5d1" fontSize={10}>{part.props.volts} V</text>}
@@ -542,6 +546,78 @@ function PartSymbol({ part, spec, state, selected, pending, running, onPointerDo
                 );
             })}
             {running && state.amps !== undefined && part.kind !== 'led' && <text x={w / 2} y={-4} textAnchor="middle" fill="#9ff5d1" fontSize={9}>{(state.amps * 1000).toFixed(1)} mA</text>}
+        </g>
+    );
+}
+
+/** A character LCD's glass: each cell a character from the ROM, or a custom one drawn from CGRAM as 5×8 dots */
+function LcdFace({ x, y, width, height, size, screen }: { x: number; y: number; width: number; height: number; size: string; screen?: LcdScreen }) {
+    const [cols, rows] = size === '20x4' ? [20, 4] : [16, 2];
+    // cells are about 3:5, as on the glass; the panel is centred in the space it has
+    const cw = Math.min(width / cols, height / rows * 0.6), ch = cw / 0.6;
+    x += (width - cw * cols) / 2; y += (height - ch * rows) / 2; width = cw * cols; height = ch * rows;
+    const lit = !!screen && screen.backlight;
+    const ink = screen?.on ? (lit ? '#10240f' : '#1d2a12') : 'transparent';
+    const text = screen ? Array.from({ length: rows }, (_, r) => screen.cells.slice(r * cols, (r + 1) * cols).map(c => lcdChar(c) ?? '\u25a1').join('')) : [];
+    const [blinkOn, setBlinkOn] = useState(true);
+    useEffect(() => { if (!screen?.blink) return; const t = setInterval(() => setBlinkOn(b => !b), 400); return () => clearInterval(t); }, [screen?.blink]);
+    return (
+        <g transform={`translate(${x},${y})`} data-screen="lcd" data-text={text.join('\n')} data-backlight={lit ? 'on' : 'off'}>
+            <rect width={width} height={height} rx={3} fill={lit ? '#9fd35a' : '#56702f'} stroke="#0b1511" />
+            {screen?.on && screen.cells.map((code, i) => {
+                const cx = (i % cols) * cw, cy = Math.floor(i / cols) * ch;
+                const char = lcdChar(code);
+                const dots = char === null ? screen.cgram.slice((code & 7) * 8, (code & 7) * 8 + 8) : null;
+                return (
+                    <g key={i} transform={`translate(${cx},${cy})`}>
+                        <rect x={cw * 0.08} y={ch * 0.08} width={cw * 0.84} height={ch * 0.84} fill={lit ? '#93c652' : '#4f6829'} />
+                        {dots ? dots.map((bits, r) => Array.from({ length: 5 }, (_, c) => (bits >> (4 - c)) & 1
+                            ? <rect key={`${r}-${c}`} x={cw * (0.1 + c * 0.16)} y={ch * (0.1 + r * 0.1)} width={cw * 0.14} height={ch * 0.09} fill={ink} /> : null))
+                            : char !== ' ' && <text x={cw / 2} y={ch * 0.8} textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize={Math.min(ch * 0.85, cw * 1.45)} fill={ink}>{char}</text>}
+                        {screen.cursor === i && (screen.blink ? blinkOn : true) && <rect x={cw * 0.1} y={ch * (screen.blink ? 0.1 : 0.86)} width={cw * 0.8} height={ch * (screen.blink ? 0.8 : 0.06)} fill={ink} opacity={screen.blink ? 0.8 : 1} />}
+                    </g>
+                );
+            })}
+        </g>
+    );
+}
+
+/** An OLED's pixels as one path of lit runs (a full 128×64 frame is a few hundred runs, not 8192 rectangles) */
+function OledFace({ x, y, width, height, size, screen }: { x: number; y: number; width: number; height: number; size: string; screen?: OledScreen }) {
+    const [pw, ph] = size === '128x32' ? [128, 32] : [128, 64];
+    const scale = Math.min(width / pw, height / ph);
+    const path = useMemo(() => {
+        if (!screen?.on) return '';
+        let d = '';
+        for (let py = 0; py < screen.height; py++) {
+            for (let px = 0; px < screen.width;) {
+                if (!oledPixel(screen, px, py)) { px++; continue; }
+                const from = px;
+                while (px < screen.width && oledPixel(screen, px, py)) px++;
+                d += `M${from} ${py}h${px - from}v1h${from - px}z`;
+            }
+        }
+        return d;
+    }, [screen]);
+    const lit = path ? (path.match(/h/g)!.length / 2) : 0;
+    return (
+        <g transform={`translate(${x + (width - pw * scale) / 2},${y + (height - ph * scale) / 2})`} data-screen="oled" data-on={screen?.on ? 'true' : 'false'} data-runs={lit}>
+            <rect x={-3} y={-3} width={pw * scale + 6} height={ph * scale + 6} rx={2} fill="#05080a" stroke="#0b1511" />
+            {path && <path d={path} transform={`scale(${scale})`} fill="#8fd8ff" opacity={0.45 + 0.55 * (screen!.contrast / 255)} />}
+        </g>
+    );
+}
+
+/** A 7-segment digit: segments a–g and the dot, each as bright as its current */
+function SevenSegFace({ x, y, segments, colour }: { x: number; y: number; segments?: number[]; colour: string }) {
+    // segment outlines in a 44×80 box, a at the top then clockwise, g in the middle
+    const bars: [number, number, number, number][] = [[8, 2, 28, 7], [37, 9, 7, 30], [37, 43, 7, 30], [8, 75, 28, 7], [1, 43, 7, 30], [1, 9, 7, 30], [8, 38, 28, 7]];
+    const level = (i: number) => segments?.[i] ?? 0;
+    return (
+        <g transform={`translate(${x},${y})`} data-screen="sevenseg" data-segments={(segments ?? []).map(b => b > 0.3 ? 1 : 0).join('')}>
+            <rect x={-4} y={-2} width={56} height={88} rx={3} fill="#111" />
+            {bars.map(([bx, by, bw, bh], i) => <rect key={i} x={bx} y={by} width={bw} height={bh} rx={3} fill={colour} opacity={0.12 + 0.88 * level(i)} />)}
+            <circle cx={47} cy={79} r={3.5} fill={colour} opacity={0.12 + 0.88 * level(7)} />
         </g>
     );
 }

@@ -137,7 +137,9 @@ them from above (SVG) or in 3D: `native/view` is a sokol module hosted by `Engin
 exports (the track, the start pose, each snapshot's poses). Stopped, the World
 view edits the track and the robot's start; the Parts tab's Robot panel picks the wheel motors and mounts the sensors.
 `i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's
-TWI) reaches the powered devices wired to it (TMP102, ADS1115, MPU-6050, following their register maps).
+TWI) reaches the powered devices wired to it (TMP102, ADS1115, MPU-6050, following their register maps). Screens on the bus
+(`displays.ts`: a character LCD's HD44780 behind its PCF8574 backpack, the SSD1306 OLED) report what they show in their part
+state, and the bench draws it.
 The Monitor's Serial Plotter (`plot.ts`) draws lines of `name:value` pairs, as the Arduino IDE's does.
 `project.ts` is the schema (parts, wires, code), parsed forgivingly from storage or links; `boardOf` says which
 board the code runs on. Templates in `templates/` are compiled by `services/arduino-compiler` (Docker) and bundled.

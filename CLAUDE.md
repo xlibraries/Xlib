@@ -65,7 +65,7 @@ things work.
   into modules with `physics: true`), and `EngineView` (the React canvas host). Apps that ship C++ modules depend
   on it; it imports no app. Modules with `headless: true` build once without graphics, for workers and Node.
 - `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
-  solver, parts, the Uno on avr8js, the Pi's header, the Pico on rp2040js with MicroPython, I²C devices on per-board buses, the
+  solver, parts, the Uno on avr8js, the Pi's header, the Pico on rp2040js with MicroPython, I²C devices (sensors, LCD and OLED screens) on per-board buses, the
   bench loop), and machines in a physics world (a robot, an arm, a conveyor, a quadcopter): `native/world` (C++ on the engine's Jolt) is built headless into
   `dist/world/` and `native/view` (its 3D view, sokol) into `dist/view/`, by `pnpm --filter @xlibraries/bot-lab build:native` (needs Emscripten; **commit `dist/`**, CI rebuilds and
   diffs it; the unit tests check its sources stamp, which also covers the engine). `firmware/` is vendored (MicroPython, and an RP2040 boot ROM with its float library zeroed for licensing:
@@ -92,6 +92,7 @@ things work.
   `/api/arcade/leaderboard` (`lib/leaderboard.ts`, Redis sorted sets).
 - Packages: `terminal` (Terminal + Calc), `browser` (Brave + server endpoints), `music` (+ the
   `xlib-music-snapshot` CLI), `photo-drop` (upload page + Apps Script backend, deployed with `pnpm deploy:photo-drop`, see its README).
+- Planned: `packages/craft`, the Craft suite's official web builds (PhotoCraft and others) as desktop apps (`docs/craft-plan.md`).
 - `.github/workflows/refresh-playlists.yml` refreshes the Music snapshot every Monday and commits it if tracks changed.
 - `lib/security-headers.ts` – Content-Security-Policy and other headers (wired up in `next.config.ts`). Production
   allows no inline scripts, so production builds use webpack (Turbopack's build inlines a bootstrap script) and

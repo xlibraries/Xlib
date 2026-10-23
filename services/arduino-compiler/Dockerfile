@@ -1,4 +1,5 @@
-# The Arduino compiler Bot Lab uses: arduino-cli with the AVR core and the libraries the templates need, pinned.
+# The Arduino compiler Bot Lab uses: arduino-cli with the AVR core and the libraries the templates need, pinned
+# (Servo; LiquidCrystal I2C for character LCDs; Adafruit SSD1306 with GFX and BusIO for OLEDs).
 # Two modes (entrypoint.sh):
 # - no arguments: the compile service (server.py) on $PORT, for local development; needs COMPILER_SECRET
 # - `--entrypoint python3 … /opt/service/server.py compile-stdin`: one build, JSON in and out (GitHub Actions)
@@ -12,7 +13,8 @@ RUN curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/inst
 ENV ARDUINO_DIRECTORIES_DATA=/opt/arduino ARDUINO_DIRECTORIES_DOWNLOADS=/opt/arduino/staging ARDUINO_DIRECTORIES_USER=/opt/arduino/user \
     ARDUINO_BUILD_CACHE_PATH=/opt/arduino/build-cache
 RUN arduino-cli config init --overwrite && arduino-cli core update-index && arduino-cli core install arduino:avr@${AVR_CORE} \
-    && arduino-cli lib install Servo@1.2.2 && rm -rf /opt/arduino/staging
+    && arduino-cli lib install --no-deps Servo@1.2.2 "LiquidCrystal I2C@1.1.2" "Adafruit BusIO@1.17.4" "Adafruit GFX Library@1.13.0" \
+       "Adafruit SSD1306@2.5.17" && rm -rf /opt/arduino/staging
 # Visitors' sketches compile as this user: it can't read the service's environment or its files
 RUN useradd --uid 1000 --no-create-home --shell /usr/sbin/nologin builder \
     && mkdir -p /opt/arduino/build-cache /opt/arduino/staging && chown -R builder /opt/arduino/build-cache /opt/arduino/staging

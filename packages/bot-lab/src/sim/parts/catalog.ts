@@ -22,7 +22,7 @@ export interface PropSpec {
     options?: string[];
 }
 
-export type Group = 'board' | 'power' | 'passive' | 'bench' | 'drive' | 'sensor';
+export type Group = 'board' | 'power' | 'passive' | 'bench' | 'drive' | 'sensor' | 'display';
 
 export interface PartSpec {
     kind: string;
@@ -188,11 +188,29 @@ export const CATALOG: Record<string, PartSpec> = {
             address: { label: 'Address', default: '0x68', options: ['0x68', '0x69'] },
         },
     },
+    lcd: {
+        kind: 'lcd', title: 'Character LCD (I²C)', group: 'display', width: 16, height: 7,
+        description: 'An HD44780 text display, 16×2 or 20×4, with the usual PCF8574 I²C backpack (address 0x27, or 0x3F). Custom characters, a cursor and the backlight work as on the real thing. LiquidCrystal_I2C drives it.',
+        pins: side(['GND', 'VCC', 'SDA', 'SCL'], ['ground', 'power', 'signal', 'signal'], 0),
+        props: { size: { label: 'Size', default: '16x2', options: ['16x2', '20x4'] }, address: { label: 'Address', default: '0x27', options: ['0x27', '0x3F'] } },
+    },
+    oled: {
+        kind: 'oled', title: 'OLED (SSD1306)', group: 'display', width: 11, height: 8,
+        description: 'A 0.96" monochrome OLED, 128×64 (or 128×32) pixels, over I²C at 0x3C. Adafruit_SSD1306 on an Uno, framebuf on a Pico, or your own driver.',
+        pins: side(['GND', 'VCC', 'SCL', 'SDA'], ['ground', 'power', 'signal', 'signal'], 0),
+        props: { size: { label: 'Size', default: '128x64', options: ['128x64', '128x32'] }, address: { label: 'Address', default: '0x3C', options: ['0x3C', '0x3D'] } },
+    },
+    sevenseg: {
+        kind: 'sevenseg', title: '7-segment digit', group: 'display', width: 6, height: 8,
+        description: 'One digit of eight LEDs (segments a–g and the dot) sharing a common pin: the cathode (to GND) or the anode (to +). Each segment needs current limiting, like any LED.',
+        pins: [...side(['a', 'b', 'c', 'd'], ['passive', 'passive', 'passive', 'passive'], 0, 0.15, 0.85), ...side(['e', 'f', 'g', 'dp'], ['passive', 'passive', 'passive', 'passive'], 1, 0.15, 0.85), { id: 'com', label: 'COM', kind: 'passive', x: 0.5, y: 1 }],
+        props: { common: { label: 'Common', default: 'cathode', options: ['cathode', 'anode'] }, colour: { label: 'Colour', default: 'red', options: ['red', 'green', 'yellow', 'blue', 'white'] } },
+    },
 };
 
 export const GROUPS: { id: Group; title: string }[] = [
     { id: 'board', title: 'Boards' }, { id: 'power', title: 'Power' }, { id: 'passive', title: 'Passives' },
-    { id: 'bench', title: 'Bench' }, { id: 'drive', title: 'Drive' }, { id: 'sensor', title: 'Sensors' },
+    { id: 'bench', title: 'Bench' }, { id: 'drive', title: 'Drive' }, { id: 'sensor', title: 'Sensors' }, { id: 'display', title: 'Displays' },
 ];
 
 export function pinSpec(kind: string, pin: string): PinSpec | undefined {
