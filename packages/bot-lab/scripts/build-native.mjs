@@ -8,10 +8,10 @@ import { STAMP, build, sourcesHash as engineHash } from '@xlibraries/engine/buil
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export { STAMP };
 
-const WORLD_EXPORTS = ['_bl_reset', '_bl_robot', '_bl_torque', '_bl_step', '_bl_state', '_bl_point', '_malloc', '_free'];
+const WORLD_EXPORTS = ['_bl_reset', '_bl_robot', '_bl_torque', '_bl_step', '_bl_state', '_bl_point', '_bl_arm', '_bl_arm_target', '_bl_arm_state', '_bl_conveyor', '_bl_belt', '_bl_cube', '_bl_cube_pos', '_bl_bin', '_bl_sees_cube', '_bl_body_count', '_bl_shapes', '_bl_poses', '_malloc', '_free'];
 
 /** Each module: its sources (relative to native/) and em++ flags. */
-const VIEW_EXPORTS = ['_main', '_malloc', '_free', '_bl_view_robot', '_bl_view_track', '_bl_view_start', '_bl_view_state'];
+const VIEW_EXPORTS = ['_main', '_malloc', '_free', '_bl_view_track', '_bl_view_bodies', '_bl_view_poses', '_bl_view_sensors', '_bl_view_focus'];
 
 export const MODULES = {
     // the 3D view (WebGPU and WebGL2): draws the world from the page's snapshots, simulates nothing

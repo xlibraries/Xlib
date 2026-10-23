@@ -756,6 +756,25 @@ test.describe('Bot Lab', () => {
         await expect(lab.locator('[data-robot]')).toBeVisible();
     });
 
+    test('pick and place: the belt brings cubes, the arm drops them in the bin, the score counts them', async ({ page }) => {
+        test.slow();   // a cube every few simulated seconds
+        await openDesktop(page);
+        const lab = await openApp(page, 'bot-lab');
+        await lab.getByRole('button', { name: /^Pick and place \(World\)/ }).click();
+        await expect(lab.getByTestId('world')).toBeVisible();
+        await expect.poll(() => lab.locator('[data-bodies]').getAttribute('data-bodies').then(Number), { timeout: 20_000 }).toBeGreaterThan(10);   // built on load: arm, belt, bin
+        await lab.getByRole('button', { name: '▶ Run' }).click();
+        const pick = lab.getByTestId('pick');
+        await expect(pick).toBeVisible({ timeout: 20_000 });
+        await expect(pick).toHaveAttribute('data-delivered', '1', { timeout: 40_000 });
+        await expect(pick).toHaveAttribute('data-dropped', '0');
+        await lab.getByRole('tab', { name: 'monitor' }).click();
+        await expect(lab.getByTestId('serial')).toContainText('cube 1 in the bin', { timeout: 10_000 });
+        await lab.getByRole('tab', { name: '3D' }).click();
+        await expect.poll(() => lab.locator('[data-game="view"]').evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 20_000 }).toBeGreaterThan(10);
+        await lab.getByRole('button', { name: '■ Stop' }).click();
+    });
+
     test('the track editor: presets, drawing a line point by point, a loop, the robot\u2019s start', async ({ page }) => {
         await openDesktop(page);
         const lab = await openApp(page, 'bot-lab');

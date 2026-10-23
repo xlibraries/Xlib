@@ -66,10 +66,24 @@ public:
     std::map<std::pair<uint32_t, uint32_t>, Entry> pairs;
     std::vector<std::pair<uint32_t, uint32_t>> removed;   // during the step
 
-    void OnContactAdded(const JPH::Body& a, const JPH::Body& b, const JPH::ContactManifold&, JPH::ContactSettings&) override {
+    /** Bodies whose surfaces move (conveyor belts): body id → surface velocity */
+    std::map<uint32_t, JPH::Vec3> surfaces;
+
+    void OnContactAdded(const JPH::Body& a, const JPH::Body& b, const JPH::ContactManifold&, JPH::ContactSettings& settings) override {
         Entry& e = pairs[key(a.GetID(), b.GetID())];
         if (e.kept) { e.kept = false; e.count = 0; }
         e.count++;
+        surface(a, b, settings);
+    }
+    void OnContactPersisted(const JPH::Body& a, const JPH::Body& b, const JPH::ContactManifold&, JPH::ContactSettings& settings) override { surface(a, b, settings); }
+
+    /** Jolt wants the relative surface velocity: body 2's surface velocity minus body 1's. */
+    void surface(const JPH::Body& a, const JPH::Body& b, JPH::ContactSettings& settings) const {
+        if (surfaces.empty()) return;
+        JPH::Vec3 v = JPH::Vec3::sZero();
+        if (auto it = surfaces.find(b.GetID().GetIndexAndSequenceNumber()); it != surfaces.end()) v += it->second;
+        if (auto it = surfaces.find(a.GetID().GetIndexAndSequenceNumber()); it != surfaces.end()) v -= it->second;
+        settings.mRelativeLinearSurfaceVelocity = v;
     }
     void OnContactRemoved(const JPH::SubShapeIDPair& pair) override { removed.push_back(key(pair.GetBody1ID(), pair.GetBody2ID())); }
 
@@ -193,7 +207,15 @@ public:
         s.mNormalAxis1 = s.mNormalAxis2 = axis.GetNormalizedPerpendicular();
         if (h.limited) { s.mLimitsMin = h.min_angle; s.mLimitsMax = h.max_angle; }
         return add_constraint(s, a, b);
+    }    void set_surface_velocity(Body body, V3 velocity) override {
+        if (velocity.x == 0 && velocity.y == 0 && velocity.z == 0) contacts_.surfaces.erase(body.id);
+        else contacts_.surfaces[body.id] = jv(velocity);
     }
+    void wake(Body body) override {
+        auto it = bodies_.find(body.id);
+        if (it != bodies_.end()) system_.GetBodyInterface().ActivateBody(it->second->GetID());
+    }
+
     Joint add_slider(Body a, Body b, const Slider& sl) override {
         JPH::SliderConstraintSettings s;
         s.mSpace = JPH::EConstraintSpace::WorldSpace;

@@ -126,9 +126,9 @@ export const CATALOG: Record<string, PartSpec> = {
     },
     servo: {
         kind: 'servo', title: 'Servo (SG90)', group: 'drive', width: 6, height: 5,
-        description: 'Turns to the angle its signal asks for: a 50 Hz pulse of 0.5–2.5 ms. Draws from 5 V.',
+        description: 'Turns to the angle its signal asks for: a 50 Hz pulse of 0.5–2.5 ms. Draws from 5 V. In the World it turns a joint at its rated speed, up to its stall torque (SG90 0.18 N·m, MG996R 1 N·m).',
         pins: [{ id: 'sig', label: 'signal', kind: 'signal', x: 0, y: 0.25 }, { id: 'v', label: '5V', kind: 'power', x: 0, y: 0.5 }, { id: 'gnd', label: 'GND', kind: 'ground', x: 0, y: 0.75 }],
-        props: {},
+        props: { model: { label: 'Model', default: 'SG90', options: ['SG90', 'MG90S', 'MG996R'] } },
     },
     motor: {
         kind: 'motor', title: 'DC gear motor', group: 'drive', width: 6, height: 5,
@@ -200,3 +200,11 @@ export const LED_MODELS: Record<string, { is: number; n: number; vf: number; rgb
     blue: { is: 1e-16, n: 3.6, vf: 3.0, rgb: '#2f7cff' },
     white: { is: 1e-16, n: 3.7, vf: 3.1, rgb: '#f4f4f0' },
 };
+
+/** Servo models: stall torque (N·m, at 5 V) and speed (degrees per second, unloaded) */
+export const SERVO_MODELS: Record<string, { torque: number; speed: number }> = {
+    SG90: { torque: 0.18, speed: 600 },
+    MG90S: { torque: 0.22, speed: 600 },
+    MG996R: { torque: 1.0, speed: 350 },
+};
+

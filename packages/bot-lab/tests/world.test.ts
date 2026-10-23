@@ -93,7 +93,7 @@ describe('the robot in the world', () => {
 
     it('a robot needs its wheel motors on the bench', async () => {
         const p = robotProject(6, 6);
-        p.world!.robot.left = 'motor9';
+        p.world!.robot!.left = 'motor9';
         expect(() => new RobotWorld({} as WorldModule, new Bench(p), p.world!)).toThrow(/motor9 isn't on the bench/);
     });
 });
