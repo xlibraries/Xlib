@@ -68,6 +68,11 @@ public:
     virtual void apply_torque(Body body, V3 torque) = 0;
     virtual void apply_impulse(Body body, V3 impulse) = 0;
     virtual bool active(Body body) const = 0;
+    /** Wakes a sleeping body (a motor's new target doesn't, on its own) */
+    virtual void wake(Body body) = 0;
+    /** Makes a body's surface move (m/s, world space) while the body stays put: a conveyor belt. What rests on it is
+     *  carried along by friction. Zero stops it. */
+    virtual void set_surface_velocity(Body body, V3 velocity) = 0;
 
     // ---- joints (b = none attaches to the world) ----
     virtual Joint add_hinge(Body a, Body b, const Hinge& settings) = 0;

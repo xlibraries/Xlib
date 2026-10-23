@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Bench, ldrOhms, ledBrightness } from '../src/sim/bench';
-import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets, parseProject, removePart, saveProjects } from '../src/sim/project';
+import { addPart, boardOf, dropFromWorld, connect, disconnect, emptyProject, loadProjects, nets, parseProject, removePart, saveProjects } from '../src/sim/project';
 import { TEMPLATES, template } from '../src/templates';
 import { CATALOG, defaultProps } from '../src/sim/parts/catalog';
 
@@ -60,6 +60,23 @@ describe('projects', () => {
                 expect(CATALOG[part.kind].pins.some(pin => pin.id === ref.pin), `${t.id}: ${ref.part}.${ref.pin}`).toBe(true);
             }
         }
+    });
+});
+
+describe('a part leaving the bench', () => {
+    it('takes its machine out of the world, or unmounts it; an empty world goes', () => {
+        const world = {
+            robot: { left: 'motor1', right: 'motor2', sensors: [{ part: 'tcrt50001', x: 0.07, z: 0 }], x: 0, z: 0, heading: 0 },
+            conveyor: { motor: 'motor3', x: 0, z: 0, heading: 0, length: 0.4, spawn: 4, cubes: 5 },
+            spotters: [{ part: 'tcrt50002', x: 0, z: 0, height: 0.1 }],
+            track: { width: 0.019, points: [], closed: false },
+        };
+        expect(dropFromWorld(world, 'tcrt50001')!.robot!.sensors).toEqual([]);
+        expect(dropFromWorld(world, 'tcrt50002')!.spotters).toEqual([]);
+        expect(dropFromWorld(world, 'motor1')!.robot).toBeUndefined();
+        expect(dropFromWorld(world, 'motor1')!.conveyor).toBeDefined();
+        expect(dropFromWorld(dropFromWorld(world, 'motor1'), 'motor3')).toBeUndefined();
+        expect(world.robot.sensors).toHaveLength(1);                // the original is untouched
     });
 });
 

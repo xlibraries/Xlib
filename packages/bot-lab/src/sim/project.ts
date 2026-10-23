@@ -31,9 +31,32 @@ export interface Code {
 /** Where a line sensor sits on the robot: x forward of the chassis centre, z to its right (metres) */
 export interface SensorMount { part: string; x: number; z: number }
 
-/** The robot and its floor (projects without one stay on the bench) */
+/** A desktop arm: which servo drives each joint, where its base stands */
+export interface ArmSpec {
+    base: string;
+    shoulder: string;
+    elbow: string;
+    wrist: string;
+    gripper: string;
+    x: number;
+    z: number;
+    heading: number;
+}
+
+/** A conveyor belt driven by a motor; cubes appear at its near end every `spawn` seconds, up to `cubes` of them */
+export interface ConveyorSpec { motor: string; x: number; z: number; heading: number; length: number; spawn: number; cubes: number }
+
+/** A line sensor fixed above the floor (not on a robot): it sees cubes below it */
+export interface SpotterMount { part: string; x: number; z: number; height: number }
+
+/** The machines and their floor (projects without a world stay on the bench) */
 export interface WorldSpec {
-    robot: {
+    arm?: ArmSpec;
+    conveyor?: ConveyorSpec;
+    /** Where cubes should end up */
+    bin?: { x: number; z: number; size: number };
+    spotters?: SpotterMount[];
+    robot?: {
         /** The motors that drive the left and right wheels (positive speed rolls forward) */
         left: string;
         right: string;
@@ -136,21 +159,34 @@ export function parseProject(input: unknown): Project {
 
 const finite = (v: unknown, fallback = 0, limit = 50) => typeof v === 'number' && Number.isFinite(v) ? Math.max(-limit, Math.min(limit, v)) : fallback;
 
-/** A world from storage: motors and sensors must be parts of that kind; the track keeps at most 2000 points. */
+/** A world from storage: motors, servos and sensors must be parts of that kind; the track keeps at most 2000 points. */
 function parseWorld(w: Record<string, unknown>, project: Project): WorldSpec | null {
     const robot = isRecord(w.robot) ? w.robot : null, track = isRecord(w.track) ? w.track : null;
-    if (!robot || !track) return null;
+    if (!track) return null;
     const isKind = (id: unknown, kind: string) => typeof id === 'string' && project.parts.some(p => p.id === id && p.kind === kind);
-    if (!isKind(robot.left, 'motor') || !isKind(robot.right, 'motor')) return null;
-    const sensors = (Array.isArray(robot.sensors) ? robot.sensors : []).filter(isRecord).filter(m => isKind(m.part, 'tcrt5000'))
+    const out: WorldSpec = { track: { width: 0.019, points: [], closed: false } };
+    if (isRecord(w.arm)) {
+        const a = w.arm, joints = ['base', 'shoulder', 'elbow', 'wrist', 'gripper'] as const;
+        if (joints.every(j => isKind(a[j], 'servo'))) out.arm = { base: a.base as string, shoulder: a.shoulder as string, elbow: a.elbow as string, wrist: a.wrist as string, gripper: a.gripper as string, x: finite(a.x, 0, 10), z: finite(a.z, 0, 10), heading: finite(a.heading, 0, 7) };
+    }
+    if (isRecord(w.conveyor) && isKind(w.conveyor.motor, 'motor')) {
+        const c = w.conveyor;
+        out.conveyor = { motor: c.motor as string, x: finite(c.x, 0, 10), z: finite(c.z, 0, 10), heading: finite(c.heading, 0, 7), length: Math.max(0.1, Math.min(2, finite(c.length, 0.4))), spawn: Math.max(0.5, Math.min(60, finite(c.spawn, 4, 60))), cubes: Math.max(0, Math.min(30, Math.round(finite(c.cubes, 5, 30)))) };
+    }
+    if (isRecord(w.bin)) out.bin = { x: finite(w.bin.x, 0, 10), z: finite(w.bin.z, 0, 10), size: Math.max(0.04, Math.min(0.5, finite(w.bin.size, 0.1))) };
+    const spotters = (Array.isArray(w.spotters) ? w.spotters : []).filter(isRecord).filter(m => isKind(m.part, 'tcrt5000'))
+        .map(m => ({ part: m.part as string, x: finite(m.x, 0, 10), z: finite(m.z, 0, 10), height: Math.max(0.01, Math.min(0.5, finite(m.height, 0.1))) })).slice(0, 8);
+    if (spotters.length) out.spotters = spotters;
+    if (robot && !(isKind(robot.left, 'motor') && isKind(robot.right, 'motor'))) return null;
+    const sensors = (Array.isArray(robot?.sensors) ? robot.sensors : []).filter(isRecord).filter(m => isKind(m.part, 'tcrt5000'))
         .map(m => ({ part: m.part as string, x: finite(m.x, 0, 0.5), z: finite(m.z, 0, 0.5) })).slice(0, 16);
     const points = (Array.isArray(track.points) ? track.points : []).filter((p): p is [number, number] => Array.isArray(p) && p.length === 2 && p.every(n => typeof n === 'number' && Number.isFinite(n)))
         .map(([x, z]) => [finite(x, 0, 10), finite(z, 0, 10)] as [number, number]).slice(0, 2000);
-    return {
-        robot: { left: robot.left as string, right: robot.right as string, sensors, x: finite(robot.x, 0, 10), z: finite(robot.z, 0, 10), heading: finite(robot.heading, 0, 7) },
-        track: { width: Math.max(0.005, Math.min(0.1, finite(track.width, 0.019))), points, closed: track.closed === true },
-        ...(typeof w.best === 'number' && Number.isFinite(w.best) && w.best > 0 ? { best: w.best } : {}),
-    };
+    if (robot) out.robot = { left: robot.left as string, right: robot.right as string, sensors, x: finite(robot.x, 0, 10), z: finite(robot.z, 0, 10), heading: finite(robot.heading, 0, 7) };
+    out.track = { width: Math.max(0.005, Math.min(0.1, finite(track.width, 0.019))), points, closed: track.closed === true };
+    if (typeof w.best === 'number' && Number.isFinite(w.best) && w.best > 0) out.best = w.best;
+    if (!out.robot && !out.arm && !out.conveyor) return null;
+    return out;
 }
 
 function num(v: unknown): number { return typeof v === 'number' && Number.isFinite(v) ? Math.max(-1000, Math.min(1000, v)) : 0; }
@@ -188,3 +224,17 @@ export function saveProjects(list: Saved[], storage: Pick<Storage, 'setItem'> | 
 function globalStorage(): Storage | null {
     try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; }
 }
+
+/** The world without a part that's leaving the bench: a machine that needed it goes; sensors are unmounted. Undefined
+ *  when no machine is left. */
+export function dropFromWorld(world: WorldSpec | undefined, id: string): WorldSpec | undefined {
+    if (!world) return world;
+    const next: WorldSpec = structuredClone(world);
+    if (next.robot && (next.robot.left === id || next.robot.right === id)) delete next.robot;
+    if (next.robot) next.robot.sensors = next.robot.sensors.filter(m => m.part !== id);
+    if (next.arm && [next.arm.base, next.arm.shoulder, next.arm.elbow, next.arm.wrist, next.arm.gripper].includes(id)) delete next.arm;
+    if (next.conveyor?.motor === id) delete next.conveyor;
+    if (next.spotters) next.spotters = next.spotters.filter(m => m.part !== id);
+    return next.robot || next.arm || next.conveyor ? next : undefined;
+}
+

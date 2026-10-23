@@ -175,3 +175,32 @@ TEST_CASE("physics: small things want small tolerances; a driven 32 mm wheel sta
     (void)coarse_x;
 }
 
+TEST_CASE("physics: a motor's new target reaches a sleeping body once it's woken") {
+    auto w = floored();
+    const Body arm = w->add_box(Motion::Dynamic, { 0.3f, 1, 0 }, {}, { 0.3f, 0.02f, 0.02f }, 0.2f);
+    const Joint hinge = w->add_hinge(arm, {}, { { 0, 1, 0 }, { 0, 1, 0 } });
+    for (int i = 0; i < 240; i++) { w->motor_position(hinge, 0, 1); w->step(1.0f / 60); }
+    CHECK(!w->active(arm));                                  // still, so asleep
+    w->motor_position(hinge, 1.0f, 1);
+    w->step(1.0f / 60);
+    CHECK(w->joint_position(hinge) == doctest::Approx(0).epsilon(0.01));   // a new target alone doesn't move it
+    for (int i = 0; i < 60; i++) { w->wake(arm); w->motor_position(hinge, 1.0f, 1); w->step(1.0f / 60); }
+    CHECK(w->joint_position(hinge) == doctest::Approx(1.0f).epsilon(0.05));
+}
+
+TEST_CASE("physics: a moving surface carries what rests on it (a conveyor belt), and stops when it stops") {
+    auto w = floored();
+    const Body belt = w->add_box(Motion::Static, { 0, 0.05f, 0 }, {}, { 2, 0.05f, 0.2f }, 0, { 0.8f, 0 });
+    const Body box = w->add_box(Motion::Dynamic, { -1, 0.2f, 0 }, {}, { 0.05f, 0.05f, 0.05f }, 0.1f, { 0.8f, 0 });
+    run(*w, 1.0f);
+    CHECK(w->pose(box).position.x == doctest::Approx(-1).epsilon(0.01));   // resting where it fell
+    w->set_surface_velocity(belt, { 0.5f, 0, 0 });
+    w->wake(box);
+    run(*w, 2.0f);
+    CHECK(w->velocity(box).linear.x == doctest::Approx(0.5f).epsilon(0.05));
+    CHECK(w->pose(box).position.x > -0.2f);
+    w->set_surface_velocity(belt, { 0, 0, 0 });
+    run(*w, 1.0f);
+    CHECK(std::fabs(w->velocity(box).linear.x) < 0.02f);
+}
+

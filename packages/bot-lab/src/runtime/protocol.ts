@@ -2,7 +2,7 @@
 // is doing come back about 30 times a second.
 import type { PartState, Warning } from '../sim/bench';
 import type { Project } from '../sim/project';
-import type { RobotPose } from '../sim/world';
+import type { WorldState } from '../sim/world';
 
 export type Command =
     | { type: 'init'; origin: string }
@@ -35,8 +35,8 @@ export interface Snapshot {
     responsive?: boolean;
     /** The Pi terminal's prompt, or absent while a script runs (the terminal only takes Ctrl+C then) */
     prompt?: string;
-    /** The robot in its world, when the project has one and it's running */
-    world?: RobotPose;
+    /** The machines in their world, when the project has one and it's running */
+    world?: WorldState;
 }
 
 export type WorkerToApp = Snapshot | { type: 'error'; message: string };

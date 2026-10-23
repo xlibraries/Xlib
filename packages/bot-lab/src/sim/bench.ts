@@ -6,7 +6,7 @@ import { Capacitor, Diode, GROUND, Netlist, Resistor, Switch, VoltageSource, typ
 import { Uno, UNO_CLOCK, type PinActivity } from './boards/uno';
 import { PI_GPIO, PI_LOGIC_VOLTS, PI_PIN_MAX_AMPS, PI_PIN_OUT_OHMS, PI_PULL_OHMS, PiBoard } from './boards/pi';
 import { PICO_GPIO, PICO_LED, PICO_LOGIC_VOLTS, PICO_PIN_MAX_AMPS, PICO_PIN_OUT_OHMS, PICO_PULL_OHMS, Pico, type PicoFirmware } from './boards/pico';
-import { CATALOG, LED_MODELS } from './parts/catalog';
+import { CATALOG, LED_MODELS, SERVO_MODELS } from './parts/catalog';
 import { Ads1115, I2CBus, Mpu6050, Tmp102, type I2CDevice } from './i2c';
 import { nets, type PinRef, type Project } from './project';
 
@@ -87,7 +87,8 @@ export class Bench {
     private solution: Solution | null = null;
     private drivers: PinDriver[] = [];
     private readonly leds: { part: string; diode: Diode; model: (typeof LED_MODELS)[string]; hot: number }[] = [];
-    private readonly servos: { part: string; sigNode: Node; angle: number }[] = [];
+    /** Servos. One that drives a joint in the world is `attached`: it hands over `target`, the world sets `angle`. */
+    readonly servos: { part: string; sigNode: Node; angle: number; target: number; speed: number; torque: number; attached: boolean }[] = [];
     private readonly buttons: { part: string; sw: Switch }[] = [];
     private readonly sources: { part: string; source: VoltageSource; ohms: number }[] = [];
     private readonly resistors: { part: string; r: Resistor }[] = [];
@@ -276,7 +277,8 @@ export class Bench {
             case 'servo': {
                 this.net.add(new Resistor(n('sig'), GROUND, 1e6));           // the signal input
                 this.net.add(new Resistor(n('v'), n('gnd'), 50));            // ~100 mA from 5 V
-                this.servos.push({ part: id, sigNode: n('sig'), angle: 90 });
+                const model = SERVO_MODELS[String(props.model)] ?? SERVO_MODELS.SG90;
+                this.servos.push({ part: id, sigNode: n('sig'), angle: 90, target: 90, speed: model.speed, torque: model.torque, attached: false });
                 break;
             }
         }
@@ -346,10 +348,10 @@ export class Bench {
         for (const s of this.servos) {
             const driver = this.drivers.find(d => d.node === s.sigNode && d.mode === 'output' && d.activity);
             const pulse = driver?.activity?.pulseUs ?? 0;
-            if (pulse >= 400 && pulse <= 2600) {
-                const target = Math.max(0, Math.min(180, (pulse - SERVO_MIN_US) / (SERVO_MAX_US - SERVO_MIN_US) * 180));
-                const rate = 600 * dt;   // degrees per tick: about 0.1 s per 60°
-                s.angle += Math.max(-rate, Math.min(rate, target - s.angle));
+            if (pulse >= 400 && pulse <= 2600) s.target = Math.max(0, Math.min(180, (pulse - SERVO_MIN_US) / (SERVO_MAX_US - SERVO_MIN_US) * 180));
+            if (!s.attached) {                                                    // on the bench: it turns at its rated speed
+                const rate = s.speed * dt;
+                s.angle += Math.max(-rate, Math.min(rate, s.target - s.angle));
             }
             this.states.set(s.part, { angle: s.angle });
         }

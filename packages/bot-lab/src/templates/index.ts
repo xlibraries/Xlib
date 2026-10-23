@@ -159,6 +159,42 @@ export const TEMPLATES: Template[] = [
             return p;
         },
     },
+    {
+        id: 'pick_and_place', title: 'Pick and place (World)', blurb: 'A five-servo arm, a conveyor and a sensor: the belt brings cubes, the arm drops them in the bin.',
+        build() {
+            const p = emptyProject('Pick and place');
+            p.code = code('pick_and_place');
+            addPart(p, 'uno', 4, 4);
+            const joints = ['base', 'shoulder', 'elbow', 'wrist', 'gripper'] as const;
+            const servos = joints.map((j, i) => { const s = addPart(p, 'servo', 24, 2 + i * 6); if (j === 'shoulder') s.props.model = 'MG996R'; if (j === 'elbow') s.props.model = 'MG90S'; return s; });
+            servos.forEach((s, i) => {
+                connect(p, { part: 'uno1', pin: `D${9 + i}` }, { part: s.id, pin: 'sig' });
+                connect(p, { part: 'uno1', pin: '5V' }, { part: s.id, pin: 'v' });
+                connect(p, { part: 'uno1', pin: 'GND' }, { part: s.id, pin: 'gnd' });
+            });
+            const d = addPart(p, 'tb6612', 34, 2), m = addPart(p, 'motor', 46, 2), b = addPart(p, 'battery', 46, 10), sensor = addPart(p, 'tcrt5000', 34, 16);
+            b.props.volts = 6;
+            for (const [from, to] of [['D5', 'PWMA'], ['D7', 'AIN1'], ['D8', 'AIN2'], ['D4', 'STBY'], ['5V', 'VCC'], ['GND2', 'GND']] as const) connect(p, { part: 'uno1', pin: from }, { part: d.id, pin: to });
+            connect(p, { part: d.id, pin: 'AO1' }, { part: m.id, pin: '+' });
+            connect(p, { part: d.id, pin: 'AO2' }, { part: m.id, pin: '-' });
+            connect(p, { part: b.id, pin: '+' }, { part: d.id, pin: 'VM' });
+            connect(p, { part: b.id, pin: '-' }, { part: 'uno1', pin: 'GND2' });
+            connect(p, { part: 'uno1', pin: '5V' }, { part: sensor.id, pin: 'VCC' });
+            connect(p, { part: 'uno1', pin: 'GND' }, { part: sensor.id, pin: 'GND' });
+            connect(p, { part: sensor.id, pin: 'DO' }, { part: 'uno1', pin: 'D2' });
+            const [base, shoulder, elbow, wrist, gripper] = servos.map(s => s.id);
+            // the belt runs straight towards the arm and its end stop parks cubes 14.5 cm in front of it (so the
+            // fingers straddle the cube across the belt, clear of the stop); the bin is to the arm's left
+            p.world = {
+                arm: { base, shoulder, elbow, wrist, gripper, x: 0, z: 0, heading: 0 },
+                conveyor: { motor: m.id, x: 0.313, z: 0, heading: Math.PI, length: 0.36, spawn: 3, cubes: 5 },
+                bin: { x: 0.07, z: -0.14, size: 0.11 },
+                spotters: [{ part: sensor.id, x: 0.1455, z: 0, height: 0.12 }],
+                track: { width: 0.019, points: [], closed: false },
+            };
+            return p;
+        },
+    },
 ];
 
 const PI_BLINK = `# Blink, on a Raspberry Pi: an LED on GPIO17 through a resistor.

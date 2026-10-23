@@ -6,11 +6,12 @@ import type { AppProps } from '@xlibraries/app-sdk';
 import { EngineView, type EngineInstance } from '@xlibraries/engine';
 import { TICK, type PartState } from './sim/bench';
 import { CATALOG, GROUPS, LED_MODELS, type PartSpec } from './sim/parts/catalog';
-import { addPart, boardOf, connect, disconnect, emptyProject, loadProjects, nets, removePart, samePin, saveProjects, type Board, type PartInstance, type PinRef, type Project, type Saved } from './sim/project';
+import { addPart, boardOf, connect, dropFromWorld, disconnect, emptyProject, loadProjects, nets, removePart, samePin, saveProjects, type Board, type PartInstance, type PinRef, type Project, type Saved } from './sim/project';
 import { RuntimeClient } from './runtime/client';
 import type { Snapshot } from './runtime/protocol';
 import { TEMPLATES } from './templates';
-import { ROBOT, headingOf, type RobotPose } from './sim/world';
+import { ROBOT, headingOf, type WorldState } from './sim/world';
+import { footprints } from './sim/draw';
 import { figureEightTrack, ovalTrack } from './sim/track';
 import type { WorldSpec } from './sim/project';
 import { buildIsStale, sketchHash, UNO_FLASH, type CompileMessage, type Compiler } from './compile';
@@ -165,7 +166,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
     const onPartPointerUp = () => { if (drag.current) onChange(project); drag.current = null; };
 
     // a lap better than the project's best is kept with the project
-    const lapBest = snap.world?.laps.best ?? null;
+    const lapBest = snap.world?.robot?.laps.best ?? null;
     useEffect(() => {
         if (lapBest === null || !project.world || (project.world.best !== undefined && project.world.best <= lapBest)) return;
         change({ ...project, world: { ...project.world, best: lapBest } });
@@ -191,7 +192,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                         {(['bench', 'world'] as const).map(v => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={'px-3 py-1 capitalize ' + (view === v ? 'bg-emerald-500 text-black font-semibold' : 'bg-black bg-opacity-40 text-gray-300')}>{v}</button>)}
                     </div>
                 )}
-                {project.world && view === 'world' && <WorldView spec={project.world} pose={snap.world} states={snap.states} editable={!running} onChange={world => change({ ...project, world })} />}
+                {project.world && view === 'world' && <WorldView spec={project.world} state={snap.world} states={snap.states} editable={!running} onChange={world => change({ ...project, world })} />}
                 <div className={'flex-grow min-h-0 overflow-auto relative' + (project.world && view === 'world' ? ' hidden' : '')} style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-time={snap.time.toFixed(2)}>
                     <svg width={Math.max(800, ...project.parts.map(p => (p.x + spec(p).width + 4) * GRID))} height={Math.max(500, ...project.parts.map(p => (p.y + spec(p).height + 4) * GRID))} className="block select-none" style={{ touchAction: 'none' }}>
                         {project.wires.map((w, i) => {
@@ -228,7 +229,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                         ))}
                     </div>
                     <div className="flex-grow min-h-0 overflow-y-auto p-3 text-sm">
-                        {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onWorld={world => { change({ ...project, world }); if (world) setView('world'); }} onRemove={id => { const next = structuredClone(project); removePart(next, id); if (next.world && (id === next.world.robot.left || id === next.world.robot.right)) next.world = undefined; else if (next.world) next.world.robot.sensors = next.world.robot.sensors.filter(m => m.part !== id); change(next); setSelected(null); }} />}
+                        {tab === 'parts' && <PartsTab project={project} selected={selected} onAdd={add} onProp={setProp} onWorld={world => { change({ ...project, world }); if (world) setView('world'); }} onRemove={id => { const next = structuredClone(project); removePart(next, id); next.world = dropFromWorld(next.world, id); change(next); setSelected(null); }} />}
                         {tab === 'code' && <CodeTab project={project} board={board} running={running} snap={snap} compile={compile} compilerAvailable={compilerAvailable} onChange={code => change({ ...project, code: { ...project.code, ...code } })} />}
                         {tab === 'monitor' && <MonitorTab snap={snap} board={board} project={project} nets={netList} onSerial={text => client.current?.send({ type: 'serial', text })} onTerminal={line => client.current?.send({ type: 'terminal', line })} />}
                     </div>
@@ -238,22 +239,28 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
     );
 }
 
-/** The robot on its floor, from above (x right, z down), in metres. Stopped, it's an editor: track presets, drawing
- *  the line point by point, its width, open or closed, and the robot's start (drag it; turn it with the slider). */
-function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec; pose?: RobotPose; states: Record<string, PartState>; editable: boolean; onChange: (spec: WorldSpec) => void }) {
+/** The world from above (x right, z down), in metres: every body (from the world itself, built on load), the track and,
+ *  for a robot, its sensor spots. Stopped, a robot's world is an editor: track presets, drawing the line point by point,
+ *  its width, open or closed, and the robot's start (drag it; turn it with the slider). */
+function WorldView({ spec, state, states, editable, onChange }: { spec: WorldSpec; state?: WorldState; states: Record<string, PartState>; editable: boolean; onChange: (spec: WorldSpec) => void }) {
     const [drawing, setDrawing] = useState(false);
     const [mode, setMode] = useState<'top' | '3d'>('top');
     const svg = useRef<SVGSVGElement>(null);
     const dragging = useRef(false);
-    const xs = spec.track.points.map(p => p[0]).concat(spec.robot.x, -0.5, 0.5), zs = spec.track.points.map(p => p[1]).concat(spec.robot.z, -0.4, 0.4);
-    const pad = 0.25, minX = Math.min(...xs) - pad, minZ = Math.min(...zs) - pad, w = Math.max(...xs) + pad - minX, h = Math.max(...zs) + pad - minZ;
-    const x = pose ? pose.chassis[0] : spec.robot.x, z = pose ? pose.chassis[2] : spec.robot.z;
-    const heading = pose ? headingOf(pose.chassis.slice(3, 7)) : spec.robot.heading;
-    const deg = -heading * 180 / Math.PI;
+    const robotSpec = spec.robot;
+    const pose = state?.robot;
+    const shapes = useMemo(() => state ? footprints(state.bodies.shapes, state.bodies.poses) : [], [state]);
+    const anchors: [number, number][] = [...spec.track.points, ...(robotSpec ? [[robotSpec.x, robotSpec.z] as [number, number]] : []),
+        ...(spec.arm ? [[spec.arm.x, spec.arm.z] as [number, number]] : []), ...(spec.conveyor ? [[spec.conveyor.x, spec.conveyor.z] as [number, number]] : []), ...(spec.bin ? [[spec.bin.x, spec.bin.z] as [number, number]] : []),
+        ...(robotSpec ? [[-0.5, -0.4], [0.5, 0.4]] as [number, number][] : [[-0.25, -0.25], [0.25, 0.25]] as [number, number][])];
+    const pad = robotSpec ? 0.25 : 0.12;
+    const minX = Math.min(...anchors.map(p => p[0])) - pad, minZ = Math.min(...anchors.map(p => p[1])) - pad;
+    const w = Math.max(...anchors.map(p => p[0])) + pad - minX, h = Math.max(...anchors.map(p => p[1])) + pad - minZ;
+    const x = pose ? pose.chassis[0] : robotSpec?.x ?? 0, z = pose ? pose.chassis[2] : robotSpec?.z ?? 0;
+    const heading = pose ? headingOf(pose.chassis.slice(3, 7)) : robotSpec?.heading ?? 0;
     const path = spec.track.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ') + (spec.track.closed && spec.track.points.length > 2 ? ' Z' : '');
     const R = ROBOT;
-    const laps = pose?.laps;
-    /** A pointer event's position on the floor, metres */
+    const laps = pose?.laps, pick = state?.pick;
     const floorAt = (e: { clientX: number; clientY: number }): [number, number] | null => {
         const ctm = svg.current?.getScreenCTM();
         if (!ctm) return null;
@@ -261,17 +268,18 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
         return [Math.round(pt.x * 1000) / 1000, Math.round(pt.y * 1000) / 1000];
     };
     const track = (t: Partial<WorldSpec['track']>) => onChange({ ...spec, track: { ...spec.track, ...t }, best: undefined });
-    const robot = (r: Partial<WorldSpec['robot']>) => onChange({ ...spec, robot: { ...spec.robot, ...r } });
+    const robot = (r: Partial<NonNullable<WorldSpec['robot']>>) => { if (robotSpec) onChange({ ...spec, robot: { ...robotSpec, ...r } }); };
     const start = spec.track.points[0], next = spec.track.points[1];
-    const startLine = start && next ? (() => { const dx = next[0] - start[0], dz = next[1] - start[1], l = Math.hypot(dx, dz) || 1; return { x1: start[0] - dz / l * 0.15, y1: start[1] + dx / l * 0.15, x2: start[0] + dz / l * 0.15, y2: start[1] - dx / l * 0.15 }; })() : null;
+    const startLine = robotSpec && start && next ? (() => { const dx = next[0] - start[0], dz = next[1] - start[1], l = Math.hypot(dx, dz) || 1; return { x1: start[0] - dz / l * 0.15, y1: start[1] + dx / l * 0.15, x2: start[0] + dz / l * 0.15, y2: start[1] - dx / l * 0.15 }; })() : null;
     const time = (t: number | null | undefined) => t == null ? '\u2014' : `${t.toFixed(2)} s`;
+    const editingRobot = editable && !!robotSpec;
     return (
         <div className="flex-grow min-h-0 relative flex flex-col" style={{ background: '#151d19' }} data-testid="world">
             <div className="absolute z-10 bottom-2 right-2 flex text-xs rounded-full overflow-hidden border border-white border-opacity-20" role="tablist" aria-label="Camera">
                 {(['top', '3d'] as const).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setDrawing(false); }} className={'px-3 py-1 ' + (mode === m ? 'bg-emerald-500 text-black font-semibold' : 'bg-black bg-opacity-40 text-gray-300')}>{m === 'top' ? 'Top' : '3D'}</button>)}
             </div>
-            {mode === '3d' && <World3D spec={spec} pose={pose} states={states} />}
-            {mode === 'top' && editable && (
+            {mode === '3d' && <World3D spec={spec} state={state} states={states} />}
+            {mode === 'top' && editingRobot && (
                 <div className="flex flex-wrap items-center gap-1 px-2 pt-10 pb-1 text-xs text-gray-200" aria-label="Track editor">
                     <button type="button" onClick={() => { setDrawing(false); track(ovalTrack()); }} className="px-2 py-0.5 rounded bg-white bg-opacity-10 hover:bg-opacity-20">Oval</button>
                     <button type="button" onClick={() => { setDrawing(false); track(figureEightTrack()); }} className="px-2 py-0.5 rounded bg-white bg-opacity-10 hover:bg-opacity-20">Figure 8</button>
@@ -284,7 +292,7 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
                         </select>
                     </label>
                     <label className="flex items-center gap-1 ml-1">heading
-                        <input type="range" min={-180} max={180} step={5} value={Math.round(spec.robot.heading * 180 / Math.PI)} onChange={e => robot({ heading: Number(e.target.value) * Math.PI / 180 })} aria-label="Start heading" />
+                        <input type="range" min={-180} max={180} step={5} value={Math.round((robotSpec?.heading ?? 0) * 180 / Math.PI)} onChange={e => robot({ heading: Number(e.target.value) * Math.PI / 180 })} aria-label="Start heading" />
                     </label>
                     <span className="text-gray-400 ml-1">{drawing ? 'Click to add points along the line.' : 'Drag the robot to its start.'}</span>
                 </div>
@@ -294,20 +302,28 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
                 onPointerMove={e => { if (!dragging.current) return; const at = floorAt(e); if (at) robot({ x: at[0], z: at[1] }); }}
                 onPointerUp={() => { dragging.current = false; }}>
                 <rect x={minX} y={minZ} width={w} height={h} fill="#e8e3d6" />
-                <path d={path} fill="none" stroke="#141414" strokeWidth={spec.track.width} strokeLinejoin="round" strokeLinecap="round" data-track={spec.track.points.length} />
+                {spec.track.points.length > 0 && <path d={path} fill="none" stroke="#141414" strokeWidth={spec.track.width} strokeLinejoin="round" strokeLinecap="round" data-track={spec.track.points.length} />}
+                {robotSpec && spec.track.points.length === 0 && <g data-track="0" />}
                 {drawing && spec.track.points.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={0.008} fill="#2f7cff" />)}
                 {startLine && <line {...startLine} stroke="#ff3b30" strokeWidth={0.006} strokeDasharray="0.012 0.008" />}
-                <g transform={`translate(${x},${z}) rotate(${deg})`} data-robot data-x={x.toFixed(3)} data-z={z.toFixed(3)} data-heading={heading.toFixed(3)}
-                    className={editable && !drawing ? 'cursor-move' : ''} onPointerDown={e => { if (!editable || drawing) return; e.stopPropagation(); dragging.current = true; (e.currentTarget.ownerSVGElement as SVGSVGElement).setPointerCapture(e.pointerId); }}>
-                    <rect x={-R.length / 2} y={-R.width / 2} width={R.length} height={R.width} rx={0.01} fill="#2b6e59" stroke="#0b1511" strokeWidth={0.003} />
-                    <path d={`M${R.length / 2 - 0.03},-0.025 L${R.length / 2 - 0.005},0 L${R.length / 2 - 0.03},0.025`} fill="none" stroke="#9ff5d1" strokeWidth={0.006} />
-                    {[-1, 1].map(side => <rect key={side} x={R.axleX - R.wheelRadius} y={side * R.track / 2 - R.wheelWidth / 2} width={R.wheelRadius * 2} height={R.wheelWidth} rx={0.006} fill="#1b1b1b" />)}
-                    <circle cx={R.casterX} cy={0} r={R.casterRadius} fill="#9db5aa" />
-                    {spec.robot.sensors.map(m => <circle key={m.part} cx={m.x} cy={m.z} r={0.007} fill={states[m.part]?.led ? '#ff3b30' : '#4a4a4a'} stroke="#fff" strokeWidth={0.002} data-sensor={m.part} />)}
+                <g data-bodies={shapes.length}>
+                    {shapes.map((f, i) => f.kind === 'circle'
+                        ? <circle key={i} cx={f.x} cy={f.z} r={f.r} fill={f.colour} stroke="#0b1511" strokeWidth={0.001} />
+                        : <polygon key={i} points={f.points.map(p => p.join(',')).join(' ')} fill={f.colour} stroke="#0b1511" strokeWidth={0.001} />)}
                 </g>
+                {robotSpec && (
+                    <g transform={`translate(${x},${z}) rotate(${-heading * 180 / Math.PI})`} data-robot data-x={x.toFixed(3)} data-z={z.toFixed(3)} data-heading={heading.toFixed(3)}
+                        className={editingRobot && !drawing ? 'cursor-move' : ''} onPointerDown={e => { if (!editingRobot || drawing) return; e.stopPropagation(); dragging.current = true; (e.currentTarget.ownerSVGElement as SVGSVGElement).setPointerCapture(e.pointerId); }}>
+                        {/* drawn from the world's bodies once it's built; until then (and as the drag handle) the outline */}
+                        <rect x={-R.length / 2} y={-R.width / 2} width={R.length} height={R.width} rx={0.01} fill={state ? 'transparent' : '#2b6e59'} stroke={state ? 'none' : '#0b1511'} strokeWidth={0.003} />
+                        <path d={`M${R.length / 2 - 0.03},-0.025 L${R.length / 2 - 0.005},0 L${R.length / 2 - 0.03},0.025`} fill="none" stroke="#9ff5d1" strokeWidth={0.006} />
+                        {robotSpec.sensors.map(m => <circle key={m.part} cx={m.x} cy={m.z} r={0.007} fill={states[m.part]?.led ? '#ff3b30' : '#4a4a4a'} stroke="#fff" strokeWidth={0.002} data-sensor={m.part} />)}
+                    </g>
+                )}
+                {(spec.spotters ?? []).map(m => <circle key={m.part} cx={m.x} cy={m.z} r={0.008} fill={states[m.part]?.led ? '#ff3b30' : '#4a4a4a'} stroke="#fff" strokeWidth={0.002} data-spotter={m.part} />)}
             </svg>
             <div className="absolute bottom-2 left-2 flex flex-wrap gap-2 text-xs" data-testid="laps">
-                {laps ? (
+                {robotSpec && (laps && laps.current !== null || laps?.laps ? (
                     <>
                         {spec.track.closed
                             ? <span className="bg-black bg-opacity-70 text-white rounded px-2 py-0.5" data-laps={laps.laps}>Lap {laps.laps + (laps.current === null ? 0 : 1)} · {time(laps.current)}</span>
@@ -316,7 +332,12 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
                         {laps.offTrack && !laps.lost && <span className="bg-yellow-500 text-black rounded px-2 py-0.5">off the track</span>}
                         {laps.lost && <span className="bg-red-600 text-white rounded px-2 py-0.5">lost the line</span>}
                     </>
-                ) : <span className="bg-white bg-opacity-70 text-gray-800 rounded px-2 py-0.5">Run to drive the robot.</span>}
+                ) : <span className="bg-white bg-opacity-70 text-gray-800 rounded px-2 py-0.5">Run to drive the robot.</span>)}
+                {pick && (
+                    <span className="bg-black bg-opacity-70 text-white rounded px-2 py-0.5" data-testid="pick" data-delivered={pick.delivered} data-dropped={pick.dropped}>
+                        cubes {pick.delivered} in the bin · {pick.dropped} dropped · {pick.spawned} of {spec.conveyor?.cubes}{pick.finished !== null ? ` · done in ${time(pick.finished)}` : ''}
+                    </span>
+                )}
                 {spec.best !== undefined && <span className="bg-emerald-500 text-black rounded px-2 py-0.5" data-best={spec.best.toFixed(2)}>best {time(spec.best)}</span>}
             </div>
         </div>
@@ -327,10 +348,11 @@ function WorldView({ spec, pose, states, editable, onChange }: { spec: WorldSpec
 interface ViewModule extends EngineInstance {
     _malloc(bytes: number): number;
     _free(ptr: number): void;
-    _bl_view_robot(params: number): void;
     _bl_view_track(points: number, n: number, width: number, closed: number): void;
-    _bl_view_start(x: number, z: number, heading: number): void;
-    _bl_view_state(state: number, sensors: number, n: number): void;
+    _bl_view_bodies(shapes: number, n: number): void;
+    _bl_view_poses(poses: number, n: number): void;
+    _bl_view_sensors(spots: number, n: number): void;
+    _bl_view_focus(x: number, z: number): void;
     HEAPF32: Float32Array;
 }
 
@@ -346,27 +368,23 @@ function withFloats(m: ViewModule, values: number[], call: (ptr: number) => void
     }
 }
 
-/** The world in 3D (native/view, on the engine): it draws what the snapshots say; drag to orbit, scroll to zoom. */
-function World3D({ spec, pose, states }: { spec: WorldSpec; pose?: RobotPose; states: Record<string, PartState> }) {
+/** The world in 3D (native/view, on the engine): it draws the bodies the snapshots carry; drag to orbit, scroll to zoom. */
+function World3D({ spec, state, states }: { spec: WorldSpec; state?: WorldState; states: Record<string, PartState> }) {
     const [view, setView] = useState<ViewModule | null>(null);
-    useEffect(() => {
-        if (!view) return;
-        const R = ROBOT;
-        withFloats(view, [R.length, R.width, R.height, R.wheelRadius, R.wheelWidth, R.track, R.axleX, R.casterX, R.casterRadius], p => view._bl_view_robot(p));
-    }, [view]);
     useEffect(() => {
         if (!view) return;
         withFloats(view, spec.track.points.flat(), p => view._bl_view_track(p, spec.track.points.length, spec.track.width, spec.track.closed ? 1 : 0));
     }, [view, spec.track]);
-    useEffect(() => { if (view) withFloats(view, [], () => view._bl_view_start(spec.robot.x, spec.robot.z, spec.robot.heading)); }, [view, spec.robot.x, spec.robot.z, spec.robot.heading]);
+    const shapes = state?.bodies.shapes;
+    useEffect(() => { if (view && shapes) withFloats(view, shapes, p => view._bl_view_bodies(p, shapes.length / 7)); }, [view, shapes]);
     useEffect(() => {
-        if (!view) return;
-        const sensors = spec.robot.sensors.flatMap(m => [m.x, m.z, states[m.part]?.led ? 1 : 0]);   // red = its LED, lit over the white floor (as in the top view)
-        withFloats(view, sensors, sp => {
-            if (!pose) { view._bl_view_state(0, sp, spec.robot.sensors.length); return; }
-            withFloats(view, [...pose.chassis, ...pose.left, ...pose.right, ...pose.caster, 0, 0], ps => view._bl_view_state(ps, sp, spec.robot.sensors.length));
-        });
-    }, [view, pose, states, spec.robot.sensors]);
+        if (!view || !state) return;
+        withFloats(view, state.bodies.poses, p => view._bl_view_poses(p, state.bodies.poses.length / 7));
+        const spots = (state.robot?.sensors ?? []).flatMap(([x, z], i) => [x, z, states[spec.robot?.sensors[i]?.part ?? '']?.led ? 1 : 0]);
+        withFloats(view, spots, p => view._bl_view_sensors(p, spots.length / 3));
+        const focus = state.robot ? [state.robot.chassis[0], state.robot.chassis[2]] : spec.arm ? [spec.arm.x + 0.1, spec.arm.z] : spec.conveyor ? [spec.conveyor.x, spec.conveyor.z] : [0, 0];
+        withFloats(view, [], () => view._bl_view_focus(focus[0], focus[1]));
+    }, [view, state, states, spec.robot, spec.arm, spec.conveyor]);
     return (
         <div className="flex-grow min-h-0" data-testid="world-3d">
             <EngineView id="view" title="Bot Lab world" baseUrl="/vendor/bot-lab" choice="auto" embedded onBack={() => {}} onReady={instance => setView(instance as ViewModule)} />
@@ -378,6 +396,7 @@ function World3D({ spec, pose, states }: { spec: WorldSpec; pose?: RobotPose; st
 function RobotPanel({ project, onChange }: { project: Project; onChange: (world: WorldSpec | undefined) => void }) {
     const motors = project.parts.filter(p => p.kind === 'motor'), sensors = project.parts.filter(p => p.kind === 'tcrt5000');
     const world = project.world;
+    if (world && !world.robot) return null;                       // an arm or a conveyor: set up by its template
     if (!world) {
         if (motors.length < 2) return null;
         return (
@@ -389,15 +408,16 @@ function RobotPanel({ project, onChange }: { project: Project; onChange: (world:
             </div>
         );
     }
-    const robot = (r: Partial<WorldSpec['robot']>) => onChange({ ...world, robot: { ...world.robot, ...r } });
-    const mount = (id: string) => world.robot.sensors.find(m => m.part === id);
-    const setMount = (id: string, m: { x: number; z: number } | null) => robot({ sensors: [...world.robot.sensors.filter(s => s.part !== id), ...(m ? [{ part: id, ...m }] : [])] });
+    const spec = world.robot!;
+    const robot = (r: Partial<NonNullable<WorldSpec['robot']>>) => onChange({ ...world, robot: { ...spec, ...r } });
+    const mount = (id: string) => spec.sensors.find(m => m.part === id);
+    const setMount = (id: string, m: { x: number; z: number } | null) => robot({ sensors: [...spec.sensors.filter(s => s.part !== id), ...(m ? [{ part: id, ...m }] : [])] });
     return (
         <div className="rounded-lg bg-white bg-opacity-5 p-3 text-xs space-y-2" data-testid="robot-panel">
             <div className="flex items-center justify-between"><span className="font-semibold text-sm">Robot</span><button type="button" onClick={() => onChange(undefined)} className="text-gray-400 hover:text-red-300">remove from the World</button></div>
             {(['left', 'right'] as const).map(side => (
                 <label key={side} className="flex items-center justify-between gap-2">{side === 'left' ? 'Left wheel' : 'Right wheel'}
-                    <select value={world.robot[side]} onChange={e => robot({ [side]: e.target.value })} className="bg-black bg-opacity-40 rounded px-1 py-0.5" aria-label={`${side} wheel motor`}>
+                    <select value={spec[side]} onChange={e => robot({ [side]: e.target.value })} className="bg-black bg-opacity-40 rounded px-1 py-0.5" aria-label={`${side} wheel motor`}>
                         {motors.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
                     </select>
                 </label>

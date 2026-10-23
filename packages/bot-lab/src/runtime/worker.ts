@@ -6,7 +6,7 @@ import { Bench, TICK } from '../sim/bench';
 import { parseProject, type Project } from '../sim/project';
 import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, WORLD_PATH, type Command, type Snapshot, type WorkerToApp } from './protocol';
 import type { PicoFirmware } from '../sim/boards/pico';
-import { RobotWorld, type WorldModule } from '../sim/world';
+import { MachineWorld, type WorldModule } from '../sim/world';
 import { PiRuntime, canSuspend, type PyodideLike } from './pi';
 import { PY_MORE, PY_PROMPT, SHELL_PROMPT, shell } from './terminal';
 
@@ -26,7 +26,7 @@ let python: { runtime: PiRuntime; more: boolean; queue: Promise<void> } | null =
 let picoFirmware: Promise<PicoFirmware> | null = null;
 let worldModule: Promise<WorldModule> | null = null;
 /** The robot's world while a project with one runs */
-let world: RobotWorld | null = null;
+let world: MachineWorld | null = null;
 /** The Pico's script: sent once its USB serial is up */
 let picoScript: { started: boolean } | null = null;
 
@@ -42,7 +42,7 @@ function snapshot(extra: Partial<Snapshot> = {}): Snapshot {
     }
     const pico = bench?.pico;
     const consoleLines = pico && running ? [...pico.console.slice(-200), ...(pico.partial ? [pico.partial] : [])] : piConsole.slice(-200);
-    return { type: 'snapshot', world: running && world ? world.pose() : undefined, time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: consoleLines, warnings: bench?.warnings ?? [], finished, responsive, prompt: prompt(), ...extra };
+    return { type: 'snapshot', world: world ? world.state() : undefined, time: bench?.time ?? 0, running, states, volts, serial: bench?.board?.serial.slice(-200) ?? [], console: consoleLines, warnings: bench?.warnings ?? [], finished, responsive, prompt: prompt(), ...extra };
 }
 
 let lastSnapshot = 0;
@@ -59,9 +59,7 @@ function prompt(): string | undefined {
 }
 
 function stop() {
-    running = false;
-    world?.dispose();
-    world = null;
+    running = false;                                           // the world stays, frozen where the run left it
     script?.stop();
     python?.runtime.stop();
     python = null;
@@ -253,6 +251,23 @@ function pythonLine(session: NonNullable<typeof python>, line: string) {
     });
 }
 
+/** A project to show: a fresh, idle bench, and its world built for the views to draw (the run builds its own). */
+function load(input: unknown) {
+    stop();
+    world?.dispose();
+    world = null;
+    project = parseProject(input);
+    const b = bench = new Bench(structuredClone(project));
+    snapshotIfDue(true);
+    if (!project.world) return;
+    loadWorld().then(module => {
+        if (bench !== b || running) return;                    // replaced (or running) by the time it loaded
+        worldFor = module;
+        attachWorld(b);
+        snapshotIfDue(true);
+    }, err => post({ type: 'error', message: `The world failed to load: ${(err as Error).message}` }));
+}
+
 /** The world module loaded for this run (null for projects without a world) */
 let worldFor: WorldModule | null = null;
 
@@ -261,7 +276,7 @@ function attachWorld(b: Bench) {
     world?.dispose();
     world = null;
     if (!project?.world || !worldFor) return;
-    try { world = new RobotWorld(worldFor, b, project.world); }
+    try { world = new MachineWorld(worldFor, b, project.world); }
     catch (err) { post({ type: 'error', message: (err as Error).message }); }
 }
 
@@ -292,7 +307,7 @@ self.onmessage = (e: MessageEvent<Command>) => {
     const m = e.data;
     switch (m.type) {
         case 'init': origin = m.origin; break;
-        case 'load': stop(); project = parseProject(m.project); bench = new Bench(structuredClone(project)); snapshotIfDue(true); break;
+        case 'load': load(m.project); break;
         case 'run': void run(); break;
         case 'stop': stop(); break;
         case 'setProp': if (bench) { bench.setProp(m.id, m.key, m.value); if (!running) { bench.run(TICK * 4); snapshotIfDue(true); } } break;

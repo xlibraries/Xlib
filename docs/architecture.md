@@ -123,11 +123,14 @@ fed back as inputs and ADC readings, scripts sent through MicroPython's raw REPL
 floating-point library (licensed only for real RP2040s); `boards/pico-rom-float.ts` traps calls into that range and
 does the maths in JavaScript. Drive parts: a DC motor is a winding resistance and a back-EMF source in the net, its shaft integrated each step from
 the current's torque, friction, inertia and load; the TB6612 sets its output switches from its inputs' last voltages;
-the TCRT5000's outputs follow the surface under it. A project with a `world` puts a robot on a floor: `native/world`
+the TCRT5000's outputs follow the surface under it. A project with a `world` puts machines on a floor (a robot, a five-servo arm, a conveyor with cubes and a bin): `native/world`
 (C++ on the engine's Jolt, built headless into `dist/world/`) is the physics, and `sim/world.ts` couples it to the
 bench every two steps (the wheel motors' torques in, the wheels' speeds out as their shaft speeds; line sensors read
 `sim/track.ts`'s line under them). The worker loads it from `/vendor/bot-lab/world/` for any board, and snapshots carry
-the robot's poses for the World view, with `sim/laps.ts`'s lap state (the line-follower challenge). The view draws
+the world's state for the World view: every body's look and pose (drawn generically, from above with `sim/draw.ts` or
+in 3D), the robot's lap state (`sim/laps.ts`) and the pick-and-place score. An arm's servos hand their pulses' angles to
+its joints (slewed at their rated speed, up to their stall torque) and get the joints' real angles back; `sim/arm.ts`
+is its inverse kinematics. The worker builds the world on load too, so a stopped project shows its machines. The view draws
 them from above (SVG) or in 3D: `native/view` is a sokol module hosted by `EngineView` (embedded), fed through its
 exports (the track, the start pose, each snapshot's poses). Stopped, the World
 view edits the track and the robot's start; the Parts tab's Robot panel picks the wheel motors and mounts the sensors.

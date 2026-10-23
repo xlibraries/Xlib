@@ -1,6 +1,7 @@
-// Bot Lab's 3D view of the world: the floor, the track, the robot. It doesn't simulate anything: the page passes the
-// track (bl_view_track), the robot's start (bl_view_start) and, while it runs, each snapshot's poses (bl_view_state,
-// the same 26 floats native/world reports). Drag to orbit, scroll to zoom; the camera follows the robot.
+// Bot Lab's 3D view of the world: the floor, the track and every body in it. It doesn't simulate anything: the page
+// passes the track (bl_view_track), the bodies' looks (bl_view_bodies: shape, size, colour, as native/world registers
+// them) and each snapshot's poses (bl_view_poses), the robot's sensor spots (bl_view_sensors) and what to look at
+// (bl_view_focus). Drag to orbit, scroll to zoom.
 #define SOKOL_IMPL
 #include "sokol_gfx.h"
 #include "sokol_app.h"
@@ -22,20 +23,15 @@ struct Vertex { float pos[3]; float normal[3]; uint32_t color; };
 
 uint32_t rgba(int r, int g, int b) { return 0xff000000u | (b << 16) | (g << 8) | r; }
 
-// the robot's dimensions (the page sends sim/world.ts's ROBOT): chassis l/w/h, wheel radius/width, track, axle x,
-// caster x, caster radius
-struct Dims { float len = 0.16f, wid = 0.10f, hgt = 0.03f, wr = 0.0325f, ww = 0.026f, track = 0.14f, axle_x = 0.03f, caster_x = -0.06f, cr = 0.012f; };
-
 struct Mesh { sg_buffer buf = {}; int count = 0; };
 
 struct {
     sg_pipeline pip;
     Mesh cube, cylinder, sphere, floor, track;
-    Dims dims;
-    float state[26] = {};
-    bool has_state = false;
-    float start_x = 0, start_z = 0, start_heading = 0;
-    std::vector<float> sensors;       // robot-frame x, z, then lit (0/1), per sensor
+    std::vector<float> shapes;        // 7 per body: shape (0 box, 1 cylinder, 2 sphere), size a b c, colour r g b
+    std::vector<float> poses;         // 7 per body: position xyz, rotation xyzw
+    std::vector<float> sensors;       // 3 per spot: x, z on the floor, lit (0/1)
+    float focus_x = 0, focus_z = 0;
     // the page may send the track before sokol is up (its first frame): it's built then
     std::vector<float> track_points;
     float track_width = 0.019f;
@@ -185,25 +181,7 @@ void frame() {
     const float dt = static_cast<float>(sapp_frame_duration());
     xl::report_frame(dt);
     xl::end_frame();
-    const Dims& d = st.dims;
-    // where the robot is: the last snapshot, or its start
-    HMM_Mat4 chassis, left, right;
-    HMM_Vec3 caster;
-    if (st.has_state) {
-        chassis = pose_at(st.state);
-        left = pose_at(st.state + 7);
-        right = pose_at(st.state + 14);
-        caster = HMM_V3(st.state[21], st.state[22], st.state[23]);
-    } else {
-        const float cy = std::fmax(d.cr * 2 + 0.002f, d.wr * 0.5f) + d.hgt / 2;
-        chassis = HMM_MulM4(HMM_Translate(HMM_V3(st.start_x, cy, st.start_z)), HMM_Rotate_RH(st.start_heading, HMM_V3(0, 1, 0)));
-        const HMM_Mat4 turn = HMM_Rotate_RH(HMM_PI32 / 2, HMM_V3(1, 0, 0));
-        left = HMM_MulM4(HMM_MulM4(chassis, HMM_Translate(HMM_V3(d.axle_x, d.wr - cy, -d.track / 2))), turn);
-        right = HMM_MulM4(HMM_MulM4(chassis, HMM_Translate(HMM_V3(d.axle_x, d.wr - cy, d.track / 2))), turn);
-        const HMM_Vec4 c = HMM_MulM4V4(chassis, HMM_V4(d.caster_x, d.cr - cy, 0, 1));
-        caster = HMM_V3(c.X, c.Y, c.Z);
-    }
-    const HMM_Vec3 target = HMM_V3(chassis.Elements[3][0], 0.03f, chassis.Elements[3][2]);
+    const HMM_Vec3 target = HMM_V3(st.focus_x, 0.03f, st.focus_z);
     const HMM_Vec3 eye = HMM_AddV3(target, HMM_V3(std::cos(st.yaw) * std::cos(st.pitch) * st.distance, std::sin(st.pitch) * st.distance, std::sin(st.yaw) * std::cos(st.pitch) * st.distance));
     const HMM_Mat4 view_proj = HMM_MulM4(HMM_Perspective_RH_NO(HMM_AngleDeg(45.0f), sapp_widthf() / sapp_heightf(), 0.01f, 30.0f), HMM_LookAt_RH(eye, target, HMM_V3(0, 1, 0)));
 
@@ -218,13 +196,19 @@ void frame() {
     const HMM_Mat4 identity = HMM_M4D(1.0f);
     draw(st.floor, view_proj, identity, HMM_V3(1, 1, 1));
     draw(st.track, view_proj, identity, HMM_V3(1, 1, 1));
-    draw(st.cube, view_proj, HMM_MulM4(chassis, HMM_Scale(HMM_V3(d.len, d.hgt, d.wid))), HMM_V3(0.17f, 0.43f, 0.35f));
-    // a nose so you can tell which way it faces
-    draw(st.cube, view_proj, HMM_MulM4(chassis, HMM_MulM4(HMM_Translate(HMM_V3(d.len / 2 - 0.012f, d.hgt / 2 + 0.002f, 0)), HMM_Scale(HMM_V3(0.02f, 0.004f, 0.03f)))), HMM_V3(0.62f, 0.96f, 0.82f));
-    for (const HMM_Mat4& wheel : { left, right }) draw(st.cylinder, view_proj, HMM_MulM4(wheel, HMM_Scale(HMM_V3(d.wr, d.ww, d.wr))), HMM_V3(0.12f, 0.12f, 0.12f));
-    draw(st.sphere, view_proj, HMM_MulM4(HMM_Translate(caster), HMM_Scale(HMM_V3(d.cr, d.cr, d.cr))), HMM_V3(0.6f, 0.68f, 0.64f));
+    const size_t n = std::min(st.shapes.size(), st.poses.size()) / 7;
+    for (size_t i = 0; i < n; i++) {
+        const float* sh = &st.shapes[i * 7];
+        const HMM_Mat4 pose = pose_at(&st.poses[i * 7]);
+        const HMM_Vec3 colour = HMM_V3(sh[4], sh[5], sh[6]);
+        switch (static_cast<int>(sh[0])) {
+            case 0: draw(st.cube, view_proj, HMM_MulM4(pose, HMM_Scale(HMM_V3(sh[1] * 2, sh[2] * 2, sh[3] * 2))), colour); break;
+            case 1: draw(st.cylinder, view_proj, HMM_MulM4(pose, HMM_Scale(HMM_V3(sh[1], sh[2] * 2, sh[1]))), colour); break;
+            default: draw(st.sphere, view_proj, HMM_MulM4(pose, HMM_Scale(HMM_V3(sh[1], sh[1], sh[1]))), colour); break;
+        }
+    }
     for (size_t i = 0; i + 2 < st.sensors.size(); i += 3) {
-        const HMM_Mat4 m = HMM_MulM4(chassis, HMM_MulM4(HMM_Translate(HMM_V3(st.sensors[i], -d.hgt / 2 - 0.004f, st.sensors[i + 1])), HMM_Scale(HMM_V3(0.012f, 0.008f, 0.012f))));
+        const HMM_Mat4 m = HMM_MulM4(HMM_Translate(HMM_V3(st.sensors[i], 0.002f, st.sensors[i + 1])), HMM_Scale(HMM_V3(0.012f, 0.003f, 0.012f)));
         draw(st.cube, view_proj, m, st.sensors[i + 2] > 0.5f ? HMM_V3(1.0f, 0.23f, 0.19f) : HMM_V3(0.25f, 0.25f, 0.25f));
     }
     sg_end_pass();
@@ -257,9 +241,6 @@ void cleanup() { sg_shutdown(); }
 
 extern "C" {
 
-/** The robot's dimensions: chassis length, width, height; wheel radius, width; track; axle x; caster x; caster radius */
-EMSCRIPTEN_KEEPALIVE void bl_view_robot(const float* p) { st.dims = { p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8] }; }
-
 /** The track: n points (x, z pairs), its width, whether it loops */
 EMSCRIPTEN_KEEPALIVE void bl_view_track(const float* pts, int n, float width, int closed) {
     st.track_points.assign(pts, pts + std::max(0, n) * 2);
@@ -268,15 +249,17 @@ EMSCRIPTEN_KEEPALIVE void bl_view_track(const float* pts, int n, float width, in
     st.track_dirty = true;
 }
 
-/** Where the robot starts (shown until a run's poses arrive) */
-EMSCRIPTEN_KEEPALIVE void bl_view_start(float x, float z, float heading) { st.start_x = x; st.start_z = z; st.start_heading = heading; st.has_state = false; }
+/** The bodies' looks: n × 7 floats (shape, size a b c, colour r g b) */
+EMSCRIPTEN_KEEPALIVE void bl_view_bodies(const float* shapes, int n) { st.shapes.assign(shapes, shapes + std::max(0, n) * 7); }
 
-/** A snapshot: the world's 26 floats (null to go back to the start pose), and n sensors as robot-frame x, z, lit */
-EMSCRIPTEN_KEEPALIVE void bl_view_state(const float* state, const float* sensors, int n) {
-    st.has_state = state != nullptr;
-    if (state) std::copy(state, state + 26, st.state);
-    st.sensors.assign(sensors, sensors + std::max(0, n) * 3);
-}
+/** The bodies' poses: n × 7 floats (position xyz, rotation xyzw) */
+EMSCRIPTEN_KEEPALIVE void bl_view_poses(const float* poses, int n) { st.poses.assign(poses, poses + std::max(0, n) * 7); }
+
+/** The robot's sensor spots: n × 3 floats (x, z on the floor, lit) */
+EMSCRIPTEN_KEEPALIVE void bl_view_sensors(const float* spots, int n) { st.sensors.assign(spots, spots + std::max(0, n) * 3); }
+
+/** What the camera looks at (it orbits this point on the floor) */
+EMSCRIPTEN_KEEPALIVE void bl_view_focus(float x, float z) { st.focus_x = x; st.focus_z = z; }
 
 }  // extern "C"
 
