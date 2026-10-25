@@ -58,6 +58,16 @@ Mesh build_board(const Track& t, const Board& b);
 Mesh build_chevron();
 /** A flat ring (where a watchman is looking). */
 Mesh build_gaze();
+/** The bronze Dancing Girl, standing on the origin (off her plinth, so the thief can carry her). */
+Mesh build_statue();
+/** The Bronze Thief: a hooded, masked figure hugging his arms to his chest, facing +X. */
+Mesh build_thief();
+/** A lamp post on the lamp road, lit or not. */
+Mesh build_beacon(bool lit);
+/** A golden arrow pointing down at the origin (a hint pointing at a node). */
+Mesh build_pointer();
+/** A thin glowing ring of radius 1 in the XZ plane (the wave of light that lights a board). */
+Mesh build_glow_ring();
 
 /** The land between s0 and s1 along the road: ground, strata, road and the props standing there that don't belong
  *  to a district (and the shortcut's bridge). */

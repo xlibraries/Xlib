@@ -24,7 +24,8 @@ const Leg LEGS[] = {
     { 80, 60 }, { 80, -50 },                                                      // the Citadel
     { 100, -10 }, { 90, 30 }, { 90, -15 },                                        // the climb
     { 60, -20 }, { 60, 15 }, { 60, 0 },                                           // the Upper Town
-    { 80, -10 }, { 30, 0 },                                                       // the plaza
+    { 70, 35 }, { 90, -50 }, { 90, 20 },                                          // the lamp road
+    { 80, -10 }, { 45, 0 },                                                       // the plaza
 };
 constexpr float BEND_FROM = 510, BEND_TO = 650;   // the canal road's detour round the pond: the shortcut goes straight across
 
@@ -115,7 +116,7 @@ float Track::road_half(float s) const {
     const auto base = [](Zone z) {
         switch (z) {
             case Zone::LowerTown: return 2.0f;
-            case Zone::CanalRoad: case Zone::Climb: return 2.6f;
+            case Zone::CanalRoad: case Zone::Climb: case Zone::LampRoad: return 2.6f;
             case Zone::Granary: case Zone::GreatBath: case Zone::Citadel: case Zone::UpperTown: case Zone::Plaza: return 3.0f;
             default: return 2.4f;
         }
@@ -126,7 +127,7 @@ float Track::road_half(float s) const {
         const float d = s - ZONE_START[i];
         if (std::fabs(d) < 6) { const float t = (d + 6) / 12; w = base(static_cast<Zone>(i - 1)) * (1 - t) + base(static_cast<Zone>(i)) * t; }
     }
-    return w + 6.5f * smooth01(ROAD_END - 40, ROAD_END - 15, s);
+    return w + 11.5f * smooth01(ROAD_END - 40, ROAD_END - 10, s);
 }
 
 float Track::elevation(float s) const { return CLIMB_HEIGHT * smooth01(CLIMB_START, CLIMB_END, s); }
@@ -207,7 +208,7 @@ Track build_track(uint32_t seed) {
     struct Need { float s, side, reach; };   // side -1 left, +1 right
     const std::vector<Need> needs = {
         { at::GRANARY, -1, 24 }, { at::GREAT_BATH, 1, 24 }, { at::ASSEMBLY, -1, 24 }, { at::STUPA, 1, 22 },
-        { at::GREAT_HALL, 1, 24 }, { ROAD_END + 10, -1, 22 }, { ROAD_END + 10, 1, 22 },
+        { at::GREAT_HALL, 1, 24 }, { ROAD_END + 16, -1, 24 }, { ROAD_END + 16, 1, 24 },
     };
     std::vector<float> L(n, 15.0f), R(n, 15.0f);
     for (int i = 0; i < n; i++) {
@@ -314,12 +315,12 @@ Track build_track(uint32_t seed) {
         const V2 q = prop(PropKind::DancingGirl, s, 0, road_yaw(s) + PI, 1, 0);
         t.circles.push_back({ q.x, q.z, 1.3f });
         taken.push_back({ q.x, q.z, 2.0f });
-        const V2 g = prop(PropKind::Guide, s - 6, -4.2f, road_yaw(s) + PI * 0.75f, 1, 0);
+        const V2 g = prop(PropKind::Guide, s - 12, 3.8f, road_yaw(s) - PI * 0.75f, 1, 0);   // by the way in, between the board's paths
         t.circles.push_back({ g.x, g.z, 0.45f });
         taken.push_back({ g.x, g.z, 0.8f });
         for (int k = 0; k < 6; k++) {
             const float a = PI * 2 * k / 6 + PI / 6;
-            const V2 f = { q.x + std::cos(a) * 4.0f, q.z + std::sin(a) * 4.0f };
+            const V2 f = { q.x + std::cos(a) * 4.6f, q.z + std::sin(a) * 4.6f };
             Prop fb{ PropKind::FlowerBed, f.x, f.z, a, 1, static_cast<uint32_t>(k), s };
             fb.district = 4;
             t.props.push_back(fb);
@@ -327,9 +328,11 @@ Track build_track(uint32_t seed) {
             taken.push_back({ f.x, f.z, 1.2f });
         }
         for (int k = 0; k < 10; k++) {   // palms and lamps round the plaza's edge
-            const float a = PI * 2 * k / 10, r = 10.5f;
+            const float a = PI * 2 * k / 10 + PI / 10, r = 17.5f;
             const V2 f = { q.x + std::cos(a) * r, q.z + std::sin(a) * r };
             if (!t.on_land(f.x, f.z)) continue;
+            float fl = 0;
+            if (t.nearest(f.x, f.z, &fl) < s - 8 && std::fabs(fl) < 5) continue;   // keep the way in clear
             Prop pp{ k % 2 ? PropKind::Palm : PropKind::Lamp, f.x, f.z, a, 1.1f, static_cast<uint32_t>(900 + k), s };
             pp.district = k % 2 ? -1 : 4;
             t.props.push_back(pp);
@@ -343,6 +346,15 @@ Track build_track(uint32_t seed) {
         taken.push_back({ q.x, q.z, 1.2f });
     }
     for (float s : { CLIMB_START + 6, CLIMB_START + 26 }) prop(PropKind::PrayerFlags, s, 0, road_yaw(s), t.road_half(s) + 1.2f, static_cast<uint32_t>(s));
+
+    // ---- the lamp road: lamp posts just off the road, side to side, to be lit as you pass at dusk ----
+    for (int k = 0; k < 12; k++) {
+        const float s = ZONE_START[10] + 16 + k * 19.0f, side = (k % 2) ? 1.0f : -1.0f;
+        const V2 q = beside(s, side * (t.road_half(s) + 0.7f));
+        t.beacons.push_back({ q.x, q.z, s });
+        t.circles.push_back({ q.x, q.z, 0.22f });
+        taken.push_back({ q.x, q.z, 1.0f });
+    }
 
     // ---- the desert: sun banners where you land, then cacti, bones and tumbleweeds ----
     for (float s = 6; s < 40; s += 9) for (int side = -1; side <= 1; side += 2) {
@@ -445,7 +457,7 @@ Track build_track(uint32_t seed) {
     dressing(PropKind::SackPile, ZONE_START[4], ZONE_START[5], 6, 0.8f, true, 1);
     dressing(PropKind::Cart, ZONE_START[5], ZONE_START[6], 3, 1.3f, true, 1);
     dressing(PropKind::Basket, ZONE_START[9], ZONE_START[10], 6, 0.4f, false, 1);
-    dressing(PropKind::Lamp, ZONE_START[9], ROAD_END, 12, 0.3f, true, 1);
+    dressing(PropKind::Lamp, ZONE_START[9], ZONE_START[10], 10, 0.3f, true, 1);
     dressing(PropKind::Lamp, ZONE_START[7], ZONE_START[8], 6, 0.3f, true, 1);
     for (int c = 0, tries = 0; c < 8 && tries < 2000; tries++) {   // market stalls in the Upper Town
         const float s = ZONE_START[9] + 6 + rnd() * 170, side = rnd() < 0.5f ? -1.0f : 1.0f, lat = side * (t.road_half(s) + 1.4f);

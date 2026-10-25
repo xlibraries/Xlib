@@ -84,9 +84,35 @@ int GoState::next_of(const Piece& p) const {
     if (i < 0 || n < 2) return p.node;
     const auto free = [&](int node) {
         if (board->nodes[node].pillar) return false;
-        for (const Piece& q : pieces) if (!q.out && q.kind == PieceKind::Sack && q.node == node) return false;
+        for (const Piece& q : pieces) if (!q.out && (q.kind == PieceKind::Sack || q.kind == PieceKind::Thief) && q.node == node) return false;
         return true;
     };
+    if (p.kind == PieceKind::Thief) {
+        // round his ring to whichever spot is farthest from you (by the board's paths; sacks and pillars in the
+        // way), staying put on a tie; never onto you, a sack or anyone else
+        std::vector<int> dist(board->nodes.size(), 1 << 20);
+        std::deque<int> q = { player };
+        dist[player] = 0;
+        while (!q.empty()) {
+            const int a = q.front();
+            q.pop_front();
+            for (int b : board->adj[a]) {
+                if (dist[b] <= dist[a] + 1 || board->nodes[b].pillar) continue;
+                bool sack = false;
+                for (const Piece& o : pieces) if (!o.out && o.kind == PieceKind::Sack && o.node == b) sack = true;
+                if (sack) continue;
+                dist[b] = dist[a] + 1;
+                q.push_back(b);
+            }
+        }
+        int best = p.node;
+        for (int d : { 1, -1 }) {
+            const int t = p.lane[((i + d) % n + n) % n];
+            if (t == player || !free(t) || occupied(t)) continue;
+            if (dist[t] > dist[best]) best = t;
+        }
+        return best;
+    }
     if (walker(p)) {
         if (beads > 0) return p.node;
         if (p.loop) { const int t = p.lane[((i + p.dir) % n + n) % n]; return free(t) ? t : p.node; }
@@ -105,7 +131,7 @@ int GoState::next_of(const Piece& p) const {
 
 std::vector<int> GoState::threats(const Piece& p) const {
     std::vector<int> out;
-    if (p.out || p.kind == PieceKind::Sack) return out;
+    if (p.out || p.kind == PieceKind::Sack || p.kind == PieceKind::Thief) return out;
     if (p.kind == PieceKind::Watchman) {
         // his sight runs straight from where he faces (or behind him, while the bell rings)
         int prev = p.node, n = bell > 0 ? board->straight_on(p.facing, p.node) : p.facing;
@@ -144,6 +170,7 @@ void GoState::pieces_turn() {
         Piece& p = pieces[k];
         if (p.out || p.kind == PieceKind::Sack || p.kind == PieceKind::Watchman) continue;
         const int n = next_of(p);
+        if (p.kind == PieceKind::Thief) { p.node = n; continue; }
         if (walker(p) && !p.loop && n != p.node) {
             const int i = lane_index(p, p.node), j = lane_index(p, n);
             p.dir = j > i ? 1 : -1;
@@ -170,6 +197,14 @@ Outcome GoState::move(int to) {
         const int beyond = board->straight_on(player, to);
         if (beyond < 0 || board->nodes[beyond].pillar || occupied(beyond) || beyond == board->exit) return Outcome::Blocked;
         p.node = beyond;
+    }
+    // stepping onto the thief catches him
+    for (Piece& p : pieces) {
+        if (p.out || p.kind != PieceKind::Thief || p.node != to) continue;
+        p.out = true;
+        from = player; player = to; moves++;
+        won = true;
+        return Outcome::Won;
     }
     // stepping onto someone: from the side or behind you nudge them aside; into the face of one, you're caught
     for (size_t k = 0; k < pieces.size(); k++) {

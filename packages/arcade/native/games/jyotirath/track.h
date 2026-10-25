@@ -1,7 +1,7 @@
 // JyotiRath, Chapter I: the road through Mohenjo-Daro. One long winding road on a floating ribbon of land, through
 // the zones of the chapter: drives on the open stretches (the desert, the canal road with its one shortcut, the
 // grain road, the climb) and the districts where the boards are (the Lower Town, the Granary, the Great Bath, the
-// Citadel, the Upper Town), then the Dancing Girl's plaza. Placed props with their colliders and the district each
+// Citadel, the Upper Town), the lamp road at dusk, then the Dancing Girl's plaza. Placed props with their colliders and the district each
 // belongs to (ruined until its board is cleared), tools to pick up, potholes, a canal. Graphics-free; models.cpp
 // turns it into meshes.
 #pragma once
@@ -14,11 +14,11 @@ struct V2 { float x = 0, z = 0; };
 
 enum class Surface { Road, Ground, Water, Void };
 
-enum class Zone { Start, Desert, LowerTown, CanalRoad, Granary, GrainRoad, GreatBath, Citadel, Climb, UpperTown, Plaza };
-constexpr int ZONES = 11;
+enum class Zone { Start, Desert, LowerTown, CanalRoad, Granary, GrainRoad, GreatBath, Citadel, Climb, UpperTown, LampRoad, Plaza };
+constexpr int ZONES = 12;
 /** Where each zone starts along the road (metres); the road ends at ROAD_END, the plaza's far edge at LAND_END. */
-constexpr float ZONE_START[ZONES] = { 0, 40, 260, 470, 790, 880, 1170, 1260, 1420, 1700, 1880 };
-constexpr float ROAD_END = 1960, LAND_END = 1990;
+constexpr float ZONE_START[ZONES] = { 0, 40, 260, 470, 790, 880, 1170, 1260, 1420, 1700, 1880, 2130 };
+constexpr float ROAD_END = 2210, LAND_END = 2255;
 constexpr float CLIMB_START = 1420, CLIMB_END = 1690, CLIMB_HEIGHT = 6;   // up to the Upper Town
 
 /** The districts that are ruins until their board is cleared: the Lower Town, the Granary, the Great Bath, the
@@ -30,7 +30,7 @@ int district_of(int zone);
 /** Where the landmarks stand, metres along the road. */
 namespace at {
 constexpr float SIGNBOARD = 248, GRANARY = 835, GREAT_BATH = 1212, ASSEMBLY = 1300, STUPA = 1378, GREAT_HALL = 1835,
-                DANCING_GIRL = 1974;
+                DANCING_GIRL = 2226;
 }
 
 struct Sample {
@@ -57,6 +57,9 @@ struct Prop {
 enum class Tool : uint8_t { None, Seal, Grain, Bell, Beads };
 struct Pickup { float x, z, s; Tool tool; };
 struct Pothole { float x, z, r, s; };
+/** A lamp post on the lamp road, just off the road's edge: light it by driving close past. */
+struct Beacon { float x, z, s; };
+constexpr float BEACON_REACH = 2.6f;
 
 /** A mud-brick house's footprint and height, from its seed (the collider and the model agree). */
 struct HouseShape { float w, d, h; bool upper; };
@@ -75,6 +78,7 @@ struct Track {
     std::vector<Pickup> pickups;
     std::vector<Pothole> potholes;
     std::vector<float> tumbleweed_lanes;   // where tumbleweeds blow across the desert road
+    std::vector<Beacon> beacons;           // the lamp road's lamp posts, in order
     // the canal road's one shortcut: a plank bridge across the mouth of its first bend, gated unless earned
     V2 shortcut_a, shortcut_b;
     float shortcut_from = 0, shortcut_to = 0;   // where it leaves and rejoins the road

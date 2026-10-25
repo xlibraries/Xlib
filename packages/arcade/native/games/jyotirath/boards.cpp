@@ -1,6 +1,8 @@
-// Chapter I's boards, laid on the road through each district: rows of nodes along it, in lanes across it.
+// Chapter I's boards, laid on the road through each district: rows of nodes along it, in lanes across it; and the
+// last, a ring round the Dancing Girl's plinth.
 #include "go.h"
 
+#include <cmath>
 #include <map>
 
 namespace jr {
@@ -38,6 +40,7 @@ Piece cart(std::vector<int> lane, int start, int dir = 1) { Piece p{ PieceKind::
 Piece villager(std::vector<int> loop, int start) { Piece p{ PieceKind::Villager, loop[start], loop }; p.loop = true; return p; }
 Piece bull(std::vector<int> lane, int start, int dir) { Piece p{ PieceKind::Bull, lane[start], lane }; p.dir = dir; return p; }
 Piece sack(int node) { return Piece{ PieceKind::Sack, node, {} }; }
+Piece thief(std::vector<int> ring, int start) { Piece p{ PieceKind::Thief, ring[start], ring }; p.loop = true; return p; }
 
 /** The Lower Town: carts, watchmen and a zebu in narrow lanes. Three lanes: 0 left, 1 middle, 2 right. */
 Board lower_town() {
@@ -183,12 +186,47 @@ Board upper_town() {
     return b;
 }
 
+/** The Bronze Thief: a ring of twelve nodes round the Dancing Girl's plinth, an outer walk round that, spokes between
+ *  them, a path in from the road. He runs round the inner ring away from you: push a sack onto it to cut him off,
+ *  then corner him. */
+Board bronze_thief() {
+    Board b;
+    b.name = "The Bronze Thief";
+    const float c = at::DANCING_GIRL, PI = 3.14159265f;
+    constexpr int N = 10;
+    // k counts round from the side facing the road (k = 0), towards the right of the way in
+    const auto polar = [&](float r, float k) { const float a = k * 2 * PI / N; return b.add(c - r * std::cos(a), r * std::sin(a)); };
+    std::vector<int> ring, outer(N, -1), spoke(N, -1);
+    for (int k = 0; k < N; k++) ring.push_back(polar(7.5f, static_cast<float>(k)));
+    for (int k = 0; k < N; k++) b.link(ring[k], ring[(k + 1) % N]);
+    for (int k = 1; k < N; k++) outer[k] = polar(13.5f, static_cast<float>(k));
+    for (int k = 1; k + 1 < N; k++) b.link(outer[k], outer[k + 1]);
+    // the way in from the road, splitting to the ring and both ends of the outer walk
+    const int e0 = polar(21, 0), e1 = polar(16.5f, 0), e2 = polar(11.5f, 0);
+    b.link(e0, e1); b.link(e1, e2); b.link(e2, ring[0]);
+    b.link(e1, outer[1]); b.link(e1, outer[N - 1]);
+    // spokes from the ring out to the walk, a node between
+    for (int k : { 3, 5, 7 }) { spoke[k] = polar(10.5f, static_cast<float>(k)); b.link(ring[k], spoke[k]); b.link(spoke[k], outer[k]); }
+    b.start = e0;
+    b.exit = -1;
+    // his lookouts watch the spots you'd push the sacks from
+    b.pieces = {
+        thief(ring, 5),
+        sack(spoke[3]),
+        sack(spoke[7]),
+        watchman(outer[4], outer[3], 2),
+        watchman(outer[6], outer[7], 2),
+    };
+    b.items = { { outer[5], Tool::Beads }, { outer[2], Tool::Bell } };
+    return b;
+}
+
 } // namespace
 
 const Board& chapter_board(int i) {
     static std::vector<Board> boards;
     if (boards.empty()) {
-        boards = { lower_town(), granary(), great_bath(), citadel(), upper_town() };
+        boards = { lower_town(), granary(), great_bath(), citadel(), upper_town(), bronze_thief() };
         for (Board& b : boards) b.par = solve(b);
     }
     return boards[i];

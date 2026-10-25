@@ -1043,6 +1043,7 @@ test.describe('Arcade', () => {
     type JrState = {
         stage: number; beat: number; kind: number; talking: boolean; goal: string; run: number; s: number; shortcut: boolean;
         player: number; moves: number; par: number; won: boolean; nudges: number; ready: boolean; bag: string[]; restored: number[];
+        fragment: boolean; phase: number; hint: number; lamps: number; light: number; rolling: boolean;
     };
     type Jr = { xlGame: { _jr_state_json(): number; _jr_autopilot(on: number): void; _jr_goto(beat: number): void; UTF8ToString(p: number): string; _free(p: number): void } };
     const openJyotiRath = async (page: Page) => {
@@ -1058,7 +1059,9 @@ test.describe('Arcade', () => {
         });
         /** Space until the words are done. */
         const listen = async () => { for (let i = 0; i < 30 && (await state()).talking; i++) { await page.keyboard.press('Space'); await page.waitForTimeout(120); } };
-        return { game, state, listen };
+        /** Space through a scene (words, the chariot rolling, the light) until play begins. */
+        const untilPlay = async () => { for (let i = 0; i < 60 && (await state()).stage !== 2; i++) { await page.keyboard.press('Space'); await page.waitForTimeout(150); } };
+        return { game, state, listen, untilPlay };
     };
 
     test('JyotiRath: the chariot lands on the desert road, the story talks, and the road leads to the Lower Town board', async ({ page }) => {
@@ -1079,29 +1082,58 @@ test.describe('Arcade', () => {
         expect((await state()).bag.length).toBeGreaterThan(0);   // the tutorial's seal came along
     });
 
-    test('JyotiRath boards: W steps one node, clearing the Lower Town restores it, and how it was solved picks the canal road', async ({ page }) => {
+    test('JyotiRath boards: someone stops the chariot, the lanes light up, a tip shows the keys, and W steps one node', async ({ page }) => {
         test.setTimeout(120_000);
-        const { game, state, listen } = await openJyotiRath(page);
+        const { game, state, untilPlay } = await openJyotiRath(page);
         await game.locator('canvas').focus();
         await game.evaluate(el => (el as unknown as Jr).xlGame._jr_goto(1));
         await expect.poll(async () => (await state()).talking).toBe(true);
-        await listen();
+        expect(await state()).toMatchObject({ stage: 6, beat: 1, phase: 1 });   // arriving: the gatekeeper talks
+        await untilPlay();
         expect(await state()).toMatchObject({ stage: 2, beat: 1, kind: 1, player: 0, moves: 0 });
         expect((await state()).par).toBeGreaterThan(20);
+        await expect.poll(async () => (await state()).hint).toBe(0);   // the first tip: how to move
         await page.keyboard.press('KeyW');
         await expect.poll(async () => (await state()).moves).toBe(1);
         expect((await state()).player).toBe(1);
+        await expect.poll(async () => (await state()).hint).not.toBe(0);   // learnt: it doesn't come back
+    });
+
+    test('JyotiRath: clearing the Lower Town restores it, and someone sends you off on the canal road its way', async ({ page }) => {
+        test.setTimeout(120_000);
+        const { game, state, untilPlay } = await openJyotiRath(page);
+        await game.locator('canvas').focus();
+        await game.evaluate(el => (el as unknown as Jr).xlGame._jr_goto(1));
+        await untilPlay();
         // the solver plays on: the board clears, the district is restored, the results card waits
         await game.evaluate(el => (el as unknown as Jr).xlGame._jr_autopilot(1));
         await expect.poll(async () => (await state()).beat, { timeout: 60_000 }).toBe(2);
         expect((await state()).restored[0]).toBe(1);
-        // past the results card, the canal road's drive begins
-        await expect.poll(async () => (await state()).stage, { timeout: 15_000 }).not.toBe(4);
+        // past the results card, someone sends you off and the chariot rolls out into the canal road's drive
+        await expect.poll(async () => (await state()).stage, { timeout: 15_000 }).toBe(7);
+        await expect.poll(async () => (await state()).stage, { timeout: 20_000 }).toBe(2);
         const after = await state();
-        expect(after.kind).toBe(0);   // the canal road
+        expect(after, JSON.stringify(after)).toMatchObject({ beat: 2, kind: 0 });   // the canal road
+        expect(after.s).toBeGreaterThan(450);   // already under way
         // nudging nobody earns the shortcut; otherwise it's the zebu or the clock
         expect(['Reach', 'Chase', 'Clock']).toContain(after.goal);
         expect(after.shortcut).toBe(after.goal === 'Reach');
+    });
+
+    test('JyotiRath finale: the lamp road lights the way, the Bronze Thief is cornered, and the Dancing Girl is back', async ({ page }) => {
+        test.setTimeout(180_000);
+        const { game, state } = await openJyotiRath(page);
+        await game.evaluate(el => (el as unknown as Jr).xlGame._jr_goto(9));
+        await game.evaluate(el => (el as unknown as Jr).xlGame._jr_autopilot(1));
+        await expect.poll(async () => (await state()).goal, { timeout: 15_000 }).toBe('Lamps');
+        await expect.poll(async () => (await state()).lamps, { timeout: 30_000 }).toBeGreaterThan(2);
+        await expect.poll(async () => (await state()).beat, { timeout: 60_000 }).toBe(10);   // the thief's board
+        await expect.poll(async () => (await state()).stage, { timeout: 30_000 }).toBe(2);
+        expect((await state()).par).toBeGreaterThan(15);
+        await expect.poll(async () => (await state()).beat, { timeout: 60_000 }).toBe(11);   // caught
+        expect((await state()).won).toBe(true);
+        await expect.poll(async () => (await state()).player, { timeout: 20_000 }).toBe(-1);   // past his card, the finale
+        expect((await state()).kind).toBe(2);
     });
 
     test('Turbo Trails: the desktop volume slider sets the game volume, and gas rumbles a gamepad', async ({ page }) => {

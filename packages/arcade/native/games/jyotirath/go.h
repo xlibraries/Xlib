@@ -4,11 +4,13 @@
 //  - watchmen look one way, as far as their sight reaches (pillars and sacks block it);
 //  - a zebu bull charges down its lane while you're in line with it;
 //  - sacks can be pushed one node along a straight line, to block a lane or a sight line;
-//  - stepping stones in the Great Bath sink every other turn.
+//  - stepping stones in the Great Bath sink every other turn;
+//  - the Bronze Thief runs round his ring, always to the spot on it farthest from you: corner him and step onto him.
 // Step onto someone from the side or behind and you nudge them aside; be where one is about to go, in front of a
 // watchman or on a sunken stone, and you're caught (the board starts over). Tools you carry change a turn: the seal
 // (a watchman beside you waves you through), the bell (watchmen turn round), beads (carts and villagers wait), grain
-// (the zebu stops to eat). Graphics-free; a solver finds par.
+// (the zebu stops to eat). Most boards are cleared by reaching the exit; the last has none: catch the thief.
+// Graphics-free; a solver finds par.
 #pragma once
 #include "track.h"
 
@@ -22,12 +24,12 @@ struct GoNode {
     int sink = -1;         // a stepping stone: under water on turns where (turn + sink) is odd; -1 for solid ground
 };
 
-enum class PieceKind { Cart, Watchman, Bull, Sack, Villager };
+enum class PieceKind { Cart, Watchman, Bull, Sack, Villager, Thief };
 
 struct Piece {
     PieceKind kind;
     int node;
-    std::vector<int> lane;   // a cart's, villager's or bull's track, in order
+    std::vector<int> lane;   // a cart's, villager's, bull's or the thief's track, in order
     int dir = 1;             // which way along the lane it's heading (+1 up the list, -1 down)
     int facing = -1;         // a watchman's: the node he looks at
     int sight = 1;           // how many nodes a watchman sees
@@ -41,7 +43,7 @@ struct Board {
     const char* name = "";
     std::vector<GoNode> nodes;
     std::vector<std::vector<int>> adj;
-    int start = 0, exit = 0;
+    int start = 0, exit = 0;      // exit -1: there's a thief to catch instead
     std::vector<BoardItem> items;
     std::vector<Piece> pieces;
     int par = 0;                  // the fewest moves to clear it without tools (from the solver)
@@ -77,7 +79,7 @@ struct GoState {
     Outcome use(int slot);
     /** Where a piece will step on its next turn (its own node if it stays). */
     int next_of(const Piece& p) const;
-    /** The nodes a piece threatens: a watchman's sight line, a cart's or bull's next step. */
+    /** The nodes a piece threatens: a watchman's sight line, a cart's or bull's next step (the thief threatens nobody). */
     std::vector<int> threats(const Piece& p) const;
     bool threatens(const Piece& p, int node) const;
     int items_found() const;
@@ -96,8 +98,9 @@ int solve(const Board& b);
 /** The first move of a shortest way to clear the board from here (without tools), or -1. */
 int best_move(const GoState& s);
 
-/** Chapter I's boards: 0 the Lower Town, 1 the Granary, 2 the Great Bath, 3 the Citadel, 4 the Upper Town. */
-constexpr int BOARDS = 5;
+/** Chapter I's boards: 0 the Lower Town, 1 the Granary, 2 the Great Bath, 3 the Citadel, 4 the Upper Town, and 5
+ *  the Bronze Thief in the Dancing Girl's plaza. */
+constexpr int BOARDS = 6;
 const Board& chapter_board(int i);
 
 } // namespace jr

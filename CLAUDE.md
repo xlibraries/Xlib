@@ -91,9 +91,11 @@ things work.
   `art.h` draws, and the scene goes through a post-process shader. Its global leaderboard is
   `/api/arcade/leaderboard` (`lib/leaderboard.ts`, Redis sorted sets).
   JyotiRath (`docs/jyotirath-plan.md`) is the same design told as a story in 3D. Chapter I, Mohenjo-Daro, alternates
-  short drives (`drive.cpp`: reach, chase, clock, deliver, storm) with Hitman GO-style boards in the districts (`go.cpp`
-  rules and solver, `boards.cpp`); `chapter.cpp` carries the bag of tools between them and lets how a board was solved
-  pick the next drive; districts are ruins (`models.cpp` ruinify) until their board is cleared. Every model is made in
+  short drives (`drive.cpp`: reach, chase, clock, deliver, storm, lamps) with Hitman GO-style boards in the districts
+  (`go.cpp` rules and solver, `boards.cpp`, ending with the Bronze Thief's board); `chapter.cpp` carries the bag of tools
+  between them and lets how a board was solved pick the next drive; districts are ruins (`models.cpp` ruinify) until
+  their board is cleared. Between beats `main.cpp` plays scenes (the chariot rolls itself, a local talks, a wave of light
+  raises the board; the camera blends between modes); `hints.cpp` teaches each board rule once, when it's useful. Every model is made in
   code (`mesh.h`); shadows, MSAA and a tilt-shift post pass in `shaders/jyotirath.glsl`. All but `main.cpp` is
   graphics-free and tested natively.
 - Packages: `terminal` (Terminal + Calc), `browser` (Brave + server endpoints), `music` (+ the

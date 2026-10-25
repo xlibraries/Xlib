@@ -37,6 +37,7 @@ layout(binding=0) uniform lit_vs_params {
     mat4 light_vp;
     vec4 tint;        // rgb: colour multiplier, a: unused
     vec4 depth_map;   // x, y: clip z to 0..1 for the shadow map; z: time
+    vec4 reveal;      // a wave of light: xy its centre (world x, z), z its radius, w 1 while it runs (0: off)
 };
 in vec3 position;
 in vec3 normal;
@@ -52,13 +53,20 @@ void main() {
     vec4 wp = model * vec4(position, 1.0);
     // the river breathes
     if (material.w > 0.9 && normal.y > 0.9) wp.y += 0.012 * sin(wp.x * 2.3 + depth_map.z * 1.6) * cos(wp.z * 1.7 - depth_map.z * 1.3);
+    // the wave of light: beyond it things wait sunk below the road, and they rise and glow as it passes
+    float glow = 0.0;
+    if (reveal.w > 0.5) {
+        float d = distance(wp.xz, reveal.xy);
+        wp.y -= smoothstep(reveal.z - 2.5, reveal.z, d) * 0.9;
+        glow = exp(-(d - reveal.z + 1.2) * (d - reveal.z + 1.2) * 0.8);
+    }
     world_pos = wp.xyz;
     world_normal = mat3(model) * normal;
     color = color0;
     mat_params = material;
     vec4 lp = light_vp * wp;
     light_pos = vec3(lp.xy * 0.5 + 0.5, lp.z * depth_map.x + depth_map.y);
-    tint_rgb = tint.rgb;
+    tint_rgb = tint.rgb * (1.0 + 2.5 * glow * vec3(1.0, 0.8, 0.45));
     gl_Position = view_proj * wp;
 }
 @end
@@ -66,7 +74,7 @@ void main() {
 @fs fs_lit
 layout(binding=1) uniform lit_fs_params {
     vec4 sun_dir;       // xyz: towards the sun, w: intensity
-    vec4 sun_color;     // linear
+    vec4 sun_color;     // linear; w: extra glow for lamps and flames (at dusk)
     vec4 sky_top;       // linear; w: exposure
     vec4 sky_horizon;   // linear
     vec4 ground_color;  // linear (the sand's bounce)
@@ -184,7 +192,7 @@ void main() {
     // a rim of sky light on silhouettes (stronger on the characters)
     float rim = pow(1.0 - ndv, 3.0) * (skin || eye ? 0.4 : 0.16);
     col += sky_horizon.rgb * rim * ao * (0.5 + 0.5 * sh);
-    col += base * emit * 4.0;
+    col += base * emit * 4.0 * (1.0 + sun_color.w);
 
     if (water) {
         float fres = 0.03 + 0.97 * pow(1.0 - ndv, 5.0);

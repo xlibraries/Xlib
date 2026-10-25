@@ -47,6 +47,28 @@ How you solve a board changes the drive after it:
 - **Story through objects**: some artifacts are clues, not tools (the Buddhist fragment points to Ajanta); they
   unlock the doc's lore and the next chapter.
 
+### Between beats: scenes, not cuts
+
+The chariot is a *jyoti rath*, a chariot of light, and that's the thread between the two modes:
+
+- **Arriving at a board**: the drive ends a little short of the district and the chariot rolls itself the rest of
+  the way. Someone at the district's edge stops it (a gatekeeper, the granary keeper, the bath keeper, a guard, a
+  market crier: "No racing in the lanes"), then the sun on its prow flares and a ring of light runs out over the
+  ruins; the board's paths and pieces rise where it passes. The camera rises with it.
+- **Leaving a board**: whoever sends you off on the next drive says so beside the road (a potter with the
+  shortcut, a bell-ringer, the zebu you annoyed, the granary keeper loading the sacks, a guard pointing at the
+  storm, a lamplighter); the board sinks back into the road and the chariot rolls out, counting down, and is
+  handed over already moving.
+- **Board to board** (the Bath to the Citadel): the chariot walks itself on to the next district's edge.
+
+### Hand-holding on the boards
+
+Each rule is taught once, when it's useful: the first move shows the keys over the nodes you can step to; a red
+arrow next to you explains carts; an eye next to you explains watchmen; someone with their back to you explains
+nudging; a tool that would help right now explains that tool and lights its slot; sacks, sinking stones, pillars,
+the zebu's lane and the exit each get a tip the first time they matter. A tip shows as a card with a golden arrow
+over the node it's about and goes once you act. What's been learnt is kept on the device.
+
 Between chapters (later): coins for the doc's upgrades (Mohenjo-Daro: Engine 400), a museum of artifacts,
 cosmetics.
 
@@ -63,7 +85,9 @@ cosmetics.
 | 7 | **Board** | The Citadel (the Assembly Hall and the Great Stupa): pillars that block long sight lines; the fragment |
 | 8 | Drive | The climb: a dust storm closing in from behind |
 | 9 | **Board** | The Upper Town and the Great Hall: everything at once |
-| 10 | Story | The Dancing Girl; the Guide; the fragment points to Ajanta |
+| 10 | Drive | The lamp road at dusk: light the lamps as you pass (each buys a little more light) before night falls |
+| 11 | **Board** | The Bronze Thief, round the Dancing Girl's plinth: he runs round his ring to wherever is farthest from you; push a sack onto it to cut him off, deal with his lookouts, corner him |
+| 12 | Story | The Dancing Girl back on her plinth; the Guide; the fragment points to Ajanta |
 
 A failed drive or a caught board starts that beat over; nothing else is lost. Progress (the beat, your tools,
 the districts restored) is saved on the device.
@@ -85,12 +109,13 @@ the districts restored) is saved on the device.
 | --- | --- |
 | `mesh.h/.cpp` | Mesh builder and primitives |
 | `track.h/.cpp` | The road (a turtle walk of arcs), its zones, the land, heights, props, colliders |
-| `go.h/.cpp` | Boards: pieces, sacks, sinking stones, sight lines, tools, the rules, the solver |
-| `boards.cpp` | Chapter I's five boards |
-| `drive.h/.cpp` | Handling, collisions and a drive's goal (reach, chase, clock, deliver, storm) |
+| `go.h/.cpp` | Boards: pieces, sacks, sinking stones, sight lines, the thief, tools, the rules, the solver |
+| `boards.cpp` | Chapter I's six boards |
+| `hints.h/.cpp` | Which tip fits the moment on a board, and what it says |
+| `drive.h/.cpp` | Handling, collisions and a drive's goal (reach, chase, clock, deliver, storm, lamps); rolling starts |
 | `chapter.h/.cpp` | The chapter's beats, your tools, the consequences of each board, restoration, saving |
-| `story.h/.cpp` | What's said, beat by beat |
+| `story.h/.cpp` | What's said, beat by beat, and by whom between beats |
 | `models.h/.cpp` | Every model; the land in chunks, the districts ruined and alive |
-| `main.cpp` | Rendering, the camera, both modes, dialogue and HUD, sound |
+| `main.cpp` | Rendering, the camera blending between the modes, the scenes between beats, dialogue and HUD, sound |
 
 Everything but `main.cpp` is graphics-free and tested natively.

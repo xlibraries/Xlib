@@ -292,7 +292,7 @@ TEST_CASE("the canal and the land's edge end a drive") {
 }
 
 TEST_CASE("every drive in the chapter can be finished by the autopilot, whatever came before") {
-    for (int run = 0; run < 4; run++) {
+    for (int run = 0; run < 5; run++) {
         for (Style style : { Style::Steady, Style::Quiet, Style::Rough, Style::Slow }) {
             Chapter c;
             c.lower_town = style;
@@ -303,6 +303,7 @@ TEST_CASE("every drive in the chapter can be finished by the autopilot, whatever
             CHECK(r.fail == Fail::None);
             if (spec.goal == Goal::Deliver) CHECK(r.cargo >= 3);
             if (spec.goal == Goal::Clock) CHECK(r.time < spec.time);
+            if (spec.goal == Goal::Lamps) { CHECK(r.lamps == static_cast<int>(track().beacons.size())); CHECK(r.light > 0); }
             if (run != 1) break;   // only the canal road depends on the style
         }
     }
@@ -358,24 +359,72 @@ TEST_CASE("chasers catch you if you dawdle; the clock runs out; potholes spill t
     CHECK(d.run.cargo == before - 1);
 }
 
+TEST_CASE("the lamp road: driving close past a lamp lights it and buys light; the dark ends the drive") {
+    const Track& t = track();
+    REQUIRE(t.beacons.size() == 12);
+    for (const Beacon& b : t.beacons) {
+        CHECK(t.zone(b.s) == Zone::LampRoad);
+        float lat = 0;
+        t.nearest(b.x, b.z, &lat, b.s);
+        CHECK(std::fabs(lat) > t.road_half(b.s));                        // off the road...
+        CHECK(std::fabs(lat) - t.road_half(b.s) < BEACON_REACH - 0.5f);  // ...but close enough to light from it
+    }
+    Chapter c;
+    const RunSpec spec = c.run_spec(4);
+    CHECK(spec.goal == Goal::Lamps);
+    Game g(track());
+    g.start(spec, {});
+    const float light = g.run.light;
+    g.place(t.beacons[0].s);
+    float lat = 0;
+    t.nearest(t.beacons[0].x, t.beacons[0].z, &lat, t.beacons[0].s);
+    const Sample p = t.at(t.beacons[0].s);
+    const float l = lat - (lat > 0 ? 1.5f : -1.5f);
+    g.car.x = p.x - p.tz * l; g.car.z = p.z + p.tx * l;
+    g.step({}, 1.0f / 120);
+    CHECK(g.run.lamps == 1);
+    CHECK(g.run.lit[0]);
+    CHECK(g.run.light > light);
+    CHECK((g.run.events & EV_LAMP) != 0);
+    Game dark(track());
+    dark.start(spec, {});
+    for (int i = 0; i < 120 * 20 && dark.run.state == RunState::Driving; i++) dark.step({}, 1.0f / 120);   // sit in the dusk
+    CHECK(dark.run.fail == Fail::Dark);
+}
+
+TEST_CASE("a drive handed over from a scene starts already rolling") {
+    Chapter c;
+    const RunSpec spec = c.run_spec(2);
+    CHECK(spec.speed > 0);
+    Game g(track());
+    g.start(spec, {});
+    CHECK(g.car.forward_speed() == doctest::Approx(spec.speed));
+    g.step({}, 1.0f / 120);
+    CHECK(g.run.s > spec.from);
+    CHECK(c.run_spec(0).speed == 0);   // the first drive drops from the sky
+}
+
 // ---------- the chapter ----------
 
-TEST_CASE("the chapter alternates drives and boards, five boards to four drives, ending at the Dancing Girl") {
+TEST_CASE("the chapter alternates drives and boards, six boards to five drives, ending at the Dancing Girl") {
     const std::vector<Beat>& beats = chapter_beats();
-    REQUIRE(beats.size() == 10);
+    REQUIRE(beats.size() == 12);
     int boards = 0, drives = 0;
     for (const Beat& b : beats) { boards += b.kind == BeatKind::Board; drives += b.kind == BeatKind::Drive; }
-    CHECK(boards == 5);
-    CHECK(drives == 4);
+    CHECK(boards == BOARDS);
+    CHECK(drives == 5);
     CHECK(beats.front().kind == BeatKind::Drive);
+    CHECK(beats[beats.size() - 2].kind == BeatKind::Board);   // the thief
+    CHECK(beats[beats.size() - 2].index == BOARDS - 1);
     CHECK(beats.back().kind == BeatKind::Finale);
-    // each drive starts past the board before it, and ends before the next board begins
+    // each drive starts a roll past the board before it, and ends a roll short of the next
     Chapter c;
     for (size_t i = 0; i < beats.size(); i++) {
         if (beats[i].kind != BeatKind::Drive) continue;
         const RunSpec r = c.run_spec(beats[i].index);
-        if (i + 1 < beats.size() && beats[i + 1].kind == BeatKind::Board) { const Board& n = chapter_board(beats[i + 1].index); CHECK(r.to < n.nodes[n.start].s); }
-        if (i > 0 && beats[i - 1].kind == BeatKind::Board) { const Board& p = chapter_board(beats[i - 1].index); CHECK(r.from > p.nodes[p.exit].s); }
+        CHECK(r.to > r.from + 150);
+        if (i + 1 < beats.size() && beats[i + 1].kind == BeatKind::Board) { const Board& n = chapter_board(beats[i + 1].index); CHECK(r.to == doctest::Approx(n.nodes[n.start].s - ROLL_IN)); }
+        if (i > 0 && beats[i - 1].kind == BeatKind::Board) { const Board& p = chapter_board(beats[i - 1].index); CHECK(r.from == doctest::Approx(p.nodes[p.exit].s + ROLL_OUT)); }
     }
 }
 
@@ -439,8 +488,9 @@ TEST_CASE("the chapter saves and loads") {
     c.fragment = true;
     c.last = Style::Rough;
     c.lower_town = Style::Quiet;
-    c.stars[0] = 3; c.stars[2] = 1;
+    c.stars[0] = 3; c.stars[2] = 1; c.stars[5] = 2;
     c.delivered = 4;
+    c.lamps = 9;
     const Chapter d = Chapter::load(c.save());
     CHECK(d.beat == 6);
     CHECK(d.bag == c.bag);
@@ -452,6 +502,10 @@ TEST_CASE("the chapter saves and loads") {
     CHECK(d.lower_town == Style::Quiet);
     CHECK(d.stars[0] == 3);
     CHECK(d.delivered == 4);
+    CHECK(d.lamps == 9);
+    CHECK(d.stars[5] == 2);
+    CHECK(Chapter::load("1;9;;11111;1;0;0;33333;6").beat == static_cast<int>(chapter_beats().size()) - 1);   // an old save at the end
+    CHECK(Chapter::load("1;4;;11000;0;0;0;33000;0").beat == 4);
     CHECK(Chapter::load("rubbish").beat == 0);
     CHECK(Chapter::load("").bag.empty());
 }
@@ -467,12 +521,36 @@ TEST_CASE("every beat has something to say; the canal road's depends on the Lowe
     q.lower_town = Style::Quiet; r.lower_town = Style::Rough;
     CHECK(std::string(beat_intro(q)[0].text) != std::string(beat_intro(r)[0].text));
     Chapter with, without;
-    with.beat = without.beat = 9;
+    with.beat = without.beat = static_cast<int>(chapter_beats().size()) - 1;
     with.fragment = true;
     CHECK(std::string(beat_intro(with).back().text).find("Ajanta") != std::string::npos);
     CHECK(std::string(beat_intro(without).back().text).find("Citadel") != std::string::npos);
     for (int b = 0; b < BOARDS; b++) CHECK_FALSE(board_outro(b).empty());
     CHECK(std::string(fail_text(Fail::Caught)).size() > 5);
+    CHECK(std::string(fail_text(Fail::Dark)).size() > 5);
+}
+
+TEST_CASE("someone stops the chariot at every board, and someone sends it off on every drive after one") {
+    for (int b = 0; b < BOARDS; b++) {
+        const std::vector<Line>& lines = arrival_lines(b);
+        REQUIRE_FALSE(lines.empty());
+        bool local = false;
+        for (const Line& l : lines) { CHECK(std::string(speaker_name(l)).size() > 2); local |= l.who == Speaker::Local; }
+        CHECK(local);
+    }
+    CHECK(arrival_figure(BOARDS - 1) == Figure::Thief);
+    Chapter c;
+    for (c.beat = 0; c.beat < static_cast<int>(chapter_beats().size()); c.beat++) {
+        const Beat& b = chapter_beats()[c.beat];
+        if (b.kind != BeatKind::Drive || c.beat == 0) continue;
+        CHECK(departure_figure(c) != Figure::None);
+        bool local = false;
+        for (const Line& l : beat_intro(c)) local |= l.who == Speaker::Local;
+        CHECK(local);   // whoever stands there has a say
+    }
+    c.beat = 2;
+    c.lower_town = Style::Rough;
+    CHECK(departure_figure(c) == Figure::Zebu);
 }
 
 // ---------- models ----------
@@ -508,7 +586,11 @@ TEST_CASE("the land is built in chunks; every district has an alive and a ruined
 }
 
 TEST_CASE("the people, the tools and the board pieces are well-formed") {
-    for (const Mesh& m : { build_guide(), build_watchman(), build_zebu(), build_villager(3), build_villager(8), build_sack(), build_stone(), build_handcart(), build_tumbleweed(), build_fragment(), build_gates(track()) }) check_mesh(m);
+    for (const Mesh& m : { build_guide(), build_watchman(), build_zebu(), build_villager(3), build_villager(8), build_sack(), build_stone(), build_handcart(), build_tumbleweed(), build_fragment(), build_gates(track()),
+                           build_statue(), build_thief(), build_beacon(false), build_beacon(true), build_pointer(), build_glow_ring() }) check_mesh(m);
+    CHECK(bounds(build_statue()).hi.y > 1.6f);
+    CHECK(bounds(build_thief()).hi.y > 1.6f);
+    CHECK(bounds(build_beacon(true)).hi.y > bounds(build_beacon(false)).hi.y);   // a flame on top
     for (Tool k : { Tool::Seal, Tool::Bell, Tool::Beads, Tool::Grain }) {
         const Mesh m = build_tool(k);
         check_mesh(m);

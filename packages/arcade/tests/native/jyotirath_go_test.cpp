@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 using namespace jr;
 
@@ -37,11 +38,11 @@ Piece watchman(int node, int facing, int sight = 1) { Piece p{ PieceKind::Watchm
 
 TEST_CASE("every board of the chapter lies on its district's road, joined up, and can be cleared") {
     const Track t = build_track();
-    const Zone zones[BOARDS] = { Zone::LowerTown, Zone::Granary, Zone::GreatBath, Zone::Citadel, Zone::UpperTown };
+    const Zone zones[BOARDS] = { Zone::LowerTown, Zone::Granary, Zone::GreatBath, Zone::Citadel, Zone::UpperTown, Zone::Plaza };
     for (int i = 0; i < BOARDS; i++) {
         const Board& b = chapter_board(i);
         INFO(b.name);
-        CHECK(b.nodes.size() > 25);
+        CHECK(b.nodes.size() >= 25);
         for (const GoNode& n : b.nodes) CHECK(std::fabs(n.lat) < t.road_half(n.s));
         CHECK(t.zone(b.nodes[b.start].s) == zones[i]);
         for (size_t k = 0; k < b.adj.size(); k++) for (int j : b.adj[k]) CHECK(b.adjacent(j, static_cast<int>(k)));
@@ -60,6 +61,20 @@ TEST_CASE("every board of the chapter lies on its district's road, joined up, an
     int clues = 0;
     for (const BoardItem& it : chapter_board(3).items) clues += it.tool == Tool::None;
     CHECK(clues == 1);   // the fragment, in the Citadel
+    // the last board has no exit: a thief round the Dancing Girl's plinth, who can't be caught without a sack
+    const Board& thief = chapter_board(BOARDS - 1);
+    CHECK(thief.exit == -1);
+    int thieves = 0;
+    for (const Piece& p : thief.pieces) thieves += p.kind == PieceKind::Thief;
+    CHECK(thieves == 1);
+    for (const GoNode& n : thief.nodes) {
+        CHECK(std::hypot(n.s - at::DANCING_GIRL, n.lat) > 6);   // clear of the plinth and its flower beds
+        const Sample p = t.at(n.s);
+        for (const Prop& q : t.props) if (q.kind == PropKind::Guide) CHECK(std::hypot(q.x - (p.x - p.tz * n.lat), q.z - (p.z + p.tx * n.lat)) > 2.5f);   // and the Guide
+    }
+    Board no_sacks = thief;
+    no_sacks.pieces.erase(std::remove_if(no_sacks.pieces.begin(), no_sacks.pieces.end(), [](const Piece& p) { return p.kind == PieceKind::Sack; }), no_sacks.pieces.end());
+    CHECK(solve(no_sacks) == -1);
 }
 
 TEST_CASE("following the best move clears every board in par") {
@@ -248,4 +263,35 @@ TEST_CASE("items go in the bag, two at most; a clue always; stars for clearing, 
     CHECK(t.moves == 0);
     CHECK(t.items_found() == 0);
     CHECK(t.player == b.start);
+}
+
+TEST_CASE("the thief runs round his ring to the spot farthest from you, can't pass a sack, and is caught when cornered") {
+    // a ring of eight, a path in to node 0 from 8
+    Board b;
+    for (int k = 0; k < 8; k++) b.add(std::cos(k * 0.785f) * 6, std::sin(k * 0.785f) * 6);
+    for (int k = 0; k < 8; k++) b.link(k, (k + 1) % 8);
+    const int in = b.add(-12, 0);
+    b.link(in, 4);
+    b.start = in;
+    b.exit = -1;
+    std::vector<int> ring = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    Piece thief{ PieceKind::Thief, 0, ring };
+    thief.loop = true;
+    b.pieces.push_back(thief);
+    GoState s(b);
+    CHECK(s.threats(s.pieces[0]).empty());
+    CHECK(s.move(4) == Outcome::Moved);    // onto the ring opposite him: he stays, nowhere is farther
+    CHECK(s.pieces[0].node == 0);
+    CHECK(s.move(3) == Outcome::Moved);    // you come round one way, he goes round the other
+    CHECK(s.pieces[0].node == 7);
+    CHECK(solve(b) == -1);                 // round and round, for ever
+    // a sack on the ring cuts it: now he can be cornered
+    Board cut = b;
+    cut.pieces.push_back(Piece{ PieceKind::Sack, 6, {} });
+    const int par = solve(cut);
+    CHECK(par > 0);
+    GoState t(cut);
+    while (!t.won && t.moves < 40) { const int m = best_move(t); REQUIRE(m >= 0); t.move(m); CHECK(t.pieces[0].node != 6); }
+    CHECK(t.won);
+    CHECK(t.pieces[0].out);
 }

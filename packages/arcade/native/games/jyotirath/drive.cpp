@@ -71,9 +71,12 @@ void Game::start(const RunSpec& spec, std::vector<Tool> bag) {
     run.bag = std::move(bag);
     run.cargo = spec.cargo;
     run.picked.assign(track->pickups.size(), false);
+    run.lit.assign(track->beacons.size(), false);
+    run.light = spec.goal == Goal::Lamps ? spec.time : 0;
     clock = 0;
     last_pothole = bag_full_nag = -1;
     place(spec.from);
+    car.vx = std::cos(car.yaw) * spec.speed; car.vz = std::sin(car.yaw) * spec.speed;
     run.chaser = spec.goal == Goal::Chase ? spec.from - CHASE_GAP : spec.goal == Goal::Storm ? spec.from - STORM_GAP : 0;
     if (spec.landing) { car.y += 16; run.state = RunState::Landing; }
 }
@@ -197,6 +200,17 @@ void Game::step(const Input& raw, float dt) {
         run.event_at = { p.x, p.z };
     }
 
+    // the lamp road's lamps light as you pass close by
+    if (run.spec.goal == Goal::Lamps) for (size_t k = 0; k < t.beacons.size(); k++) {
+        const Beacon& b = t.beacons[k];
+        if (run.lit[k] || (b.x - car.x) * (b.x - car.x) + (b.z - car.z) * (b.z - car.z) > BEACON_REACH * BEACON_REACH) continue;
+        run.lit[k] = true;
+        run.lamps++;
+        run.light += LAMP_TIME;
+        run.events |= EV_LAMP;
+        run.event_at = { b.x, b.z };
+    }
+
     // where we are: off the land, into the water, or on along the road (and over the bridge)
     surf = t.surface(car.x, car.z, run.s);
     const bool bridge = run.spec.shortcut && t.on_shortcut(car.x, car.z);
@@ -220,6 +234,7 @@ void Game::step(const Input& raw, float dt) {
         case Goal::Storm: run.chaser += (STORM_SPEED + run.time * 0.06f) * dt; if (run.chaser >= run.s - 2) return fail(Fail::Storm); break;
         case Goal::Clock: if (run.time > run.spec.time) return fail(Fail::Late); break;
         case Goal::Deliver: if (run.cargo <= 0) return fail(Fail::Spilled); break;
+        case Goal::Lamps: run.light -= dt; if (run.light <= 0) return fail(Fail::Dark); break;
         case Goal::Reach: break;
     }
     if (run.s >= run.spec.to) { run.state = RunState::Done; run.events |= EV_DONE; }
@@ -235,6 +250,17 @@ Input autopilot(const Game& g) {
     const bool on_bridge = t.on_shortcut(c.x, c.z);
     if (g.run.spec.shortcut && ((g.run.s > t.shortcut_from - 3 && g.run.s < t.shortcut_to - 8) || on_bridge) && std::hypot(c.x - t.shortcut_b.x, c.z - t.shortcut_b.z) > 6) {
         ax = t.shortcut_b.x; az = t.shortcut_b.z;   // straight across
+    } else if (g.run.spec.goal == Goal::Lamps) {   // swing past the next lamp, close enough to light it
+        for (size_t k = 0; k < t.beacons.size(); k++) {
+            const Beacon& b = t.beacons[k];
+            if (g.run.lit[k] || b.s < g.run.s - 1 || b.s > g.run.s + 16) continue;
+            float lat = 0;
+            t.nearest(b.x, b.z, &lat, b.s);
+            const Sample p = t.at(b.s);
+            const float aim_lat = lat - (lat > 0 ? 1.4f : -1.4f);   // just inside the road's edge
+            ax = p.x - p.tz * aim_lat; az = p.z + p.tx * aim_lat;
+            break;
+        }
     } else if (g.run.bag.size() < 2) {   // a tool a little way ahead, on the road: go for it
         for (size_t k = 0; k < t.pickups.size(); k++) {
             const Pickup& p = t.pickups[k];

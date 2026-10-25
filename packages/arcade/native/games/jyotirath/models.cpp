@@ -482,14 +482,12 @@ void great_hall(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.6f, 0.4f, from);
 }
 
-void dancing_girl(Mesh& m, const Prop& p) {
+/** The bronze Dancing Girl herself, standing on the origin: slender, chin up, right hand on her hip, left arm heavy
+ *  with bangles. */
+void statue(Mesh& m, const Xform& X) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
-    m.lathe({ { 0, 0 }, { 1.0f, 0 }, { 1.0f, 0.25f }, { 0.85f, 0.32f }, { 0.75f, 0.4f }, { 0.72f, 1.0f }, { 0.85f, 1.08f }, { 0.88f, 1.2f }, { 0, 1.2f } }, 32, sandstone(), X);
-    for (float y : { 0.55f, 0.75f }) m.torus(0.735f, 0.025f, 32, 6, mat(0xC8A472, 0.7f), X * translate({ 0, y, 0 }));
-    // the bronze: slender, chin up, right hand on her hip, left arm heavy with bangles
-    const Xform B = X * translate({ 0, 1.2f, 0 }) * scale(1.25f);
-    const Material b = bronze();
+    const Xform B = X * scale(1.25f);
+    const Material b = mat(0x9A6A40, 0.35f, 0.55f);   // polished bronze, catching the lamplight
     m.capsule({ 0, 0.05f, 0.06f }, { 0.02f, 0.5f, 0.07f }, 0.045f, 12, b, B);
     m.capsule({ 0.02f, 0.5f, 0.07f }, { 0.0f, 0.86f, 0.06f }, 0.055f, 12, b, B);
     m.capsule({ 0.08f, 0.05f, -0.08f }, { 0.04f, 0.48f, -0.06f }, 0.045f, 12, b, B);
@@ -499,17 +497,23 @@ void dancing_girl(Mesh& m, const Prop& p) {
     m.capsule({ 0, 1.22f, 0 }, { 0, 1.3f, 0 }, 0.035f, 10, b, B);
     ellipsoid(m, { 0.01f, 1.4f, 0 }, { 0.085f, 0.1f, 0.08f }, 18, b, B);
     ellipsoid(m, { -0.08f, 1.42f, 0 }, { 0.06f, 0.06f, 0.06f }, 12, b, B);
-    // right arm to the hip; left arm down, bangled from shoulder to wrist
     m.tube({ { 0, 1.24f, 0.13f }, { -0.02f, 1.12f, 0.2f }, { 0.04f, 1.02f, 0.17f }, { 0.04f, 0.98f, 0.12f } }, 0.03f, 10, b, B);
     std::vector<V3> left = { { 0, 1.24f, -0.13f }, { 0.02f, 1.05f, -0.17f }, { 0.04f, 0.86f, -0.18f }, { 0.06f, 0.72f, -0.16f } };
     m.tube(left, 0.028f, 10, b, B);
     for (int k = 0; k < 16; k++) {
         const float u = k / 15.0f;
-        const V3 c = lerp(left[0], left[3], u);
-        ring(m, c, left[3] - left[0], 0.036f, 0.008f, b, B, 14);
+        ring(m, lerp(left[0], left[3], u), left[3] - left[0], 0.036f, 0.008f, b, B, 14);
     }
     m.sphere(0.035f, 10, b, B * translate({ 0.07f, 0.68f, -0.15f }));
     m.wobble(0.004f, 30, 5, from);
+}
+
+/** Her plinth (the statue is drawn on it separately, so she can be stolen). */
+void dancing_girl(Mesh& m, const Prop& p) {
+    const size_t from = m.vertices.size();
+    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    m.lathe({ { 0, 0 }, { 1.0f, 0 }, { 1.0f, 0.25f }, { 0.85f, 0.32f }, { 0.75f, 0.4f }, { 0.72f, 1.0f }, { 0.85f, 1.08f }, { 0.88f, 1.2f }, { 0, 1.2f } }, 32, sandstone(), X);
+    for (float y : { 0.55f, 0.75f }) m.torus(0.735f, 0.025f, 32, 6, mat(0xC8A472, 0.7f), X * translate({ 0, y, 0 }));
     m.ground_ao(p.y, 0.4f, 0.4f, from);
 }
 
@@ -680,6 +684,7 @@ Look look(Zone z) {
         case Zone::GrainRoad: return { 0xBF915F, 0xC2A462 };
         case Zone::Climb: return { 0xB98256, 0xC09E70 };
         case Zone::UpperTown: return { 0xC27A55, 0xBDA46E };
+        case Zone::LampRoad: return { 0xBE8A5C, 0xB8A56C };
         case Zone::Plaza: return { 0xC9A27A, 0xB9A06C };
         default: return { 0xB86A45, 0xC9A577 };
     }
@@ -1451,6 +1456,64 @@ Mesh build_chevron() {
     Mesh m;
     const Material red = mat(0xE8452E, 0.5f, 0, 0.6f);
     for (int s = -1; s <= 1; s += 2) m.rounded_box({ 0.34f, 0.04f, 0.09f }, 0.02f, red, translate({ -0.08f, 0, s * 0.11f }) * rotate_y(s * 0.7f), 1);
+    return m;
+}
+
+Mesh build_statue() {
+    Mesh m;
+    statue(m, {});
+    return m;
+}
+
+Mesh build_thief() {
+    Mesh m;
+    const Material robe = mat(0x2B2C4E, 0.85f), wrap = mat(0x15151F, 0.7f), sash = mat(0x7A2E5A, 0.8f);
+    const Material sk = mat(0xA2623E, 0.55f, 0, 0, Material::SKIN), dark = mat(0x1B1311, 0.4f);
+    for (int s = -1; s <= 1; s += 2) m.capsule({ 0.02f, 0.05f, s * 0.1f }, { -0.02f, 0.62f, s * 0.1f }, 0.065f, 12, wrap);
+    m.lathe({ { 0, 0.55f }, { 0.23f, 0.55f }, { 0.25f, 0.75f }, { 0.22f, 1.1f }, { 0.25f, 1.26f }, { 0.18f, 1.36f }, { 0, 1.38f } }, 20, robe, rotate_z(-0.12f));
+    m.torus(0.24f, 0.035f, 20, 6, sash, translate({ 0.03f, 0.9f, 0 }) * rotate_z(-0.12f));
+    // arms forward, as if hugging something to his chest
+    for (int s = -1; s <= 1; s += 2) m.tube({ { 0.08f, 1.28f, s * 0.22f }, { 0.22f, 1.12f, s * 0.24f }, { 0.36f, 1.1f, s * 0.1f } }, 0.05f, 10, robe);
+    for (int s = -1; s <= 1; s += 2) m.sphere(0.05f, 10, sk, translate({ 0.38f, 1.1f, s * 0.08f }));
+    // a hooded head, a dark band across the eyes with two sly white eyes
+    ellipsoid(m, { 0.12f, 1.6f, 0 }, { 0.15f, 0.17f, 0.14f }, 20, sk);
+    ellipsoid(m, { 0.09f, 1.65f, 0 }, { 0.18f, 0.2f, 0.17f }, 20, robe, translate({ -0.03f, 0.02f, 0 }));
+    m.torus(0.155f, 0.035f, 24, 6, wrap, translate({ 0.13f, 1.63f, 0 }) * rotate_z(0.1f));
+    for (int s = -1; s <= 1; s += 2) {
+        ellipsoid(m, { 0.27f, 1.635f, s * 0.055f }, { 0.012f, 0.022f, 0.028f }, 10, mat(0xF8F4EE, 0.12f, 0, 0, Material::EYE));
+        m.sphere(0.012f, 8, mat(0x2A1A10, 0.15f, 0, 0, Material::EYE), translate({ 0.28f, 1.63f, s * 0.05f }));
+    }
+    m.tube({ { 0.25f, 1.53f, -0.05f }, { 0.27f, 1.52f, 0 }, { 0.25f, 1.53f, 0.05f } }, 0.01f, 6, dark);   // a smirk
+    m.wobble(0.01f, 6, 21);
+    m.ground_ao(0, 0.35f, 0.4f);
+    return m;
+}
+
+Mesh build_beacon(bool lit) {
+    Mesh m;
+    m.lathe({ { 0, 0 }, { 0.26f, 0 }, { 0.26f, 0.1f }, { 0.12f, 0.2f }, { 0.09f, 1.4f }, { 0.18f, 1.5f }, { 0.2f, 1.6f }, { 0, 1.6f } }, 18, sandstone(), {}, 0.6f);
+    m.lathe({ { 0, 0 }, { 0.14f, 0 }, { 0.24f, 0.1f }, { 0.25f, 0.16f }, { 0.18f, 0.14f }, { 0, 0.13f } }, 18, terracotta(), translate({ 0, 1.6f, 0 }));
+    if (lit) {
+        m.lathe({ { 0, 0 }, { 0.1f, 0.05f }, { 0.09f, 0.18f }, { 0.03f, 0.34f }, { 0, 0.42f } }, 14, mat(0xFFB347, 0.5f, 0, 1.0f), translate({ 0, 1.72f, 0 }));
+        m.lathe({ { 0, 0 }, { 0.05f, 0.03f }, { 0.045f, 0.1f }, { 0, 0.2f } }, 10, mat(0xFFF2C0, 0.5f, 0, 1.0f), translate({ 0, 1.74f, 0 }));
+    } else {
+        m.cylinder(0.12f, 0.03f, 12, mat(0x3A2A20, 0.9f), translate({ 0, 1.71f, 0 }));   // a cold wick
+    }
+    m.wobble(0.008f, 6, lit ? 3 : 4);
+    m.ground_ao(0, 0.3f, 0.4f);
+    return m;
+}
+
+Mesh build_pointer() {
+    Mesh m;
+    const Material g = mat(0xFFD36B, 0.4f, 0.3f, 0.9f);
+    m.lathe({ { 0, 0 }, { 0.32f, 0.42f }, { 0.13f, 0.42f }, { 0.13f, 0.95f }, { 0, 0.95f } }, 20, g);
+    return m;
+}
+
+Mesh build_glow_ring() {
+    Mesh m;
+    m.torus(1, 0.03f, 96, 6, mat(0xFFD36B, 0.4f, 0, 1.0f), scale({ 1, 0.5f, 1 }));
     return m;
 }
 
