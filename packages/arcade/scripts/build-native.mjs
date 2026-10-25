@@ -27,6 +27,13 @@ export const GAMES = {
         fonts: ['LilitaOne-Regular.ttf'],
         assets: 'games/turbo-trails/assets',
     },
+    jyotirath: {
+        sources: ['games/jyotirath/main.cpp', 'games/jyotirath/mesh.cpp', 'games/jyotirath/models.cpp', 'games/jyotirath/track.cpp', 'games/jyotirath/drive.cpp', 'games/jyotirath/story.cpp'],
+        shaders: ['shaders/jyotirath.glsl'],
+        flags: ['-sEXPORTED_RUNTIME_METHODS=UTF8ToString', '-sEXPORTED_FUNCTIONS=_main,_free'],
+        text: true,
+        fonts: ['LilitaOne-Regular.ttf'],
+    },
 };
 
 export const emArgs = (game, backend, objects = []) => engineArgs(ROOT, GAMES, game, backend, objects);

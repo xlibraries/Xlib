@@ -1040,6 +1040,43 @@ test.describe('Arcade', () => {
         await page.keyboard.up('ArrowRight');
     });
 
+    test('JyotiRath: the chariot lands, the story talks, W drives on to the next stop and the road leads into the city', async ({ page }) => {
+        test.setTimeout(120_000);
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play JyotiRath' }).click();
+        const game = page.locator('[data-game="jyotirath"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 25_000 }).toBeGreaterThan(10);
+        type Jr = { xlGame: { _jr_state_json(): number; _jr_autopilot(on: number): void; UTF8ToString(p: number): string; _free(p: number): void } };
+        const state = () => game.evaluate(el => {
+            const g = (el as unknown as Jr).xlGame;
+            const ptr = g._jr_state_json(); const text = g.UTF8ToString(ptr); g._free(ptr);
+            return JSON.parse(text) as { waiting: boolean; phase: number; stop: number; line: number; talking: boolean; fuel: number; artifacts: number; s: number };
+        });
+        expect(await state()).toMatchObject({ waiting: true, phase: 0, stop: 0 });
+
+        // a click starts it: the chariot falls onto the road, then the first lines play (phase 1: talking)
+        await game.locator('canvas').click();
+        await expect.poll(async () => (await state()).talking, { timeout: 10_000 }).toBe(true);
+        expect(await state()).toMatchObject({ waiting: false, phase: 1, stop: 0, line: 0 });
+        // Space reveals each line, then moves on; after the last one you drive (phase 2)
+        for (let i = 0; i < 12 && (await state()).talking; i++) { await page.keyboard.press('Space'); await page.waitForTimeout(150); }
+        expect(await state()).toMatchObject({ phase: 2, stop: 1, talking: false });
+
+        // W drives the 30 metres the narrator asks for, and the next stop talks
+        await page.keyboard.down('KeyW');
+        await expect.poll(async () => (await state()).stop === 1 && (await state()).talking, { timeout: 15_000 }).toBe(true);
+        await page.keyboard.up('KeyW');
+        expect((await state()).s).toBeGreaterThan(30);
+
+        // the autopilot drives on past the signboard into the Lower Town, collecting artifacts for fuel
+        await game.evaluate(el => (el as unknown as Jr).xlGame._jr_autopilot(1));
+        await expect.poll(async () => (await state()).stop, { timeout: 60_000 }).toBeGreaterThan(3);
+        const after = await state();
+        expect(after.artifacts).toBeGreaterThan(2);
+        expect(after.fuel).toBeGreaterThan(0.5);
+    });
+
     test('Turbo Trails: the desktop volume slider sets the game volume, and gas rumbles a gamepad', async ({ page }) => {
         // a fake pad with a rumble motor that records what the game asks of it
         await page.addInitScript(() => {

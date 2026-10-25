@@ -5,7 +5,8 @@ An **Arcade** app on the desktop that runs real-time graphics written in C++ wit
 **WebGPU** and **WebGL2**, and the app picks the best one the visitor's browser supports.
 
 First three experiences: a **neon arcade game**, a **shader playground** and a **3D showcase**; then
-**Turbo Trails**, a full game ([turbo-trails-plan.md](turbo-trails-plan.md)).
+**Turbo Trails**, a full game ([turbo-trails-plan.md](turbo-trails-plan.md)), and **JyotiRath**, its story in 3D
+([jyotirath-plan.md](jyotirath-plan.md)).
 
 ## How it fits together
 
@@ -26,7 +27,7 @@ flowchart TB
 
     subgraph pkg["packages/arcade (@xlibraries/arcade)"]
         launcher["src/Arcade.tsx<br/>launcher: cards, backend badge, panels"]
-        games["native/games/<br/>breakout · playground · showcase (crates on Jolt) · turbo-trails"]
+        games["native/games/<br/>breakout · playground · showcase (crates on Jolt) · turbo-trails · jyotirath"]
         shaders["native/shaders/*.glsl<br/>written once (sokol-shdc annotated GLSL)"]
         box2d["third_party/box2d (Turbo Trails)"]
         dist[("dist/&lt;game&gt;/{webgpu,webgl2}.{js,wasm}<br/>committed build output")]

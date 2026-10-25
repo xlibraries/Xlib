@@ -48,6 +48,13 @@ describe('build-native', () => {
         for (const f of ['chariots-bg.mp3', 'chariots-wheel.mp3']) expect(existsSync(new URL(`../dist/turbo-trails/${f}`, import.meta.url)), f).toBe(true);
     });
 
+    it('ships JyotiRath with its shaders and the HUD font', () => {
+        expect(GAMES.jyotirath.shaders).toEqual(['shaders/jyotirath.glsl']);   // shadow, lit, sky and post programs
+        expect(GAMES.jyotirath.sources).toContain('games/jyotirath/story.cpp');
+        expect(GAMES.jyotirath.text).toBe(true);
+        expect(emArgs('jyotirath', 'webgpu').join(' ')).toContain('LilitaOne-Regular.ttf@/LilitaOne-Regular.ttf');
+    });
+
     it('has builds that match the sources (rebuild every game after changing native/, third_party/ or the script)', () => {
         const files = sourceFiles();
         expect(files).toContain('engine/native/runtime/xl.h');            // the engine's inputs count too
