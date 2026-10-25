@@ -18,6 +18,7 @@
 #include "xl_text.h"
 #include "jyotirath.glsl.h"
 #include "drive.h"
+#include "go.h"
 #include "models.h"
 #include "story.h"
 #include "track.h"
@@ -94,6 +95,7 @@ struct Particle { HMM_Vec3 p, v; float life, max_life, size, spin; ParticleKind 
 
 struct Dialogue {
     bool open = false;
+    const std::vector<Line>* lines = nullptr;
     int line = 0;
     float shown = 0;      // characters revealed so far
     float idle = 0;       // seconds since the line was fully shown
@@ -141,6 +143,17 @@ struct {
 
     bool key_gas = false, key_brake = false, key_left = false, key_right = false;
     bool advance = false, restart = false;
+
+    // board mode: the Lower Town, turn by turn
+    bool board_mode = false, board_results = false;
+    Board board;
+    std::unique_ptr<GoState> go;
+    GpuMesh board_mesh, watchman, zebu, chevron, gaze;
+    float hop = 1;                 // 0..1 through the last move's animation
+    float caught_timer = 0, auto_timer = 0;
+    int key_dir = -1;              // a step asked for: 0 up, 1 left, 2 down, 3 right (on screen)
+    bool clicked = false;
+    HMM_Vec2 mouse = { { 0, 0 } };
 } st;
 
 GpuMesh upload(const Mesh& m) {
@@ -218,9 +231,10 @@ void on_events() {
         for (int i = 0; i < 18; i++) { const float a = rnd(0, 6.283f); spawn(DUST, HMM_V3(c.x + std::cos(a) * 0.9f, c.y + 0.1f, c.z + std::sin(a) * 0.9f), HMM_V3(std::cos(a) * rnd(2.5f, 4.5f), rnd(0.2f, 0.8f), std::sin(a) * rnd(2.5f, 4.5f)), 0.9f, rnd(0.12f, 0.22f), HMM_V3(0.85f, 0.68f, 0.48f)); }
     }
     if (e & EV_STOP) {
+        const Stop& s = chapter_one()[j.stop];
         st.talk = Dialogue{};
         st.talk.open = true;
-        const Stop& s = chapter_one()[j.stop];
+        st.talk.lines = &s.lines;
         if (s.place[0]) { st.title = s.place; st.title_timer = 3.2f; play(523, 523, 0.3f, 0.1f, 1); play(784, 784, 0.4f, 0.1f, 1, 0.12f); }
     }
     if (e & EV_ARTIFACT) {
@@ -289,18 +303,28 @@ Input read_input() {
     return in;
 }
 
+void board_lines_done();
+
 /** Moves the dialogue on: finish revealing the line, or go to the next, or close it. */
 void advance_dialogue() {
-    Game& g = *st.game;
-    if (!st.talk.open || g.j.phase != Phase::Talking) return;
-    const Stop& s = chapter_one()[g.j.stop];
-    const size_t len = std::strlen(s.lines[st.talk.line].text);
+    if (!st.talk.open || !st.talk.lines) return;
+    const std::vector<Line>& lines = *st.talk.lines;
+    const size_t len = std::strlen(lines[st.talk.line].text);
     if (st.talk.shown < len) { st.talk.shown = static_cast<float>(len); return; }
-    if (st.talk.line + 1 < static_cast<int>(s.lines.size())) { st.talk.line++; st.talk.shown = 0; st.talk.idle = 0; play(660, 660, 0.04f, 0.05f, 1); return; }
+    if (st.talk.line + 1 < static_cast<int>(lines.size())) { st.talk.line++; st.talk.shown = 0; st.talk.idle = 0; play(660, 660, 0.04f, 0.05f, 1); return; }
     st.talk.open = false;
-    st.objective = s.objective;
+    if (st.board_mode) { board_lines_done(); return; }
+    Game& g = *st.game;
+    if (g.j.phase != Phase::Talking) return;
+    st.objective = chapter_one()[g.j.stop].objective;
     g.finish_talking();
     on_events();
+}
+
+void open_lines(const std::vector<Line>& lines) {
+    st.talk = Dialogue{};
+    st.talk.open = true;
+    st.talk.lines = &lines;
 }
 
 // ---------- drawing ----------
@@ -348,8 +372,8 @@ void draw_land(float s, float behind, float ahead) {
     for (int i = a; i <= b; i++) draw(st.chunks[i], HMM_M4D(1));
 }
 
-/** Everything that moves, in both passes. */
-void draw_dynamic(float near_s) {
+/** The chariot, its wheels, the charioteer and her eyes, where the game's car is. */
+void draw_chariot() {
     const Game& g = *st.game;
     const Car& c = g.car;
     const Journey& j = g.j;
@@ -378,6 +402,14 @@ void draw_dynamic(float near_s) {
             }
         }
     }
+}
+
+/** Everything that moves, in both passes. */
+void draw_dynamic(float near_s) {
+    const Game& g = *st.game;
+    const Journey& j = g.j;
+    const Track& t = st.track;
+    draw_chariot();
     // the Guide waits in the plaza
     if (near_s > ROAD_END - 120) {
         const float sway = std::sin(st.time * 1.3f) * 0.02f;
@@ -520,10 +552,8 @@ void bubble(float px, float py, const std::string& who, const std::string& full,
 }
 
 void draw_dialogue(float w, float h, float s) {
-    const Game& g = *st.game;
-    if (!st.talk.open || g.j.phase != Phase::Talking) return;
-    const Stop& stop = chapter_one()[g.j.stop];
-    const Line& line = stop.lines[st.talk.line];
+    if (!st.talk.open || !st.talk.lines) return;
+    const Line& line = (*st.talk.lines)[st.talk.line];
     const std::string full = line.text, text = full.substr(0, static_cast<size_t>(st.talk.shown));
     const xl::txt::Text& Tx = st.text;
     const float pulse = 0.5f + 0.5f * std::sin(st.time * 5);
@@ -547,6 +577,8 @@ void draw_dialogue(float w, float h, float s) {
     }
 }
 
+void draw_board_hud(float w, float h, float s);
+
 void draw_hud(float w, float h) {
     sgl_set_context(st.hud);
     sgl_defaults();
@@ -569,9 +601,12 @@ void draw_hud(float w, float h) {
         const std::string start = xl::focused() || xl::gamepad().connected ? "PRESS W TO BEGIN" : "CLICK TO PLAY";
         Tx.draw(start, w / 2, h * 0.78f, 26 * s, { 0.8f + 0.2f * pulse, 0.8f + 0.2f * pulse, 1.0f }, xl::txt::CENTRE);
         Tx.draw("W gas   S brake   A / D steer   space talk", w / 2, h * 0.78f + 36 * s, 14 * s, pale, xl::txt::CENTRE);
+        Tx.draw("G   the Lower Town as a board (turn by turn, a prototype)", w / 2, h * 0.78f + 60 * s, 15 * s, gold, xl::txt::CENTRE);
         sgl_set_context(sgl_default_context());
         return;
     }
+
+    if (st.board_mode) { draw_board_hud(w, h, s); sgl_set_context(sgl_default_context()); return; }
 
     // top left: the chapter, what to do, where's next
     const float x = 18 * s, y = 14 * s;
@@ -612,13 +647,236 @@ void draw_hud(float w, float h) {
     sgl_set_context(sgl_default_context());
 }
 
-// ---------- frame ----------
+
+// ---------- board mode ----------
 
 HMM_Vec2 to_screen(HMM_Vec3 p) {
     const HMM_Vec4 c = HMM_MulM4V4(frame_info.view_proj, HMM_V4(p.X, p.Y, p.Z, 1));
     if (c.W <= 0) return HMM_V2(-1, -1);
     return HMM_V2(c.X / c.W * 0.5f + 0.5f, c.Y / c.W * 0.5f + 0.5f);
 }
+
+
+HMM_Vec3 node_pos(int n) {
+    const GoNode& g = st.board.nodes[n];
+    const Sample p = st.track.at(g.s);
+    return HMM_V3(p.x - p.tz * g.lat, st.track.elevation(g.s), p.z + p.tx * g.lat);
+}
+
+float smooth(float t) { t = std::max(0.0f, std::min(1.0f, t)); return t * t * (3 - 2 * t); }
+
+void start_board() {
+    st.board_mode = true;
+    st.waiting = false;
+    st.board_results = false;
+    st.go->reset();
+    st.hop = 1;
+    st.caught_timer = 0;
+    st.particles.clear();
+    st.game->reset();
+    st.game->j.phase = Phase::Driving;
+    open_lines(board_intro());
+    const HMM_Vec3 p = node_pos(st.board.start);
+    st.cam_target = HMM_AddV3(p, HMM_V3(0, 0.8f, 0));
+    st.intro = 0;
+}
+
+void leave_board() {
+    st.board_mode = false;
+    st.talk = Dialogue{};
+    restart_journey();
+    st.waiting = true;
+}
+
+void board_lines_done() { if (st.go->won) st.board_results = true; }
+
+void board_try(int to) {
+    GoState& g = *st.go;
+    if (to < 0 || st.hop < 1 || st.talk.open || g.won || g.caught) return;
+    std::vector<bool> was_out;
+    for (const Piece& p : g.pieces) was_out.push_back(p.out);
+    const int arts = g.artifacts();
+    const Outcome o = g.move(to);
+    if (o == Outcome::Blocked) { play(150, 120, 0.08f, 0.08f, 0); return; }
+    st.hop = 0;
+    play(330, 520, 0.12f, 0.1f, 1);
+    if (g.artifacts() > arts) {
+        play(1320, 1320, 0.08f, 0.12f, 1); play(1760, 1760, 0.2f, 0.12f, 1, 0.07f);
+        const HMM_Vec3 p = node_pos(to);
+        for (int k = 0; k < 10; k++) spawn(SPARK, HMM_AddV3(p, HMM_V3(0, 0.8f, 0)), HMM_V3(rnd(-2, 2), rnd(1.5f, 3.5f), rnd(-2, 2)), 0.6f, 0.05f, HMM_V3(5, 3.6f, 1.2f));
+    }
+    for (size_t k = 0; k < g.pieces.size(); k++) if (g.pieces[k].out && !was_out[k]) {
+        play(120, 60, 0.2f, 0.3f, 2); play(400, 150, 0.12f, 0.15f, 3);
+        st.shake = std::max(st.shake, 0.3f);
+        const HMM_Vec3 p = node_pos(g.pieces[k].node);
+        for (int i = 0; i < 8; i++) spawn(DUST, HMM_AddV3(p, HMM_V3(0, 0.2f, 0)), HMM_V3(rnd(-1.5f, 1.5f), rnd(0.5f, 1.5f), rnd(-1.5f, 1.5f)), 0.7f, 0.18f, HMM_V3(0.85f, 0.68f, 0.48f));
+    }
+    if (o == Outcome::Caught) {
+        play(220, 110, 0.5f, 0.25f, 0); play(160, 80, 0.5f, 0.2f, 0, 0.1f);
+        st.caught_timer = 1.6f;
+        st.notice = "Caught! Back to the start of the lanes."; st.notice_timer = 1.6f;
+        st.shake = 0.6f; st.squint = 1.4f;
+        xl::rumble(0.6f, 0.4f, 200, true);
+    }
+    if (o == Outcome::Won) {
+        for (int i = 0; i < 5; i++) play(523 * std::pow(1.19f, static_cast<float>(i)), 523 * std::pow(1.19f, static_cast<float>(i)), 0.35f, 0.14f, 1, i * 0.11f);
+        const HMM_Vec3 p = node_pos(to);
+        for (int i = 0; i < 50; i++) spawn(SPARK, HMM_AddV3(p, HMM_V3(0, 2, 0)), HMM_V3(rnd(-4, 4), rnd(3, 8), rnd(-4, 4)), 1.4f, 0.07f, HMM_V3(rnd(3, 6), rnd(2, 4), rnd(0.5f, 2)));
+        open_lines(board_outro());
+    }
+}
+
+/** The neighbouring node nearest a direction on screen (0 up, 1 left, 2 down, 3 right), or -1. */
+int node_towards(int dir) {
+    const float w = sapp_widthf(), h = sapp_heightf();
+    const float want[4][2] = { { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 0 } };
+    const GoState& g = *st.go;
+    const HMM_Vec2 a = to_screen(node_pos(g.player));
+    int best = -1;
+    float best_dot = 0.35f;
+    for (int n : st.board.adj[g.player]) {
+        const HMM_Vec2 b = to_screen(node_pos(n));
+        float dx = (b.X - a.X) * w, dy = (b.Y - a.Y) * h;
+        const float l = std::sqrt(dx * dx + dy * dy);
+        if (l < 1e-3f) continue;
+        dx /= l; dy /= l;
+        const float d = dx * want[dir][0] + dy * want[dir][1];
+        if (d > best_dot) { best_dot = d; best = n; }
+    }
+    return best;
+}
+
+/** The neighbouring node under the pointer, or -1. */
+int node_clicked() {
+    const float w = sapp_widthf(), h = sapp_heightf();
+    const GoState& g = *st.go;
+    int best = -1;
+    float best_d = 0.09f * h;
+    for (int n : st.board.adj[g.player]) {
+        const HMM_Vec2 b = to_screen(node_pos(n));
+        const float d = std::hypot(b.X * w - st.mouse.X, (1 - b.Y) * h - st.mouse.Y);
+        if (d < best_d) { best_d = d; best = n; }
+    }
+    return best;
+}
+
+void board_update(float dt) {
+    GoState& g = *st.go;
+    st.hop = std::min(1.0f, st.hop + dt / 0.32f);
+    if (st.caught_timer > 0) {
+        st.caught_timer -= dt;
+        if (st.caught_timer <= 0) { g.reset(); st.hop = 1; play(440, 660, 0.2f, 0.1f, 1); }
+    }
+    if (st.key_dir >= 0) { board_try(node_towards(st.key_dir)); st.key_dir = -1; }
+    if (st.clicked && !st.talk.open) board_try(node_clicked());
+    st.clicked = false;
+    if (st.autopilot && !st.talk.open && st.hop >= 1 && !g.won && !g.caught && (st.auto_timer += dt) > 0.25f) { st.auto_timer = 0; board_try(best_move(g)); }
+    // the chariot hops from node to node
+    Car& c = st.game->car;
+    const HMM_Vec3 a = node_pos(g.from), b = node_pos(g.player);
+    const float k = smooth(st.hop);
+    const HMM_Vec3 p = HMM_LerpV3(a, k, b);
+    c.x = p.X; c.z = p.Z; c.y = p.Y + std::sin(HMM_PI32 * st.hop) * 0.45f;
+    if (g.from != g.player) {
+        const float want = std::atan2(b.Z - a.Z, b.X - a.X);
+        float d = want - c.yaw;
+        while (d > HMM_PI32) d -= 2 * HMM_PI32;
+        while (d < -HMM_PI32) d += 2 * HMM_PI32;
+        c.yaw += d * std::min(1.0f, dt * 14);
+    } else {
+        const Sample s = st.track.at(st.board.nodes[g.player].s);
+        c.yaw = std::atan2(s.tz, s.tx);
+    }
+    c.wheel += (st.hop < 1 ? dt * 9 : 0);
+    st.game->j.s = st.board.nodes[g.player].s;
+}
+
+void draw_board(bool shadow_pass) {
+    const GoState& g = *st.go;
+    if (!shadow_pass) draw(st.board_mesh, HMM_M4D(1));
+    draw_chariot();
+    const float k = smooth(st.hop);
+    for (size_t i = 0; i < g.pieces.size(); i++) {
+        const Piece& p = g.pieces[i];
+        HMM_Vec3 at = HMM_LerpV3(node_pos(g.before.empty() ? p.node : g.before[i]), k, node_pos(p.node));
+        const int look = p.kind == PieceKind::Watchman ? p.facing : g.threat_of(p);
+        float yaw = 0;
+        if (look >= 0 && look != p.node) { const HMM_Vec3 l = node_pos(look); yaw = std::atan2(l.Z - at.Z, l.X - at.X); }
+        else if (!p.lane.empty()) { const HMM_Vec3 l = node_pos(p.lane.back()), f = node_pos(p.lane.front()); yaw = std::atan2(l.Z - f.Z, l.X - f.X); }
+        HMM_Mat4 m = mul({ T(at.X, at.Y, at.Z), R(-yaw, 0, 1, 0) });
+        if (p.out) {   // nudged aside: off to the edge of the road, tipped over
+            const GoNode& n = st.board.nodes[p.node];
+            const Sample s = st.track.at(n.s);
+            const float side = n.lat >= 0 ? 1.0f : -1.0f;
+            at = HMM_AddV3(node_pos(p.node), HMM_V3(-s.tz * side * 1.4f, 0, s.tx * side * 1.4f));
+            m = mul({ T(at.X, at.Y + 0.25f, at.Z), R(-yaw, 0, 1, 0), R(1.35f * side, 1, 0, 0) });
+        }
+        const GpuMesh& mesh = p.kind == PieceKind::Cart ? st.handcart : p.kind == PieceKind::Watchman ? st.watchman : st.zebu;
+        draw(mesh, m);
+        if (shadow_pass || p.out || g.won) continue;
+        // red marks: where each will step, where each watchman is looking
+        const int threat = g.threat_of(p);
+        if (threat < 0) continue;
+        const HMM_Vec3 tpos = node_pos(threat);
+        const float pulse = 1 + 0.08f * std::sin(st.time * 6);
+        if (p.kind == PieceKind::Watchman) draw(st.gaze, mul({ T(tpos.X, tpos.Y + 0.06f, tpos.Z), S(pulse) }));
+        else { const HMM_Vec3 from = node_pos(p.node); draw(st.chevron, mul({ T(tpos.X, tpos.Y + 0.07f, tpos.Z), R(-std::atan2(tpos.Z - from.Z, tpos.X - from.X), 0, 1, 0), S(pulse) })); }
+    }
+    for (size_t k2 = 0; k2 < st.board.artifacts.size(); k2++) {
+        if (g.taken[k2]) continue;
+        const HMM_Vec3 p = node_pos(st.board.artifacts[k2]);
+        draw(st.artifacts[k2 % 5], mul({ T(p.X, p.Y + 0.75f + 0.1f * std::sin(st.time * 2.5f + k2), p.Z), R(st.time * 1.6f + k2, 0, 1, 0), S(1.3f) }));
+    }
+    if (shadow_pass) return;
+    for (const Particle& p : st.particles) {
+        const float kk = p.life / p.max_life;
+        if (p.kind == SHARD) continue;
+        const float grow = p.kind == SPARK ? kk : (1.0f + (1 - kk) * 1.2f) * std::min(1.0f, kk * 2.5f);
+        draw(st.puff, mul({ T(p.p.X, p.p.Y, p.p.Z), HMM_Scale(HMM_V3(p.size * grow, p.size * grow * (p.kind == SPARK ? 1.0f : 0.75f), p.size * grow)) }), p.color);
+    }
+}
+
+void star(float cx, float cy, float r, bool lit) {
+    sgl_begin_triangles();
+    for (int i = 0; i < 5; i++) {
+        const float a0 = -HMM_PI32 / 2 + i * 2 * HMM_PI32 / 5, a1 = a0 + HMM_PI32 / 5, a2 = a0 + 2 * HMM_PI32 / 5;
+        const float c0 = lit ? 1.0f : 0.55f, c1 = lit ? 0.78f : 0.5f, c2 = lit ? 0.25f : 0.45f;
+        for (const auto& tri : { std::make_pair(a0, a1), std::make_pair(a1, a2) }) {
+            const float ra = tri.first == a0 ? r : r * 0.45f, rb = tri.first == a0 ? r * 0.45f : r;
+            sgl_c4f(c0, c1, c2, 1);
+            sgl_v2f(cx, cy);
+            sgl_v2f(cx + std::cos(tri.first) * ra, cy + std::sin(tri.first) * ra);
+            sgl_v2f(cx + std::cos(tri.second) * rb, cy + std::sin(tri.second) * rb);
+        }
+    }
+    sgl_end();
+}
+
+void draw_board_hud(float w, float h, float s) {
+    const xl::txt::Text& Tx = st.text;
+    const GoState& g = *st.go;
+    const Rgb white = { 1, 1, 1 }, gold = { 1.0f, 0.82f, 0.32f }, pale = { 0.9f, 0.92f, 1.0f }, saffron = { 1.0f, 0.62f, 0.22f };
+    const float pulse = 0.5f + 0.5f * std::sin(st.time * 5);
+    const float x = 18 * s, y = 14 * s;
+    Tx.draw("Chapter I - the Lower Town  (board, prototype)", x, y, 15 * s, pale);
+    Tx.draw("moves " + std::to_string(g.moves) + "   par " + std::to_string(st.board.par), x, y + 22 * s, 22 * s, white);
+    Tx.draw("artifacts " + std::to_string(g.artifacts()) + " / " + std::to_string(st.board.artifacts.size()), x, y + 50 * s, 14 * s, gold);
+    if (!st.talk.open && !g.won) Tx.draw("W A S D or click a node    R start over    M menu", w / 2, h - 30 * s, 14 * s, white, xl::txt::CENTRE, 0.6f + 0.4f * pulse);
+    if (st.notice_timer > 0) Tx.draw(st.notice, w / 2, h * 0.3f, 30 * s, { 1.0f, 0.45f, 0.35f }, xl::txt::CENTRE, std::min(1.0f, st.notice_timer * 2));
+    draw_dialogue(w, h, s);
+    if (st.board_results) {
+        const float cw = std::min(520 * s, w - 40 * s), ch = 250 * s, x0 = w / 2 - cw / 2, y0 = h * 0.18f;
+        panel(x0, y0, x0 + cw, y0 + ch, 18 * s, 0.98f, 0.92f, 0.78f, 0.95f);
+        Tx.draw("THE LOWER TOWN, CLEARED", w / 2, y0 + 18 * s, 30 * s, saffron, xl::txt::CENTRE);
+        const int stars = g.stars();
+        for (int i = 0; i < 3; i++) star(w / 2 + (i - 1) * 54 * s, y0 + 96 * s, 22 * s, i < stars);
+        Tx.draw("moves " + std::to_string(g.moves) + " (par " + std::to_string(st.board.par) + ")    artifacts " + std::to_string(g.artifacts()) + " / " + std::to_string(st.board.artifacts.size()), w / 2, y0 + 136 * s, 16 * s, { 0.25f, 0.16f, 0.1f }, xl::txt::CENTRE, 1, false);
+        Tx.draw("stars: clear it, find every artifact, match par", w / 2, y0 + 164 * s, 13 * s, { 0.5f, 0.3f, 0.12f }, xl::txt::CENTRE, 1, false);
+        Tx.draw("R play again    W drive the chapter    M menu", w / 2, y0 + 200 * s, 16 * s, { 0.4f, 0.25f, 0.12f }, xl::txt::CENTRE, 0.6f + 0.4f * pulse, false);
+    }
+}
+
+// ---------- frame ----------
 
 float wrap(float a) { while (a > HMM_PI32) a -= 2 * HMM_PI32; while (a < -HMM_PI32) a += 2 * HMM_PI32; return a; }
 
@@ -632,24 +890,28 @@ void frame() {
     const Input in = read_input();
     xl::end_frame();
     if (st.waiting && (in.throttle > 0 || st.advance)) { st.waiting = false; st.advance = false; }
-    if (st.restart) { st.restart = false; restart_journey(); st.waiting = false; }
+    if (st.board_mode) { st.key_gas = st.key_brake = st.key_left = st.key_right = false; }
+    if (st.restart) { st.restart = false; if (st.board_mode) start_board(); else { restart_journey(); st.waiting = false; } }
 
     if (!st.waiting) {
         if (st.advance) { st.advance = false; advance_dialogue(); }
-        if (st.talk.open && g.j.phase == Phase::Talking) {
-            const Stop& stop = chapter_one()[g.j.stop];
-            const float len = static_cast<float>(std::strlen(stop.lines[st.talk.line].text));
+        if (st.talk.open && st.talk.lines) {
+            const Line& line = (*st.talk.lines)[st.talk.line];
+            const float len = static_cast<float>(std::strlen(line.text));
             const float before = st.talk.shown;
             st.talk.shown = std::min(len, st.talk.shown + dt * 55);
             if (st.talk.shown >= len) st.talk.idle += dt;
-            if (static_cast<int>(st.talk.shown / 3) != static_cast<int>(before / 3) && st.talk.shown < len) play(stop.lines[st.talk.line].who == Speaker::Narrator ? 520.0f : 760.0f, 700, 0.025f, 0.025f, 1);
+            if (static_cast<int>(st.talk.shown / 3) != static_cast<int>(before / 3) && st.talk.shown < len) play(line.who == Speaker::Narrator ? 520.0f : 760.0f, 700, 0.025f, 0.025f, 1);
             if (st.autopilot && st.talk.idle > 0.3f) advance_dialogue();
         }
-        st.accumulator = std::min(st.accumulator + dt, DT * 12);
-        while (st.accumulator >= DT) {
-            st.accumulator -= DT;
-            g.step(in, DT);
-            on_events();
+        if (st.board_mode) board_update(dt);
+        else {
+            st.accumulator = std::min(st.accumulator + dt, DT * 12);
+            while (st.accumulator >= DT) {
+                st.accumulator -= DT;
+                g.step(in, DT);
+                on_events();
+            }
         }
     }
     update_particles(dt);
@@ -675,7 +937,7 @@ void frame() {
     st.bob = std::sin(st.time * 13) * 0.012f * std::min(1.0f, speed / 8) * (surf == Surface::Ground ? 2.0f : 1.0f);
 
     // dust from the wheels on sand and in drifts
-    if (g.j.phase == Phase::Driving && speed > 3 && (surf == Surface::Ground || c.drifting) && std::fmod(st.time, 0.09f) < dt) {
+    if (!st.board_mode && g.j.phase == Phase::Driving && speed > 3 && (surf == Surface::Ground || c.drifting) && std::fmod(st.time, 0.09f) < dt) {
         for (int side = -1; side <= 1; side += 2) {
             const float wx = c.x + std::cos(c.yaw) * WHEEL_AT.x - std::sin(c.yaw) * WHEEL_AT.z * side, wz = c.z + std::sin(c.yaw) * WHEEL_AT.x + std::cos(c.yaw) * WHEEL_AT.z * side;
             spawn(DUST, HMM_V3(wx, c.y + 0.1f, wz), HMM_V3(rnd(-0.5f, 0.5f) - c.vx * 0.08f, rnd(0.3f, 0.8f), rnd(-0.5f, 0.5f) - c.vz * 0.08f), 0.6f, rnd(0.1f, 0.18f), HMM_V3(0.85f, 0.68f, 0.48f));
@@ -683,7 +945,7 @@ void frame() {
     }
 
     // sound
-    rumble_level += ((st.waiting || g.j.phase == Phase::Respawning ? 0.0f : std::min(1.0f, speed / 12)) - rumble_level) * std::min(1.0f, dt * 8);
+    rumble_level += ((st.waiting || st.board_mode || g.j.phase == Phase::Respawning ? 0.0f : std::min(1.0f, speed / 12)) - rumble_level) * std::min(1.0f, dt * 8);
     rumble_tone = 40 + speed * 4;
     hiss_level += ((surf == Surface::Ground || c.drifting ? std::min(1.0f, speed / 8) : 0.0f) - hiss_level) * std::min(1.0f, dt * 8);
 
@@ -699,8 +961,12 @@ void frame() {
     const bool finale = (st.talk.open || g.j.phase == Phase::Complete) && g.j.stop + 1 == static_cast<int>(chapter_one().size());
     if (finale) focus = HMM_LerpV3(focus, 0.5f, HMM_AddV3(st.guide_at, HMM_V3(0, 1, 0)));
     st.cam_target = HMM_LerpV3(st.cam_target, std::min(1.0f, dt * 4), focus);
-    const float pitch = 0.62f + 0.25f * e;
-    const float dist = (34 + speed * 0.5f + (st.talk.open ? 4.0f : 0.0f) + (finale ? 6.0f : 0.0f)) * st.zoom + 70 * e;
+    if (st.board_mode) {   // look a little ahead up the lanes, so you can plan
+        const Sample ahead = st.track.at(g.j.s + 9);
+        focus = HMM_LerpV3(HMM_V3(c.x, st.track.elevation(g.j.s) + 0.8f, c.z), 0.45f, HMM_V3(ahead.x, st.track.elevation(g.j.s + 9) + 0.8f, ahead.z));
+    }
+    const float pitch = st.board_mode ? 0.92f : 0.62f + 0.25f * e;
+    const float dist = st.board_mode ? 44 * st.zoom : (34 + speed * 0.5f + (st.talk.open ? 4.0f : 0.0f) + (finale ? 6.0f : 0.0f)) * st.zoom + 70 * e;
     const HMM_Vec3 off = HMM_V3(std::cos(st.cam_yaw) * std::cos(pitch), std::sin(pitch), std::sin(st.cam_yaw) * std::cos(pitch));
     const HMM_Vec3 target = st.cam_target;
     HMM_Vec3 eye = HMM_AddV3(target, HMM_MulV3F(off, dist));
@@ -738,7 +1004,7 @@ void frame() {
         sg_begin_pass(&pass);
         sg_apply_pipeline(st.shadow_pip);
         draw_land(near_s, 40 * (1 + e), 50 * (1 + e));
-        draw_dynamic(near_s);
+        if (st.board_mode) draw_board(true); else draw_dynamic(near_s);
         sg_end_pass();
     }
 
@@ -774,7 +1040,7 @@ void frame() {
         fs.haze = v4(lin(0xB98A7A), 0.85f);
         sg_apply_uniforms(UB_lit_fs_params, SG_RANGE(fs));
         draw_land(near_s, 70 * (1 + e), 90 * (1 + e));
-        draw_dynamic(near_s);
+        if (st.board_mode) draw_board(false); else draw_dynamic(near_s);
         sg_end_pass();
     }
 
@@ -817,10 +1083,22 @@ void event(const sapp_event* ev) {
             if (down && !ev->key_repeat && xl::focused()) {
                 if (k == SAPP_KEYCODE_SPACE || k == SAPP_KEYCODE_ENTER || k == SAPP_KEYCODE_E) st.advance = true;
                 if (k == SAPP_KEYCODE_R) st.restart = true;
+                if (k == SAPP_KEYCODE_G && (st.waiting || !st.board_mode)) start_board();
+                if (k == SAPP_KEYCODE_M) leave_board();
+                if (st.board_mode && k == SAPP_KEYCODE_W && st.board_results) { leave_board(); st.waiting = false; }
+                if (st.board_mode) {
+                    if (k == SAPP_KEYCODE_W || k == SAPP_KEYCODE_UP) st.key_dir = 0;
+                    if (k == SAPP_KEYCODE_A || k == SAPP_KEYCODE_LEFT) st.key_dir = 1;
+                    if (k == SAPP_KEYCODE_S || k == SAPP_KEYCODE_DOWN) st.key_dir = 2;
+                    if (k == SAPP_KEYCODE_D || k == SAPP_KEYCODE_RIGHT) st.key_dir = 3;
+                }
             }
             break;
         }
-        case SAPP_EVENTTYPE_MOUSE_DOWN: st.advance = true; break;
+        case SAPP_EVENTTYPE_MOUSE_DOWN:
+            if (st.board_mode && !st.talk.open) { st.clicked = true; st.mouse = HMM_V2(ev->mouse_x, ev->mouse_y); }
+            else st.advance = true;
+            break;
         case SAPP_EVENTTYPE_MOUSE_SCROLL: st.zoom = std::max(0.5f, std::min(2.2f, st.zoom * (1.0f - ev->scroll_y * 0.06f))); break;
         case SAPP_EVENTTYPE_UNFOCUSED: st.key_gas = st.key_brake = st.key_left = st.key_right = false; break;
         default: break;
@@ -888,6 +1166,13 @@ void init() {
     st.tumbleweed = upload(build_tumbleweed());
     st.handcart = upload(build_handcart());
     for (int k = 0; k < 6; k++) st.artifacts[k] = upload(build_artifact(static_cast<ArtifactKind>(k)));
+    st.board = lower_town_board();
+    st.go = std::make_unique<GoState>(st.board);
+    st.board_mesh = upload(build_board(st.track, st.board));
+    st.watchman = upload(build_watchman());
+    st.zebu = upload(build_zebu());
+    st.chevron = upload(build_chevron());
+    st.gaze = upload(build_gaze());
     for (const Prop& p : st.track.props) if (p.kind == PropKind::Guide) { st.guide_at = HMM_V3(p.x, st.track.height(p.x, p.z, p.s), p.z); st.guide_yaw = -p.yaw; }
 
     // the shadow map: a depth texture, sampled with a comparison
@@ -970,6 +1255,24 @@ EMSCRIPTEN_KEEPALIVE char* jr_state_json() {
 EMSCRIPTEN_KEEPALIVE void jr_autopilot(int on) { st.autopilot = on != 0; if (on) st.waiting = false; }
 /** Moves the dialogue on, as Space does. */
 EMSCRIPTEN_KEEPALIVE void jr_advance() { st.waiting = false; st.advance = true; }
+/** Board mode on (1) or back to the menu (0). */
+EMSCRIPTEN_KEEPALIVE void jr_board(int on) { if (on) start_board(); else leave_board(); }
+/** Board mode: step to a neighbouring node (as a click does). */
+EMSCRIPTEN_KEEPALIVE void jr_board_move(int node) { board_try(node); }
+/** Board mode as JSON (free the string with _free). */
+EMSCRIPTEN_KEEPALIVE char* jr_board_json() {
+    const GoState& g = *st.go;
+    std::string adj;
+    for (int n : st.board.adj[g.player]) adj += (adj.empty() ? "" : ",") + std::to_string(n);
+    char buf[512];
+    std::snprintf(buf, sizeof buf, "{\"on\":%s,\"player\":%d,\"exit\":%d,\"moves\":%d,\"par\":%d,\"won\":%s,\"caught\":%s,\"talking\":%s,\"results\":%s,\"artifacts\":%d,\"stars\":%d,\"ready\":%s,\"adj\":[%s]}",
+        st.board_mode ? "true" : "false", g.player, st.board.exit, g.moves, st.board.par, g.won ? "true" : "false", g.caught ? "true" : "false", st.talk.open ? "true" : "false",
+        st.board_results ? "true" : "false", g.artifacts(), g.stars(), st.hop >= 1 && st.caught_timer <= 0 ? "true" : "false", adj.c_str());
+    const size_t n = std::strlen(buf) + 1;
+    char* out = static_cast<char*>(malloc(n));
+    std::memcpy(out, buf, n);
+    return out;
+}
 }
 
 sapp_desc sokol_main(int argc, char* argv[]) {

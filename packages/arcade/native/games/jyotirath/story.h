@@ -22,4 +22,8 @@ const std::vector<Stop>& chapter_one();
 
 const char* speaker_name(Speaker s);
 
+/** Board mode (the Lower Town, turn by turn): what's said before and after. */
+const std::vector<Line>& board_intro();
+const std::vector<Line>& board_outro();
+
 } // namespace jr

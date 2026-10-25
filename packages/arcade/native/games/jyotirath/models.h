@@ -3,6 +3,7 @@
 // can turn them; so are the things that move about the road (artifacts, pots, handcarts, tumbleweeds, the Guide).
 // The land is built in chunks along the road so only what's near the camera is drawn. Graphics-free.
 #pragma once
+#include "go.h"
 #include "mesh.h"
 #include "track.h"
 
@@ -39,6 +40,17 @@ Mesh build_tumbleweed();
 Mesh build_handcart();
 /** A soft blob for dust and splashes (its colour comes from the draw). */
 Mesh build_puff();
+
+/** A watchman with a spear, standing on the origin, facing +X. */
+Mesh build_watchman();
+/** A zebu bull with painted horns and a marigold garland, standing on the origin, facing +X. */
+Mesh build_zebu();
+/** Board mode's nodes and lines, painted on the road (the exit gold, the start ringed). */
+Mesh build_board(const Track& t, const Board& b);
+/** A flat arrow pointing along +X (where a piece goes next). */
+Mesh build_chevron();
+/** A flat ring (where a watchman is looking). */
+Mesh build_gaze();
 
 /** The land between s0 and s1 along the road: ground, strata, road and every prop standing there. */
 Mesh build_chunk(const Track& t, float s0, float s1);

@@ -69,4 +69,21 @@ const std::vector<Stop>& chapter_one() {
     return stops;
 }
 
+const std::vector<Line>& board_intro() {
+    static const std::vector<Line> lines = {
+        { Speaker::Narrator, "You come across the Lower Town: mud-brick houses, narrow lanes and wells. Today its lanes are busy with handcarts, watchmen and a zebu." },
+        { Speaker::Narrator, "Move one step at a time: W, A, S, D, or click a node. Everyone else moves after you. Red marks show where they'll go and where watchmen look." },
+        { Speaker::JyotiRath, "Step by step. I can do that." },
+    };
+    return lines;
+}
+
+const std::vector<Line>& board_outro() {
+    static const std::vector<Line> lines = {
+        { Speaker::JyotiRath, "Made it through without a scratch!" },
+        { Speaker::Narrator, "Beyond the lanes, the Granary waits." },
+    };
+    return lines;
+}
+
 } // namespace jr

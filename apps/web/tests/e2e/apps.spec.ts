@@ -1077,6 +1077,39 @@ test.describe('Arcade', () => {
         expect(after.fuel).toBeGreaterThan(0.5);
     });
 
+    test('JyotiRath board mode: G opens the Lower Town board, W steps one node, and the lanes can be cleared', async ({ page }) => {
+        test.setTimeout(120_000);
+        await openDesktop(page, { 'arcade-backend': 'webgl2' });
+        const arcade = await openApp(page, 'arcade');
+        await arcade.getByRole('button', { name: 'Play JyotiRath' }).click();
+        const game = page.locator('[data-game="jyotirath"]');
+        await expect.poll(() => game.evaluate(el => Number((el as HTMLElement).dataset.frames)), { timeout: 25_000 }).toBeGreaterThan(10);
+        type Jr = { xlGame: { _jr_board_json(): number; _jr_autopilot(on: number): void; UTF8ToString(p: number): string; _free(p: number): void } };
+        const board = () => game.evaluate(el => {
+            const g = (el as unknown as Jr).xlGame;
+            const ptr = g._jr_board_json(); const text = g.UTF8ToString(ptr); g._free(ptr);
+            return JSON.parse(text) as { on: boolean; player: number; moves: number; par: number; won: boolean; talking: boolean; results: boolean; stars: number; ready: boolean };
+        });
+        await game.locator('canvas').focus();
+        await page.keyboard.press('KeyG');
+        await expect.poll(async () => (await board()).on, { timeout: 5_000 }).toBe(true);
+        expect(await board()).toMatchObject({ player: 0, moves: 0, talking: true });
+        expect((await board()).par).toBeGreaterThan(20);
+        for (let i = 0; i < 10 && (await board()).talking; i++) { await page.keyboard.press('Space'); await page.waitForTimeout(150); }
+        expect((await board()).talking).toBe(false);
+
+        // W steps to the next node up the lane: one move, and the others take theirs
+        await page.keyboard.press('KeyW');
+        await expect.poll(async () => (await board()).moves).toBe(1);
+        expect((await board()).player).toBe(1);
+
+        // the solver plays the rest: the board clears, with at least a star
+        await game.evaluate(el => (el as unknown as Jr).xlGame._jr_autopilot(1));
+        await expect.poll(async () => (await board()).won, { timeout: 60_000 }).toBe(true);
+        await expect.poll(async () => (await board()).results, { timeout: 15_000 }).toBe(true);
+        expect((await board()).stars).toBeGreaterThan(0);
+    });
+
     test('Turbo Trails: the desktop volume slider sets the game volume, and gas rumbles a gamepad', async ({ page }) => {
         // a fake pad with a rumble motor that records what the game asks of it
         await page.addInitScript(() => {

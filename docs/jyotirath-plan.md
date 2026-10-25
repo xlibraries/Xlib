@@ -28,6 +28,21 @@ One continuous road, about 1.3 km, through the doc's stretches (its distances do
   click moves on.
 - **The end**: a chapter card with your artifacts and time, and "Next: the Ajanta Caves".
 
+## Board mode (a prototype)
+
+**G** on the title opens the Lower Town as a turn-based board, in the style of Hitman GO, to compare with free
+driving. The road and its lanes are painted with white nodes and lines; JyotiRath hops one node a turn, then
+everyone else takes a step:
+
+- **Handcarts** roll back and forth along their lanes; **watchmen** look one way (a red ring marks where);
+  a **zebu bull** charges down its lane while you're in line with it. Red arrows show where each will go next.
+- Step onto one from the side or behind and you nudge it aside; step where one is going, into its face, or in
+  front of a watchman, and you're caught: the board starts over.
+- Reach the far end to clear it: stars for clearing, for every artifact, and for par (the solver's fewest moves).
+
+`go.h/.cpp` holds the rules, the board and a breadth-first solver (par, and the best next move, which the tests
+and the demo use); `tests/native/jyotirath_go_test.cpp` checks the rules and that the board can be cleared.
+
 ## Look
 
 - **Mid-poly, made in code** (`mesh.h`: lathes, spheres, capsules, tori, rounded boxes, swept tubes, with a little
@@ -48,7 +63,8 @@ One continuous road, about 1.3 km, through the doc's stretches (its distances do
 | `story.h/.cpp` | Chapter I's script: the stops, their lines, objectives and checkpoints |
 | `drive.h/.cpp` | Handling, collisions, fuel, the journey's phases (landing, talking, driving, respawning, complete) |
 | `models.h/.cpp` | Every model; the land built in 50 m chunks |
-| `main.cpp` | Rendering (shadow, 4× MSAA scene, post), streaming chunks, camera, dialogue and HUD, sound |
+| `go.h/.cpp` | Board mode: the board, the rules, the solver |
+| `main.cpp` | Rendering (shadow, 4× MSAA scene, post), streaming chunks, camera, dialogue and HUD, board mode, sound |
 
 All but `main.cpp` are graphics-free and tested natively (`tests/native/jyotirath_test.cpp`): the road's geometry,
 the story's order, the handling, fuel and respawns, and an autopilot that drives the whole chapter, stopping at
@@ -58,7 +74,6 @@ every stop. The e2e test drives the start in a browser.
 
 | | |
 | --- | --- |
-| **GO-style prototype** | The Lower Town as a turn-based node board (Hitman GO): move one node a turn past carts on patterns, behind a toggle, to compare with free driving |
 | **Checkpoint 2: Ajanta Caves** | Narrow passages, carvings; the doc's suspension and tyre upgrades |
 | **Upgrades** | The doc's per-checkpoint shop (Mohenjo-Daro: Engine 400) |
 | **Phones** | Touch controls |

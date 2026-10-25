@@ -93,7 +93,8 @@ things work.
   JyotiRath (`docs/jyotirath-plan.md`) is the same design told as a story in 3D: Chapter I, Mohenjo-Daro, a road
   across a floating diorama with stops where the narrator, JyotiRath and the Guide talk (`story.cpp`). Every model is
   made in code (`mesh.h`, `models.cpp`), the land in 50 m chunks; shadows, MSAA and a tilt-shift post pass in
-  `shaders/jyotirath.glsl`. The road, story and handling are graphics-free and tested natively.
+  `shaders/jyotirath.glsl`. The road, story and handling are graphics-free and tested natively. Board mode (G on the
+  title) is a Hitman GO-style prototype of the Lower Town: rules and a solver in `go.cpp`.
 - Packages: `terminal` (Terminal + Calc), `browser` (Brave + server endpoints), `music` (+ the
   `xlib-music-snapshot` CLI), `photo-drop` (upload page + Apps Script backend, deployed with `pnpm deploy:photo-drop`, see its README).
 - `.github/workflows/refresh-playlists.yml` refreshes the Music snapshot every Monday and commits it if tracks changed.

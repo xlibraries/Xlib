@@ -1092,4 +1092,106 @@ Mesh build_chunk(const Track& t, float s0, float s1) {
     return m;
 }
 
+Mesh build_watchman() {
+    Mesh m;
+    const Material tunic = mat(0x2E7F8C, 0.8f), sash = mat(0xC8302E, 0.8f), sk = mat(0xA2623E, 0.55f, 0, 0, Material::SKIN), dark = mat(0x1B1311, 0.4f);
+    for (int s = -1; s <= 1; s += 2) m.capsule({ 0, 0.05f, s * 0.1f }, { 0, 0.75f, s * 0.1f }, 0.07f, 12, mat(0xEFE6D2, 0.85f));
+    m.lathe({ { 0, 0.62f }, { 0.25f, 0.62f }, { 0.27f, 0.8f }, { 0.25f, 1.15f }, { 0.27f, 1.32f }, { 0.2f, 1.42f }, { 0, 1.44f } }, 24, tunic);
+    m.torus(0.26f, 0.04f, 24, 8, sash, translate({ 0, 0.95f, 0 }));
+    m.tube({ { 0.02f, 1.4f, -0.22f }, { 0.22f, 1.15f, 0 }, { 0.12f, 0.92f, 0.22f } }, 0.035f, 8, sash);
+    for (int s = -1; s <= 1; s += 2) m.tube({ { 0, 1.34f, s * 0.26f }, { 0.04f, 1.12f, s * 0.31f }, { 0.2f, 1.05f, s * 0.2f } }, 0.055f, 10, tunic);
+    for (int s = -1; s <= 1; s += 2) m.sphere(0.05f, 10, sk, translate({ 0.22f, 1.05f, s * 0.2f }));
+    m.cylinder(0.05f, 0.14f, 12, sk, translate({ 0, 1.42f, 0 }));
+    ellipsoid(m, { 0.02f, 1.68f, 0 }, { 0.16f, 0.19f, 0.15f }, 24, sk);
+    ellipsoid(m, { 0.17f, 1.66f, 0 }, { 0.03f, 0.04f, 0.03f }, 10, sk);
+    for (int s = -1; s <= 1; s += 2) {
+        m.sphere(0.028f, 12, mat(0xF8F4EE, 0.12f, 0, 0, Material::EYE), translate({ 0.14f, 1.72f, s * 0.058f }));
+        m.sphere(0.016f, 8, mat(0x2A1A10, 0.15f, 0, 0, Material::EYE), translate({ 0.163f, 1.72f, s * 0.058f }));
+        m.tube({ { 0.15f, 1.775f, s * 0.025f }, { 0.165f, 1.785f, s * 0.06f }, { 0.15f, 1.79f, s * 0.095f } }, 0.012f, 6, dark);   // stern brows
+        m.tube({ { 0.18f, 1.625f, 0 }, { 0.18f, 1.615f, s * 0.05f }, { 0.165f, 1.6f, s * 0.085f } }, 0.016f, 8, dark);         // a big moustache
+    }
+    for (int k = 0; k < 3; k++) m.torus(0.14f - k * 0.015f, 0.045f, 24, 8, k % 2 ? mat(0xF2C230, 0.7f) : sash, translate({ 0, 1.82f + k * 0.045f, 0 }));
+    m.sphere(0.11f, 16, sash, translate({ -0.01f, 1.88f, 0 }));
+    // a spear with a bronze tip, and a small round shield
+    m.cylinder(0.022f, 2.3f, 8, wood(), translate({ 0.2f, 0, -0.32f }));
+    m.lathe({ { 0, 0 }, { 0.035f, 0 }, { 0.05f, 0.08f }, { 0, 0.26f } }, 10, bronze(), translate({ 0.2f, 2.3f, -0.32f }));
+    m.lathe({ { 0, 0 }, { 0.26f, 0 }, { 0.28f, 0.03f }, { 0.2f, 0.07f }, { 0, 0.08f } }, 24, mat(0x8A5A32, 0.7f), translate({ 0.05f, 1.0f, 0.34f }) * rotate_x(-PI / 2));
+    m.sphere(0.05f, 10, bronze(), translate({ 0.05f, 1.0f, 0.43f }));
+    m.ground_ao(0, 0.4f, 0.4f);
+    return m;
+}
+
+Mesh build_zebu() {
+    Mesh m;
+    const Material hide = mat(0xD9D2C4, 0.75f), dark = mat(0x5A5048, 0.7f), hoof = mat(0x2E2622, 0.6f);
+    ellipsoid(m, { 0, 0.9f, 0 }, { 0.75f, 0.36f, 0.33f }, 28, hide);
+    ellipsoid(m, { 0.38f, 1.22f, 0 }, { 0.2f, 0.2f, 0.17f }, 18, mat(0xC9C0B0, 0.75f));   // the hump
+    ellipsoid(m, { 0.62f, 0.72f, 0 }, { 0.12f, 0.24f, 0.08f }, 14, hide);                // the dewlap
+    for (int fx = -1; fx <= 1; fx += 2) for (int fz = -1; fz <= 1; fz += 2) {
+        const V3 top = { fx * 0.48f, 0.78f, fz * 0.18f }, knee = { fx * 0.5f, 0.4f, fz * 0.19f }, foot = { fx * 0.5f, 0.06f, fz * 0.19f };
+        taper(m, { top, knee, foot }, 0.09f, 0.055f, 10, hide);
+        m.cylinder(0.065f, 0.08f, 10, hoof, translate({ foot.x, 0, foot.z }));
+    }
+    // head, muzzle, ears, painted horns
+    ellipsoid(m, { 0.92f, 1.08f, 0 }, { 0.24f, 0.17f, 0.15f }, 20, hide);
+    ellipsoid(m, { 1.12f, 0.99f, 0 }, { 0.11f, 0.1f, 0.12f }, 16, dark);
+    for (int s = -1; s <= 1; s += 2) {
+        m.sphere(0.025f, 8, mat(0x120A08, 0.2f, 0, 0, Material::EYE), translate({ 1.02f, 1.13f, s * 0.12f }));
+        ellipsoid(m, { 0.82f, 1.12f, s * 0.2f }, { 0.07f, 0.035f, 0.12f }, 10, hide);
+        m.tube({ { 0.86f, 1.2f, s * 0.1f }, { 0.84f, 1.36f, s * 0.2f }, { 0.9f, 1.5f, s * 0.22f }, { 0.98f, 1.56f, s * 0.18f } }, 0.04f, 8, mat(s > 0 ? 0xC8302E : 0x2F6DB5, 0.5f), {}, { 0.05f, 0.04f, 0.03f, 0.015f });
+    }
+    // tail with a tuft
+    m.tube({ { -0.72f, 1.0f, 0 }, { -0.82f, 0.8f, 0.02f }, { -0.84f, 0.5f, 0.04f } }, 0.025f, 6, hide);
+    ellipsoid(m, { -0.84f, 0.44f, 0.04f }, { 0.04f, 0.08f, 0.04f }, 8, dark);
+    // a marigold garland round the neck
+    for (int k = 0; k <= 14; k++) {
+        const float a = PI * (0.15f + 0.7f * k / 14.0f);
+        m.sphere(0.045f, 6, k % 2 ? mat(0xF7C531, 0.7f) : mat(0xF2801E, 0.7f), translate({ 0.68f + std::sin(a) * 0.06f, 0.95f - std::sin(a) * 0.22f, std::cos(a) * 0.24f }));
+    }
+    m.wobble(0.01f, 6, 12);
+    m.ground_ao(0, 0.4f, 0.45f);
+    return m;
+}
+
+Mesh build_board(const Track& t, const Board& b) {
+    Mesh m;
+    const Material paint = mat(0xFFFFFF, 0.5f, 0, 0.12f), edge = mat(0x6B4A30, 0.6f), gold_paint = mat(0xF2C14E, 0.35f, 0.6f, 0.2f);
+    const auto where = [&](const GoNode& n) { const Sample p = t.at(n.s); return V3{ p.x - p.tz * n.lat, t.elevation(n.s) + 0.06f, p.z + p.tx * n.lat }; };
+    for (size_t i = 0; i < b.nodes.size(); i++) {
+        const V3 c = where(b.nodes[i]);
+        const bool exit = static_cast<int>(i) == b.exit, start = static_cast<int>(i) == b.start;
+        m.lathe({ { 0, 0.03f }, { 0.3f, 0.03f }, { 0.34f, 0.015f }, { 0.36f, -0.04f } }, 28, exit ? gold_paint : paint, translate(c));
+        m.torus(exit ? 0.6f : 0.46f, 0.04f, 36, 6, exit ? gold_paint : edge, translate(c + V3{ 0, -0.02f, 0 }) * scale({ 1, 0.5f, 1 }));
+        if (start) m.torus(0.62f, 0.03f, 36, 6, paint, translate(c + V3{ 0, 0.01f, 0 }) * scale({ 1, 0.4f, 1 }));
+        if (exit) {
+            m.cylinder(0.03f, 1.6f, 8, wood(), translate(c + V3{ -0.5f, 0, 0.5f }));
+            m.rounded_box({ 0.5f, 0.32f, 0.02f }, 0.01f, mat(0xE8862A, 0.8f, 0, 0, Material::FOLIAGE), translate(c + V3{ -0.24f, 1.42f, 0.5f }), 1);
+        }
+    }
+    for (size_t i = 0; i < b.adj.size(); i++) for (int j : b.adj[i]) {
+        if (j < static_cast<int>(i)) continue;
+        const V3 a = where(b.nodes[i]), c = where(b.nodes[j]);
+        const V3 d = c - a;
+        const float len = length(d) - 0.8f;
+        if (len <= 0) continue;
+        const V3 mid = (a + c) * 0.5f;
+        m.rounded_box({ len, 0.03f, 0.1f }, 0.01f, paint, translate(mid + V3{ 0, -0.02f, 0 }) * rotate_y(std::atan2(-d.z, d.x)), 1);
+    }
+    return m;
+}
+
+Mesh build_chevron() {
+    Mesh m;
+    const Material red = mat(0xE8452E, 0.5f, 0, 0.6f);
+    for (int s = -1; s <= 1; s += 2) m.rounded_box({ 0.34f, 0.04f, 0.09f }, 0.02f, red, translate({ -0.08f, 0, s * 0.11f }) * rotate_y(s * 0.7f), 1);
+    return m;
+}
+
+Mesh build_gaze() {
+    Mesh m;
+    m.torus(0.44f, 0.05f, 36, 6, mat(0xE8452E, 0.5f, 0, 0.6f), scale({ 1, 0.4f, 1 }));
+    m.sphere(0.07f, 10, mat(0xE8452E, 0.5f, 0, 0.6f), scale({ 1, 0.3f, 1 }));
+    return m;
+}
+
 } // namespace jr
