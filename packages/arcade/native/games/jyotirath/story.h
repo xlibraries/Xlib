@@ -1,6 +1,9 @@
-// JyotiRath, Chapter I's script (from the design doc, "Level 1: Chariots → Checkpoint 1: Mohen-Jo-Daro"): what is
-// said at each stop along the road, by whom, and what to do next. Graphics-free.
+// JyotiRath, Chapter I's words (from the design doc's script for "Checkpoint 1: Mohen-Jo-Daro"): what's said as each
+// beat begins (the canal road's depends on how you solved the Lower Town), as each district comes back to life, and
+// at the end (which depends on whether you found the fragment). Graphics-free.
 #pragma once
+#include "chapter.h"
+
 #include <vector>
 
 namespace jr {
@@ -9,21 +12,17 @@ enum class Speaker { Narrator, JyotiRath, Guide };
 
 struct Line { Speaker who; const char* text; };
 
-struct Stop {
-    float s;                 // where along the road it happens
-    const char* place;       // shown as a title on arrival ("" for none)
-    std::vector<Line> lines;
-    const char* objective;   // shown once the talking is done
-    bool checkpoint;         // you come back here after running out of fuel or falling off
-};
-
-/** The chapter's stops, in order; the first plays when you land, the last ends the chapter. */
-const std::vector<Stop>& chapter_one();
-
 const char* speaker_name(Speaker s);
 
-/** Board mode (the Lower Town, turn by turn): what's said before and after. */
-const std::vector<Line>& board_intro();
-const std::vector<Line>& board_outro();
+/** What's said as a beat begins. */
+const std::vector<Line>& beat_intro(const Chapter& c);
+/** As a district's board is cleared and it comes back to life. */
+const std::vector<Line>& board_outro(int board);
+/** A grateful local's gift after a quiet solve. */
+const std::vector<Line>& gift_lines(Tool gift);
+/** Why a drive failed. */
+const char* fail_text(Fail f);
+/** What a drive asks of you, in a few words. */
+const char* goal_text(const RunSpec& r);
 
 } // namespace jr

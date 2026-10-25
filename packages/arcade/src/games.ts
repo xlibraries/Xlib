@@ -34,8 +34,8 @@ export const GAMES: GameInfo[] = [
     {
         id: 'jyotirath',
         title: 'JyotiRath',
-        description: 'Chapter I: Mohenjo-Daro. Drive the golden chariot through the desert and the Indus city, from the Granary to the Dancing Girl, collecting artifacts on the way.',
-        controls: 'W gas · S brake · A/D steer · Space or click: next line · R restart · G: the Lower Town as a turn-based board · scroll to zoom · gamepad: stick, RT/LT, A, Start',
+        description: 'Chapter I: Mohenjo-Daro. Drive the golden chariot between the ruined districts, then cross each one turn by turn. How you get through decides the road ahead, and brings the city back to life.',
+        controls: 'Drive: W A S D · In the city: W A S D or click a node, 1 2 tools · Space or click: next line · R start over · N new journey · scroll to zoom · gamepad: stick, RT/LT, d-pad, A, X/Y',
         art: 'linear-gradient(160deg, #f7d9a8 0%, #f2b84b 40%, #b8774d 41%, #6e4a3a 100%)',
     },
     {

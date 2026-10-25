@@ -50,7 +50,7 @@ describe('build-native', () => {
 
     it('ships JyotiRath with its shaders and the HUD font', () => {
         expect(GAMES.jyotirath.shaders).toEqual(['shaders/jyotirath.glsl']);   // shadow, lit, sky and post programs
-        expect(GAMES.jyotirath.sources).toContain('games/jyotirath/story.cpp');
+        expect(GAMES.jyotirath.sources).toEqual(expect.arrayContaining(['games/jyotirath/story.cpp', 'games/jyotirath/go.cpp', 'games/jyotirath/boards.cpp', 'games/jyotirath/chapter.cpp']));
         expect(GAMES.jyotirath.text).toBe(true);
         expect(emArgs('jyotirath', 'webgpu').join(' ')).toContain('LilitaOne-Regular.ttf@/LilitaOne-Regular.ttf');
     });

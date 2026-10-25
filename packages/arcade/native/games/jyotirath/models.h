@@ -32,7 +32,14 @@ Mesh build_lid();
 
 /** The Guide: an old scholar in a saffron turban with a scroll, standing on the origin, facing +X. */
 Mesh build_guide();
-Mesh build_artifact(ArtifactKind kind);
+/** A tool, floating where it lies (a golden ring beneath it). */
+Mesh build_tool(Tool tool);
+/** The Buddhist fragment (the clue). */
+Mesh build_fragment();
+Mesh build_villager(uint32_t seed);
+Mesh build_sack();
+/** A stepping stone, its top at the origin. */
+Mesh build_stone();
 Mesh build_pot();
 Mesh build_shard();
 Mesh build_tumbleweed();
@@ -52,7 +59,12 @@ Mesh build_chevron();
 /** A flat ring (where a watchman is looking). */
 Mesh build_gaze();
 
-/** The land between s0 and s1 along the road: ground, strata, road and every prop standing there. */
+/** The land between s0 and s1 along the road: ground, strata, road and the props standing there that don't belong
+ *  to a district (and the shortcut's bridge). */
 Mesh build_chunk(const Track& t, float s0, float s1);
+/** A district's buildings and life: alive, or as ruins. */
+Mesh build_district(const Track& t, int district, bool alive);
+/** The gates across the shortcut's bridge (drawn while it's closed). */
+Mesh build_gates(const Track& t);
 
 } // namespace jr

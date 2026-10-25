@@ -1,10 +1,9 @@
-// JyotiRath: the chariot's handling and Chapter I's journey. Arcade physics in the ground plane (grip, drift, slopes,
-// sand), collisions with the town and the handcarts crossing the road, potholes, tumbleweeds, clay pots that fly
-// when hit, artifacts that refill the fuel, and the story's stops in order: reaching one stops the chariot to talk
-// (main.cpp shows the lines, then calls finish_talking). Running out of fuel or driving off the land puts you back
-// at the last checkpoint. Fixed steps, deterministic, graphics-free (tests/native/jyotirath_test.cpp).
+// JyotiRath: the chariot's handling and a drive's goal. Arcade physics in the ground plane (grip, drift, slopes,
+// sand), collisions with the land's props, potholes and tumbleweeds; tools to pick up (two at most in the bag). A
+// drive runs along the road from one district to the next with one goal: just get there, outrun the zebu, beat the
+// clock, deliver the grain without spilling it, or stay ahead of a dust storm. Falling off the land, the canal, or
+// missing the goal fails it (and it starts over). Fixed steps, deterministic, graphics-free.
 #pragma once
-#include "story.h"
 #include "track.h"
 
 #include <cstdint>
@@ -30,62 +29,68 @@ struct Car {
     float forward_speed() const;
 };
 
-struct Pot { float x, y, z, vx = 0, vy = 0, vz = 0, spin = 0; bool hit = false, broken = false; };
 struct Tumbleweed { float x, z, vx, vz, spin = 0, life = 0; };
 
-enum class Phase { Landing, Talking, Driving, Respawning, Complete };
+enum class Goal { Reach, Chase, Clock, Deliver, Storm };
+
+struct RunSpec {
+    Goal goal = Goal::Reach;
+    float from = 0, to = 0;   // along the road
+    bool landing = false;     // dropped from the sky at the start (the very first drive)
+    bool shortcut = false;    // the canal road's bridge is open
+    float time = 0;           // the clock, for Goal::Clock
+    int cargo = 0;            // sacks of grain, for Goal::Deliver
+};
+
+enum class RunState { Landing, Driving, Failed, Done };
+enum class Fail { None, Fell, Splash, Caught, Late, Spilled, Storm };
 
 /** Things that happened during a step, for sound, particles and the camera. */
 enum Event : uint32_t {
-    EV_LAND = 1, EV_STOP = 2, EV_ARTIFACT = 4, EV_BONK = 8, EV_POT_HIT = 16, EV_POT_BREAK = 32, EV_POTHOLE = 64,
-    EV_FALL = 128, EV_RESPAWN = 256, EV_OUT_OF_FUEL = 512, EV_COMPLETE = 1024, EV_TUMBLE = 2048,
+    EV_LAND = 1, EV_PICKUP = 2, EV_BAG_FULL = 4, EV_BONK = 8, EV_POTHOLE = 16, EV_SPILL = 32, EV_FAIL = 64,
+    EV_DONE = 128, EV_TUMBLE = 256,
 };
 
-constexpr float LANDING_TIME = 1.6f, RESPAWN_DELAY = 1.4f;
-constexpr float FUEL_IDLE = 0.005f, FUEL_GAS = 0.014f, FUEL_ARTIFACT = 0.05f, FUEL_BONK = 0.04f, FUEL_RESPAWN = 0.6f;
-
-struct Journey {
-    Phase phase = Phase::Landing;
-    float landing = LANDING_TIME;   // seconds of falling onto the road at the start
-    int stop = 0;                   // the stop talking now, or the next one to reach
-    int checkpoint = 0;             // the stop a respawn returns to
-    float fuel = 1;
-    int artifacts = 0;
-    bool fragment = false;          // found the Buddhist fragment
-    float respawn = 0;              // > 0 while waiting to be put back
-    bool out_of_fuel = false;       // why we're being put back
-    float ghost = 0;                // > 0 just after a respawn
-    float s = 0;                    // distance along the road
-    float time = 0;                 // driving time
+struct Run {
+    RunSpec spec;
+    RunState state = RunState::Driving;
+    Fail fail = Fail::None;
+    float time = 0;
+    float s = 0;                  // the chariot's distance along the road
+    float chaser = 0;             // the zebu's (or the storm's) distance along the road
+    int cargo = 0;
+    std::vector<Tool> bag;
+    std::vector<bool> picked;     // the track's pickups taken
+    float rough = 0;              // seconds on rough ground (spills a sack every so often when carrying grain)
     uint32_t events = 0;
-    float bonk = 0;                 // the hardest impact this step
+    float bonk = 0;               // the hardest impact this step
     V2 event_at{};
 };
 
 struct Game {
     const Track* track = nullptr;
     Car car;
-    Journey j;
-    std::vector<bool> taken;        // artifacts collected
-    std::vector<Pot> pots;
+    Run run;
     std::vector<Tumbleweed> tumbleweeds;
-    float clock = 0;                // drives the handcarts and the wind
+    float clock = 0;
     int last_pothole = -1;
+    int bag_full_nag = -1;        // the pickup we last said "bag full" about
 
-    explicit Game(const Track& t) : track(&t) { reset(); }
-    void reset();
+    explicit Game(const Track& t) : track(&t) {}
+    /** Start a drive: the chariot on the road at spec.from (or falling onto it), carrying `bag`. */
+    void start(const RunSpec& spec, std::vector<Tool> bag);
     void step(const Input& in, float dt);
     /** Puts the chariot on the road at distance s, facing along it, stopped. */
     void place(float s);
-    /** The current stop's lines have all been read: drive on (or the chapter is complete). */
-    void finish_talking();
 };
 
-/** A driver for tests and the demo: follows the road, picks up artifacts ahead, slows for bends. */
+/** A driver for tests and the demo: follows the road (over the bridge when it's open), picks up tools ahead. */
 Input autopilot(const Game& g);
 
 /** Car handling constants. */
 constexpr float ACCEL = 14, BRAKE = 26, REVERSE_MAX = 5, MAX_ROAD = 14, MAX_SAND = 7.0f;
 constexpr float CAR_RADIUS = 0.75f;
+/** The chasers: the zebu starts this far behind and runs this fast; the storm creeps, then quickens. */
+constexpr float CHASE_GAP = 24, CHASE_SPEED = 12.9f, STORM_GAP = 40, STORM_SPEED = 12.4f;
 
 } // namespace jr

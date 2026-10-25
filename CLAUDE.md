@@ -90,11 +90,12 @@ things work.
   "feel" (face expressions, squash, shake) are graphics-free and tested natively (`tests/native/turbo_trails_test.cpp`);
   `art.h` draws, and the scene goes through a post-process shader. Its global leaderboard is
   `/api/arcade/leaderboard` (`lib/leaderboard.ts`, Redis sorted sets).
-  JyotiRath (`docs/jyotirath-plan.md`) is the same design told as a story in 3D: Chapter I, Mohenjo-Daro, a road
-  across a floating diorama with stops where the narrator, JyotiRath and the Guide talk (`story.cpp`). Every model is
-  made in code (`mesh.h`, `models.cpp`), the land in 50 m chunks; shadows, MSAA and a tilt-shift post pass in
-  `shaders/jyotirath.glsl`. The road, story and handling are graphics-free and tested natively. Board mode (G on the
-  title) is a Hitman GO-style prototype of the Lower Town: rules and a solver in `go.cpp`.
+  JyotiRath (`docs/jyotirath-plan.md`) is the same design told as a story in 3D. Chapter I, Mohenjo-Daro, alternates
+  short drives (`drive.cpp`: reach, chase, clock, deliver, storm) with Hitman GO-style boards in the districts (`go.cpp`
+  rules and solver, `boards.cpp`); `chapter.cpp` carries the bag of tools between them and lets how a board was solved
+  pick the next drive; districts are ruins (`models.cpp` ruinify) until their board is cleared. Every model is made in
+  code (`mesh.h`); shadows, MSAA and a tilt-shift post pass in `shaders/jyotirath.glsl`. All but `main.cpp` is
+  graphics-free and tested natively.
 - Packages: `terminal` (Terminal + Calc), `browser` (Brave + server endpoints), `music` (+ the
   `xlib-music-snapshot` CLI), `photo-drop` (upload page + Apps Script backend, deployed with `pnpm deploy:photo-drop`, see its README).
 - `.github/workflows/refresh-playlists.yml` refreshes the Music snapshot every Monday and commits it if tracks changed.
