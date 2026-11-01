@@ -43,6 +43,11 @@
       "layer": 1,
       "as": "engine-web"
     },
+    "@xlibraries/asset-builder": {
+      "layer": 2,
+      "as": "asset-builder",
+      "pure": true
+    },
     "@xlibraries/engine-audio": {
       "layer": 2,
       "as": "engine-audio"
@@ -60,6 +65,11 @@
     "@xlibraries/physics-3d": {
       "layer": 2,
       "as": "physics-3d",
+      "pure": true
+    },
+    "@xlibraries/render": {
+      "layer": 2,
+      "as": "render",
       "pure": true
     },
     "@xlibraries/app-sdk": {
@@ -108,10 +118,6 @@
       "native/games/jyotirath": {
         "as": "game-jyotirath",
         "layer": 4
-      },
-      "native/games/jyotirath/mesh": {
-        "as": "render",
-        "layer": 2
       },
       "tests/native/jyotirath": {
         "as": "game-jyotirath",
@@ -276,6 +282,10 @@
         "as": "bot-lab-world",
         "layer": 4
       },
+      "tests/native/view": {
+        "as": "bot-lab-world",
+        "layer": 4
+      },
       "scripts/build-native": {
         "as": "bot-lab-world",
         "layer": 4
@@ -302,6 +312,14 @@
     [
       "adapter-cpp-wasm",
       "adapter-shader-sokol"
+    ],
+    [
+      "adapter-native-test",
+      "adapter-shader-sokol"
+    ],
+    [
+      "asset-builder",
+      "render"
     ]
   ],
   "forbid": [

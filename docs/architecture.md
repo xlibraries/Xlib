@@ -147,7 +147,7 @@ four brushless motors hand their thrust and twist to the frame; its MPU-6050 fee
 height under it. An arm's servos hand their pulses' angles to
 its joints (slewed at their rated speed, up to their stall torque) and get the joints' real angles back; `sim/arm.ts`
 is its inverse kinematics. The worker builds the world on load too, so a stopped project shows its machines. The view draws
-them from above (SVG) or in 3D: `native/view` is a sokol module hosted by `EngineView` (embedded), fed through its
+them from above (SVG) or in 3D: `native/view` is a module drawn through `@xlibraries/render` (with shadows), hosted by `EngineView` (embedded), fed through its
 exports (the track, the start pose, each snapshot's poses). Stopped, the World
 view edits the track and the robot's start; the Parts tab's Robot panel picks the wheel motors and mounts the sensors.
 `i2c.ts` is I²C at the level of transactions: each board's bus (the Pi's GPIO2/GPIO3, the Uno's A4/A5 through avr8js's

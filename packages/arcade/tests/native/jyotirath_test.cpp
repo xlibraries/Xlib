@@ -1,8 +1,7 @@
 #include "doctest.h"
 #include "games/jyotirath/chapter.h"
 #include "games/jyotirath/drive.h"
-#include "games/jyotirath/mesh.h"
-#include "games/jyotirath/models.h"
+#include "games/jyotirath/level.h"
 #include "games/jyotirath/story.h"
 #include "games/jyotirath/track.h"
 
@@ -55,55 +54,6 @@ Game driving_at(float s) {
 }
 
 } // namespace
-
-// ---------- mesh ----------
-
-TEST_CASE("transforms compose, and normals stay perpendicular under non-uniform scale") {
-    const Xform x = translate({ 1, 2, 3 }) * rotate_y(1.5707963f) * scale({ 2, 1, 1 });
-    const V3 p = x.point({ 1, 0, 0 });
-    CHECK(p.x == doctest::Approx(1.0f).epsilon(0.001));
-    CHECK(p.z == doctest::Approx(1.0f).epsilon(0.001));
-    CHECK(p.y == doctest::Approx(2.0f));
-    const Xform squash = scale({ 1, 0.25f, 1 });
-    const V3 tangent = squash.vector(normalize({ 1, 1, 0 })), n = squash.normal(normalize({ 1, -1, 0 }));
-    CHECK(std::fabs(dot(tangent, n)) < 1e-5f);
-    CHECK(align_y({ 0, 0, 2 }).vector({ 0, 1, 0 }).z == doctest::Approx(1.0f));
-}
-
-TEST_CASE("primitives are closed, well-formed and the size they say") {
-    Mesh m;
-    m.sphere(0.5f, 24, mat(0xffffff));
-    check_mesh(m);
-    for (const Vertex& v : m.vertices) CHECK(length(vpos(v)) == doctest::Approx(0.5f).epsilon(0.001));
-    Mesh box;
-    box.rounded_box({ 2, 1, 0.6f }, 0.1f, mat(0xffffff));
-    check_mesh(box);
-    const Bounds b = bounds(box);
-    CHECK(b.hi.x == doctest::Approx(1.0f).epsilon(0.001));
-    CHECK(b.lo.y == doctest::Approx(-0.5f).epsilon(0.001));
-    Mesh rest;
-    rest.cylinder(0.3f, 1, 16, mat(0xffffff), {}, 0.05f);
-    rest.capsule({ 0, 0, 0 }, { 0, 0, 1 }, 0.1f, 12, mat(0xffffff));
-    rest.torus(1, 0.1f, 24, 8, mat(0xffffff));
-    rest.tube({ { 0, 0, 0 }, { 1, 0.5f, 0 }, { 2, 0, 0 } }, 0.05f, 8, mat(0xffffff));
-    check_mesh(rest);
-}
-
-TEST_CASE("materials pack into the vertex, and wobble changes only what it should") {
-    Mesh m;
-    m.add({ 0, 0, 0 }, { 0, 1, 0 }, mat(0xff8000, 0.5f, 1.0f, 0.0f, Material::SKIN));
-    const Vertex v = m.vertices[0];
-    CHECK((v.color & 0xff) == 255);
-    CHECK((v.material >> 24) == Material::SKIN);
-    Mesh s;
-    s.sphere(1, 16, mat(0xffffff));
-    s.wobble(0.05f, 3, 1);
-    float lo = 10, hi = 0;
-    for (const Vertex& w : s.vertices) { lo = std::min(lo, length(vpos(w))); hi = std::max(hi, length(vpos(w))); }
-    CHECK(lo >= 0.95f - 1e-4f);
-    CHECK(hi <= 1.05f + 1e-4f);
-    CHECK(hi - lo > 0.01f);
-}
 
 // ---------- the road ----------
 

@@ -14,6 +14,7 @@
 //                             language "c" compiles its .c files with emcc and its own flags (relative to the provider) }
 //                  fonts      the folder fonts are embedded from
 //                  assets     files copied beside every graphical build
+//                  shaders    GLSL files (relative to the provider) compiled into its build/gen/, on the include path
 //   fonts        provider fonts to embed, served at /<file>
 //   cLibraries   C sources of the module's own: [{ sources (a folder), flags }], compiled with emcc
 //   flags        extra em++ flags; assets: a folder under native/ copied beside the build
@@ -71,7 +72,8 @@ const libraryFlags = (ctx) => libraries(ctx).flatMap((l) => [...(l.isystem ?? []
 /** Include and path-mapping flags (paths stay reproducible across machines). */
 export function includeFlags(ctx) {
     return [
-        '-Inative', ...ctx.providers.flatMap((p) => (p.native.include ?? []).map((d) => `-I${join(p.root, d)}`)), '-Ibuild/gen',
+        '-Inative', ...ctx.providers.flatMap((p) => (p.native.include ?? []).map((d) => `-I${join(p.root, d)}`)),
+        ...ctx.providers.filter((p) => p.native.shaders?.length).map((p) => `-I${join(p.root, 'build/gen')}`), '-Ibuild/gen',
         ...ctx.providers.map((p) => `-ffile-prefix-map=${p.root}=${p.native.prefix}`), `-ffile-prefix-map=${ctx.root}=.`,
     ];
 }
@@ -105,7 +107,7 @@ export const outputs = (ctx) => ctx.spec.headless
 
 export function fingerprint(ctx) {
     const spec = Object.fromEntries(Object.entries(ctx.spec).filter(([k]) => k !== 'uses' && k !== 'adapter'));   // providers are stamped by the core
-    return [`emscripten ${EMSCRIPTEN_VERSION}`, `common ${COMMON.join(' ')}`, `backends ${JSON.stringify(ctx.spec.headless ? 'headless' : BACKEND_FLAGS)}`, `module ${JSON.stringify(spec)}`, ...(ctx.spec.shaders?.length ? shaderFingerprint() : [])];
+    return [`emscripten ${EMSCRIPTEN_VERSION}`, `common ${COMMON.join(' ')}`, `backends ${JSON.stringify(ctx.spec.headless ? 'headless' : BACKEND_FLAGS)}`, `module ${JSON.stringify(spec)}`, ...(ctx.spec.shaders?.length || ctx.providers.some((p) => p.native.shaders?.length) ? shaderFingerprint() : [])];
 }
 
 // ---- inputs: the sources and everything they include ----
@@ -151,6 +153,7 @@ export function inputs(ctx) {
     const files = [
         ...includeClosure(roots, dirs),
         ...(spec.shaders ?? []).map((s) => join(root, 'native', s)),
+        ...ctx.providers.flatMap((p) => (p.native.shaders ?? []).map((s) => join(p.root, s))),
         ...fontFlags(ctx).filter((_, i) => i % 2 === 1).map((f) => f.split('@')[0]),
         ...(spec.assets && !spec.headless ? walk(root, posix.join('native', spec.assets)).map((f) => join(root, f)) : []),
         ...(!spec.headless ? ctx.providers.flatMap((p) => (p.native.assets ?? []).map((a) => join(p.root, a))) : []),
@@ -217,7 +220,7 @@ export function compileC(ctx, run) {
 }
 
 /**
- * Builds a module: its shaders, its C libraries, its providers' libraries, then em++ for each backend (or once,
+ * Builds a module: its providers' shaders and its own, its C libraries, its providers' libraries, then em++ for each backend (or once,
  * headless), and copies the assets beside the build.
  * @param ctx The module's context (from the toolchain).
  * @param options `log`; `exec` (runs a command) and `shdc` (the shader compiler) can be replaced, for tests.
@@ -226,6 +229,7 @@ export async function build(ctx, { log = console.log, exec = execFileSync, shdc 
     checkEmscripten(exec);
     const { root, spec } = ctx;
     const run = (cmd, args, cwd = root) => exec(cmd, args, { cwd, stdio: 'inherit' });
+    for (const p of ctx.providers) await compileShaders(p.root, p.native.shaders, log, { exec, shdc, dir: '.' });
     await compileShaders(root, spec.shaders, log, { exec, shdc });
     const objects = [...compileC(ctx, run), ...libraries(ctx).flatMap((l) => compileLibrary(l, run))];
     rmSync(join(root, 'dist', ctx.name), { recursive: true, force: true });

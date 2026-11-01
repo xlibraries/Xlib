@@ -89,10 +89,13 @@ things work.
 - `packages/engine/*` – the engine as separate packages (`packages/engine/README.md`): `engine-core` (the platform
   contract `xl.h`, sokol, HandmadeMath), `engine-web` (`xl.h` in the browser, backend choice, gamepad), `engine-react`
   (`EngineView`, the only one with React), `engine-audio` (`xl_audio.h` + the AudioWorklet), `engine-text` (`xl_font.h`,
-  `xl_text.h`, Lilita One), `physics-3d` (`xl_physics.h` over vendored Jolt v5.6.0) and `physics-2d` (`xl_physics2d.h`
-  over vendored Box2D v3.1.1); the physics headers name no backend, and each ships a fake for tests
-  (`xl_physics_fake.h`, `xl_physics2d_fake.h`). Each says what it offers native
-  modules in `xlibraries.native` (public headers in `include/`, `link` sources, libraries); a module lists the ones it
+  `xl_text.h`, Lilita One), `physics-3d` (`xl_physics.h` over vendored Jolt v5.6.0), `physics-2d` (`xl_physics2d.h`
+  over vendored Box2D v3.1.1) and `render` (`xl_render.h`: the vertex format, meshes, the lit look with shadows, MSAA
+  and a post pass, over sokol_gfx; its users define only `SOKOL_APP_IMPL`/`SOKOL_GL_IMPL`, it compiles the rest); the
+  physics and render headers name no backend, and each ships a fake for tests (`xl_physics_fake.h`,
+  `xl_physics2d_fake.h`, `xl_render_fake.h`). `packages/asset-builder` (`xl_asset.h`) builds models in code as render
+  vertices; it has no models: each game keeps its own assets. Each says what it offers native
+  modules in `xlibraries.native` (public headers in `include/`, `link` sources, libraries, shaders); a module lists the ones it
   links in `uses`. They import no app.
 - `packages/tooling` – `@xlibraries/toolchain` (`xl-build`) builds the modules a package declares in `package.json`
   (`xlibraries.modules`: adapter, `uses`, sources, shaders, features, fonts, flags; `headless: true` for one build
@@ -104,7 +107,7 @@ things work.
 - `packages/bot-lab` – the electronics and robotics simulator (`docs/bot-lab-plan.md`): a headless `sim/` (MNA circuit
   solver, parts, the Uno on avr8js, the Pi's header, the Pico on rp2040js with MicroPython, I²C devices on per-board buses, the
   bench loop), and machines in a physics world (a robot, an arm, a conveyor, a quadcopter): `native/world` (C++ on the engine's Jolt) is built headless into
-  `dist/world/` and `native/view` (its 3D view, sokol) into `dist/view/`, by `pnpm --filter @xlibraries/bot-lab build:native` (needs Emscripten; **commit `dist/`**, CI rebuilds and
+  `dist/world/` and `native/view` (its 3D view, on `render`; `scene.*` tested natively) into `dist/view/`, by `pnpm --filter @xlibraries/bot-lab build:native` (needs Emscripten; **commit `dist/`**, CI rebuilds and
   diffs it; the unit tests check the stamps). The site gives it its folder (`createBotLab({ nativeBaseUrl })`). `firmware/` is vendored (MicroPython, and an RP2040 boot ROM with its float library zeroed for licensing:
   `pico-rom-float.ts` replaces it; see `firmware/README.md`), copied to `public/vendor/pico/` by `scripts/vendor.mjs`) under a React bench. The bench runs in a worker
   (`runtime/`); the Raspberry Pi runs Python on Pyodide (vendored to `public/vendor/pyodide/`) with `python/`
@@ -130,11 +133,12 @@ things work.
   JyotiRath (`docs/jyotirath-plan.md`) is the same design told as a story in 3D. Chapter I, Mohenjo-Daro, alternates
   short drives (`drive.cpp`: reach, chase, clock, deliver, storm, lamps) with Hitman GO-style boards in the districts
   (`go.cpp` rules and solver, `boards.cpp`, ending with the Bronze Thief's board); `chapter.cpp` carries the bag of tools
-  between them and lets how a board was solved pick the next drive; districts are ruins (`models.cpp` ruinify) until
+  between them and lets how a board was solved pick the next drive; districts are ruins (`level.cpp` ruinify) until
   their board is cleared. Between beats `main.cpp` plays scenes (the chariot rolls itself, a local talks, a wave of light
   raises the board; the camera blends between modes); `hints.cpp` teaches each board rule once, when it's useful. Every model is made in
-  code (`mesh.h`); shadows, MSAA and a tilt-shift post pass in `shaders/jyotirath.glsl`. All but `main.cpp` is
-  graphics-free and tested natively.
+  code in its assets module (`assets/`, plain parameters, built with `asset-builder`); `level.cpp` places them along the
+  road. It draws through `render` (shadows, MSAA, a tilt-shift post pass). All but `main.cpp` is graphics-free and
+  tested natively.
 - Packages: `terminal` (Terminal + Calc), `browser` (Brave + server endpoints), `music` (+ the
   `xlib-music-snapshot` CLI), `photo-drop` (upload page + Apps Script backend, deployed with `pnpm deploy:photo-drop`, see its README).
 - `.github/workflows/refresh-playlists.yml` refreshes the Music snapshot every Monday and commits it if tracks changed.

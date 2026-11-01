@@ -3,8 +3,8 @@
 The plan and its reasons are in [docs/streams-plan.md](docs/streams-plan.md); this file tracks the work. Tick a box
 when it's merged with `pnpm verify` green. Each phase is one PR.
 
-**Backlog:** `pnpm graph` → **10** known violations in [architecture/baseline.json](architecture/baseline.json)
-(1 private, 4 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
+**Backlog:** `pnpm graph` → **9** known violations in [architecture/baseline.json](architecture/baseline.json)
+(4 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
 the number here when a phase lands.
 
 | Phase | Status | Violations left after it |
@@ -13,7 +13,7 @@ the number here when a phase lands.
 | 1. Toolchain | ✅ | 66 |
 | 2. Engine split | ✅ | 12 |
 | 3. Physics | ✅ | 10 |
-| 4. Render | ⬜ | |
+| 4. Render | ✅ | 9 |
 | 5. Arcade | ⬜ | |
 | 6. Bot Lab | ⬜ | |
 | 7. Pipelines | ⬜ | 0 |
@@ -107,12 +107,27 @@ the number here when a phase lands.
 
 ## Phase 4: render
 
-- [ ] Contracts first: Mesh, MeshBuilder, Material, Camera, Lighting, RenderTarget, RenderPipeline, PostProcess,
-      and a null renderer
-- [ ] JyotiRath's `mesh.*` and its lit pipeline (shadow map, MSAA, post) move behind `render`
-- [ ] JyotiRath and Bot Lab's view use `render` (the view gains shadows)
-- [ ] Clears: `private: game-jyotirath -> render (mesh.h)`, games' direct `sokol_gfx.h` includes
-- **Done when:** JyotiRath's screenshots are unchanged; no consumer header includes sokol
+- [x] `@xlibraries/render` (`packages/engine/render`): `xl_render.h` (the vertex format, meshes by handle, Frame with
+      Lighting, Backdrop and Post, Renderer and Pass), no graphics API in it; `xl_render_fake.h` records what's drawn.
+      The sokol backend has JyotiRath's shadow map, MSAA target, sky and post pass, and its shader (`render.glsl`, code
+      unchanged); it compiles sokol_gfx/glue/log for its users. Tested on sokol's dummy backend with validation on (it
+      caught a single-sample target given a resolve attachment: fixed)
+- [x] `@xlibraries/asset-builder` (`packages/asset-builder`, as asked: separate from `render`, no models): JyotiRath's
+      `mesh.*` as `xl_asset.h` plus the generic shapes (ellipsoid, ring, taper, place)
+- [x] JyotiRath's models are its own module, `games/jyotirath/assets/` (models and props from plain parameters: a
+      `Placement`, a `HouseShape`, a `Relic`), built with the asset builder; the level (land, districts, boards, gates)
+      stays in the game as `level.cpp`
+- [x] JyotiRath draws through `render`; Bot Lab's view too (it gains shadows), its scene split out (`view/scene.*`)
+      and tested natively on the fake
+- [x] Toolchain: a provider can ship shaders (`xlibraries.native.shaders`), compiled into its `build/gen/` by both
+      cpp-wasm and native-test
+- [x] Cleared `private: game-jyotirath -> render (mesh.h)`
+- [ ] **Not done:** the 2D games (Hello, Breakout, Showcase, Playground, Turbo Trails) still include `sokol_gfx.h`,
+      and JyotiRath includes it for its sokol_gl HUD. `render` covers the lit 3D look only; moving them needs a 2D
+      layer and custom shaders in `render`. Carried to phase 5 (one package per game) as a decision for then
+- **Done when:** JyotiRath's screenshots are unchanged ✅ (all 95 meshes byte-identical, compiled shaders identical,
+  frames equal within film grain); no consumer header includes sokol ✅ for headers (`xl_render.h`, `xl_asset.h`,
+  the games' and Bot Lab's headers); sources: see the open item above
 
 ## Phase 5: Arcade
 
@@ -154,3 +169,4 @@ the number here when a phase lands.
 | 2026-11-01 | Phase 2: the engine as six packages under `packages/engine/`; baseline 66 → 12 |
 | 2026-11-01 | Phase 3: physics-2d (Box2D behind a contract), physics-3d documented with a fake; Turbo Trails bit-identical; baseline 12 → 10 |
 | 2026-11-01 | Unit-test pass over phases 0–2: CLIs, build steps, `EngineView` and error paths tested (seams for the command runner, module loader, `fetch`); coverage floors enforced in every new package's `verify` |
+| 2026-11-01 | Phase 4: `render` and `asset-builder`; JyotiRath's assets module; JyotiRath and Bot Lab's view on `render`; baseline 10 → 9 |

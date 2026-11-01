@@ -160,6 +160,9 @@ importers:
       '@xlibraries/adapter-native-test':
         specifier: workspace:^
         version: link:../tooling/adapter-native-test
+      '@xlibraries/asset-builder':
+        specifier: workspace:^
+        version: link:../asset-builder
       '@xlibraries/engine-audio':
         specifier: workspace:^
         version: link:../engine/audio
@@ -178,6 +181,9 @@ importers:
       '@xlibraries/physics-3d':
         specifier: workspace:^
         version: link:../engine/physics-3d
+      '@xlibraries/render':
+        specifier: workspace:^
+        version: link:../engine/render
       '@xlibraries/toolchain':
         specifier: workspace:^
         version: link:../tooling/toolchain
@@ -190,6 +196,16 @@ importers:
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/asset-builder:
+    dependencies:
+      '@xlibraries/render':
+        specifier: workspace:^
+        version: link:../engine/render
+    devDependencies:
+      '@xlibraries/adapter-native-test':
+        specifier: workspace:^
+        version: link:../tooling/adapter-native-test
 
   packages/bot-lab:
     dependencies:
@@ -218,6 +234,9 @@ importers:
       '@xlibraries/adapter-cpp-wasm':
         specifier: workspace:^
         version: link:../tooling/adapter-cpp-wasm
+      '@xlibraries/adapter-native-test':
+        specifier: workspace:^
+        version: link:../tooling/adapter-native-test
       '@xlibraries/engine-core':
         specifier: workspace:^
         version: link:../engine/core
@@ -227,6 +246,9 @@ importers:
       '@xlibraries/physics-3d':
         specifier: workspace:^
         version: link:../engine/physics-3d
+      '@xlibraries/render':
+        specifier: workspace:^
+        version: link:../engine/render
       '@xlibraries/toolchain':
         specifier: workspace:^
         version: link:../tooling/toolchain
@@ -359,6 +381,16 @@ importers:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
+  packages/engine/render:
+    dependencies:
+      '@xlibraries/engine-core':
+        specifier: workspace:^
+        version: link:../core
+    devDependencies:
+      '@xlibraries/adapter-native-test':
+        specifier: workspace:^
+        version: link:../../tooling/adapter-native-test
+
   packages/engine/text:
     dependencies:
       '@xlibraries/engine-core':
@@ -474,6 +506,10 @@ importers:
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
   packages/tooling/adapter-native-test:
+    dependencies:
+      '@xlibraries/adapter-shader-sokol':
+        specifier: workspace:^
+        version: link:../adapter-shader-sokol
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 3.2.4

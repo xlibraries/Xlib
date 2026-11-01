@@ -69,10 +69,10 @@ describe('running native tests', () => {
         return { root, engine };
     }
 
-    it('builds the providers\' libraries and the C libraries once, links everything, then runs the binary', () => {
+    it('builds the providers\' libraries and the C libraries once, links everything, then runs the binary', async () => {
         const { root, engine } = game();
         const { exec, calls } = fakeExec();
-        runNativeTests(root, { exec });
+        await runNativeTests(root, { exec });
         expect(calls.map((c) => c.cmd.split('/').pop())).toEqual([process.env.CXX || 'c++', process.env.CC || 'cc', process.env.CXX || 'c++', 'native-tests']);
         expect(calls[0].args).toEqual(expect.arrayContaining([`-isystem${join(engine, 'lib')}`, '-DPHYS', '-c', join(engine, 'lib/Lib/One.cpp'), '-o', join(engine, 'build/native-obj/phys/Lib_One.o')]));
         expect(calls[1].args).toEqual(['-std=gnu17', '-O1', '-DC', '-c', 'third_party/c/a.c', '-o', 'build/native-obj/third_party_c_a.o']);
@@ -80,19 +80,19 @@ describe('running native tests', () => {
         expect(calls[2].args.slice(-4)).toEqual([join(engine, 'build/native-obj/phys/Lib_One.o'), 'build/native-obj/third_party_c_a.o', '-o', 'build/native-tests']);
         expect(calls[3]).toEqual({ cmd: join(root, 'build/native-tests'), args: ['--no-version'], cwd: root });
         const again = fakeExec();
-        runNativeTests(root, { exec: again.exec });
+        await runNativeTests(root, { exec: again.exec });
         expect(again.calls).toHaveLength(2);   // the objects were fresh: just link and run
     });
 
-    it('fails when a test fails (the binary exits non-zero)', () => {
+    it('fails when a test fails (the binary exits non-zero)', async () => {
         const { root } = game();
         const exec = (cmd, args, opts) => { if (cmd.endsWith('native-tests')) throw new Error('2 failed'); fakeExec().exec(cmd, args, opts); };
-        expect(() => runNativeTests(root, { exec })).toThrow(/2 failed/);
+        await expect(runNativeTests(root, { exec })).rejects.toThrow(/2 failed/);
     });
 });
 
 describe('a provider\'s C library', () => {
-    it('compiles for the host with cc and its own flags, in the provider\'s folder, and links into the tests', () => {
+    it('compiles for the host with cc and its own flags, in the provider\'s folder, and links into the tests', async () => {
         const root = realpathSync(mkdtempSync(join(tmpdir(), 'native-c-')));
         const write = (path, body = '') => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), typeof body === 'string' ? body : JSON.stringify(body)); };
         write('game/package.json', { name: '@s/game', version: '1.0.0', xlibraries: { nativeTests: { uses: ['@s/phys'] } } });
@@ -102,10 +102,29 @@ describe('a provider\'s C library', () => {
         const phys = join(root, 'game/node_modules/@s/phys');
         const calls = [];
         const exec = (cmd, args, opts) => { calls.push({ cmd, args, cwd: opts.cwd }); const i = args.indexOf('-o'); if (i >= 0) { const out = args[i + 1].startsWith('/') ? args[i + 1] : join(opts.cwd, args[i + 1]); mkdirSync(dirname(out), { recursive: true }); writeFileSync(out, ''); } };
-        runNativeTests(join(root, 'game'), { exec });
+        await runNativeTests(join(root, 'game'), { exec });
         expect(calls[0]).toEqual({ cmd: process.env.CC || 'cc', args: ['-O1', '-std=gnu17', '-Ilib/include', '-c', 'lib/src/world.c', '-o', join(phys, 'build/native-obj/box/world.o')], cwd: phys });
         expect(calls[1].args).toContain(`-isystem${join(phys, 'lib/include')}`);   // the tests see its headers
         expect(calls[1].args).toContain(join(phys, 'build/native-obj/box/world.o'));
         rmSync(root, { recursive: true, force: true });
+    });
+});
+
+describe('a provider\'s shaders', () => {
+    it('compile into its build/gen/ (named from its root) before the tests, which see that folder', async () => {
+        const root = realpathSync(mkdtempSync(join(tmpdir(), 'native-shaders-')));
+        roots.push(root);
+        const write = (path, body = '') => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), typeof body === 'string' ? body : JSON.stringify(body)); };
+        write('game/package.json', { name: '@s/game', version: '1.0.0', xlibraries: { nativeTests: { uses: ['@s/render'] } } });
+        write('game/node_modules/@s/render/package.json', { name: '@s/render', version: '1.0.0', xlibraries: { native: { include: ['include'], shaders: ['shaders/lit.glsl'] } } });
+        const render = join(root, 'game/node_modules/@s/render');
+        const calls = [];
+        const exec = (cmd, args, opts) => { calls.push({ cmd, args, cwd: opts.cwd }); };
+        const logs = [];
+        await runNativeTests(join(root, 'game'), { exec, shdc: '/bin/shdc', log: (l) => logs.push(l) });
+        expect(calls[0]).toEqual({ cmd: '/bin/shdc', args: ['--input', 'shaders/lit.glsl', '--output', 'build/gen/lit.glsl.h', '--slang', 'glsl300es:wgsl', '--reflection'], cwd: render });
+        expect(existsSync(join(render, 'build/gen'))).toBe(true);
+        expect(logs).toEqual(['  sokol-shdc shaders/lit.glsl']);
+        expect(testArgs(join(root, 'game'))).toContain(`-I${join(render, 'build/gen')}`);
     });
 });

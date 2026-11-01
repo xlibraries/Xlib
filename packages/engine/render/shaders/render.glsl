@@ -1,10 +1,10 @@
-// JyotiRath: Pixar-styled shading for the diorama. Four programs:
+// @xlibraries/render's look (xl_render.h). Four programs:
 //  - shadow: the sun's depth only (a depth texture, compared in hardware when sampled)
 //  - lit: physically based specular (GGX) with a sky reflection, wrapped diffuse, warm subsurface on skin,
 //    translucent foliage, animated water, soft PCF shadows, hemisphere ambient, per-vertex AO, a rim light,
-//    haze under the board, ACES tone mapping
-//  - sky: the backdrop behind the floating board
-//  - post: tilt-shift, bloom, a boost streak, a split-tone grade, vignette and grain
+//    haze below y = 0, ACES tone mapping
+//  - sky: the backdrop
+//  - post: tilt-shift, bloom, a streak, a split-tone grade, vignette and grain
 // Compiled by sokol-shdc for GLSL ES 3.0 (WebGL2) and WGSL (WebGPU).
 @ctype mat4 HMM_Mat4
 @ctype vec4 HMM_Vec4
@@ -51,9 +51,9 @@ out vec3 light_pos;
 out vec3 tint_rgb;
 void main() {
     vec4 wp = model * vec4(position, 1.0);
-    // the river breathes
+    // water breathes
     if (material.w > 0.9 && normal.y > 0.9) wp.y += 0.012 * sin(wp.x * 2.3 + depth_map.z * 1.6) * cos(wp.z * 1.7 - depth_map.z * 1.3);
-    // the wave of light: beyond it things wait sunk below the road, and they rise and glow as it passes
+    // the wave of light: beyond it things wait sunk below the ground, and they rise and glow as it passes
     float glow = 0.0;
     if (reveal.w > 0.5) {
         float d = distance(wp.xz, reveal.xy);
@@ -74,13 +74,13 @@ void main() {
 @fs fs_lit
 layout(binding=1) uniform lit_fs_params {
     vec4 sun_dir;       // xyz: towards the sun, w: intensity
-    vec4 sun_color;     // linear; w: extra glow for lamps and flames (at dusk)
+    vec4 sun_color;     // linear; w: extra glow for emissive surfaces (lamps and flames at dusk)
     vec4 sky_top;       // linear; w: exposure
     vec4 sky_horizon;   // linear
-    vec4 ground_color;  // linear (the sand's bounce)
+    vec4 ground_color;  // linear (light bounced up from the ground)
     vec4 cam_pos;       // w: time
     vec4 shadow_info;   // x: 1 / map size, y: bias, z: 1 when texture rows run top-down, w: shadow strength
-    vec4 haze;          // rgb (linear), a: strength under the board
+    vec4 haze;          // rgb (linear), a: strength below y = 0
 };
 @image_sample_type shadow_tex depth
 @sampler_type shadow_smp comparison
@@ -182,7 +182,7 @@ void main() {
     vec3 sun = sun_color.rgb * sun_dir.w;
     vec3 col = (direct + spec) * sun;
 
-    // ambient: sky above, sand bounce below, darkened in the crevices
+    // ambient: sky above, ground bounce below, darkened in the crevices
     vec3 amb = mix(ground_color.rgb, mix(sky_horizon.rgb, sky_top.rgb, 0.7), N.y * 0.5 + 0.5);
     col += albedo * amb * ao;
     // reflections of the sky: what makes gold read as gold
@@ -201,7 +201,7 @@ void main() {
         col = mix(body, env(R), fres) + spec * 1.2 + sun * sparkle;
     }
 
-    // under the board, the strata fade into the haze
+    // below y = 0, things fade into the haze
     float below = clamp(-world_pos.y / 3.6, 0.0, 1.0);
     col = mix(col, haze.rgb, below * below * haze.a);
 
@@ -257,8 +257,8 @@ void main() {
 layout(binding=0) uniform post_params {
     vec4 texel;    // xy: 1 / resolution, z: 1 when GL (texture rows bottom-up), w: time
     vec4 focus;    // x: the sharp band's centre (0..1, y up), y: its half height, z: blur radius in pixels, w: bloom
-    vec4 grade;    // x: vignette, y: saturation, z: grain, w: boost (0..1)
-    vec4 centre;   // xy: where the chariot is on screen (0..1, y up), for the boost streaks
+    vec4 grade;    // x: vignette, y: saturation, z: grain, w: streak (0..1)
+    vec4 centre;   // xy: where the streaks radiate from (0..1, y up)
 };
 layout(binding=0) uniform texture2D scene_tex;
 layout(binding=0) uniform sampler scene_smp;
@@ -270,7 +270,7 @@ float hash12(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5
 
 void main() {
     vec2 p = uv;
-    // tilt-shift: sharp across the chariot's band, blurring above and below it like a macro lens on a model
+    // tilt-shift: sharp across a band, blurring above and below it like a macro lens on a model
     float blur = smoothstep(focus.y, focus.y + 0.4, abs(p.y - focus.x)) * focus.z;
     vec3 col = vec3(0.0);
     if (blur < 0.6) {
@@ -283,7 +283,7 @@ void main() {
         }
         col /= 16.0;
     }
-    // boost: streaks radiating from the chariot
+    // streaks radiating from a point
     if (grade.w > 0.01) {
         vec2 dir = (p - centre.xy) * 0.05 * grade.w;
         vec3 sum = col * 1.5;

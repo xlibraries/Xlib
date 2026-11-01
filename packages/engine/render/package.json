@@ -1,0 +1,50 @@
+{
+  "name": "@xlibraries/render",
+  "version": "0.1.0",
+  "description": "3D rendering for C++ modules: a backend-free contract (xl_render.h: the vertex format, meshes, a sun with soft shadows, a stylised lit look, a backdrop and a post pass) with sokol_gfx behind it, and a fake for tests",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/engine/render"
+  },
+  "files": [
+    "include",
+    "src",
+    "app",
+    "shaders"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "xl-native-test",
+    "verify": "xl-native-test"
+  },
+  "dependencies": {
+    "@xlibraries/engine-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@xlibraries/adapter-native-test": "workspace:^"
+  },
+  "xlibraries": {
+    "native": {
+      "prefix": "render",
+      "include": [
+        "include"
+      ],
+      "link": [
+        "src/renderer_sokol.cpp",
+        "app/glue.cpp"
+      ],
+      "shaders": [
+        "shaders/render.glsl"
+      ]
+    },
+    "nativeTests": {
+      "uses": [
+        "@xlibraries/engine-core"
+      ]
+    }
+  }
+}

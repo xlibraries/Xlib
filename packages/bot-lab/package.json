@@ -19,12 +19,13 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "verify": "eslint . && tsc --noEmit && vitest run",
+    "test": "vitest run && xl-native-test",
+    "verify": "eslint . && tsc --noEmit && vitest run && xl-native-test",
     "compile:templates": "node scripts/compile-templates.mjs",
     "sync:templates": "node scripts/sync-templates.mjs",
     "sync:python": "node scripts/sync-python.mjs",
-    "build:native": "xl-build"
+    "build:native": "xl-build",
+    "test:native": "xl-native-test"
   },
   "dependencies": {
     "@xlibraries/app-sdk": "workspace:^",
@@ -40,9 +41,11 @@
     "@types/node": "^25.3.3",
     "@types/react": "^19.3.0",
     "@xlibraries/adapter-cpp-wasm": "workspace:^",
+    "@xlibraries/adapter-native-test": "workspace:^",
     "@xlibraries/engine-core": "workspace:^",
     "@xlibraries/engine-web": "workspace:^",
     "@xlibraries/physics-3d": "workspace:^",
+    "@xlibraries/render": "workspace:^",
     "@xlibraries/toolchain": "workspace:^",
     "react": "^19.2.9",
     "typescript": "^5.9.3",
@@ -54,13 +57,12 @@
         "adapter": "cpp-wasm",
         "uses": [
           "@xlibraries/engine-core",
-          "@xlibraries/engine-web"
+          "@xlibraries/engine-web",
+          "@xlibraries/render"
         ],
         "sources": [
-          "view/view.cpp"
-        ],
-        "shaders": [
-          "shaders/view.glsl"
+          "view/main.cpp",
+          "view/scene.cpp"
         ],
         "flags": [
           "-sEXPORTED_FUNCTIONS=_main,_malloc,_free,_bl_view_track,_bl_view_bodies,_bl_view_poses,_bl_view_sensors,_bl_view_focus",
@@ -73,7 +75,7 @@
           "@xlibraries/physics-3d"
         ],
         "sources": [
-          "world/world.cpp"
+          "world/main.cpp"
         ],
         "headless": true,
         "exportName": "createWorld",
@@ -82,6 +84,12 @@
           "-sEXPORTED_RUNTIME_METHODS=HEAPF32"
         ]
       }
+    },
+    "nativeTests": {
+      "uses": [
+        "@xlibraries/engine-core",
+        "@xlibraries/render"
+      ]
     }
   }
 }

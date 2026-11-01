@@ -4,13 +4,15 @@
 //
 // The package says what its tests need in package.json:
 //   "xlibraries": { "nativeTests": { "uses": ["@xlibraries/engine"], "cLibraries": [{ "sources", "flags" }], "includes": [] } }
-// A provider offers "testSources" (a folder of .cpp files tests link) and "libraries" (compiled once for the host).
+// A provider offers "testSources" (a folder of .cpp files tests link), "libraries" (compiled once for the host) and
+// "shaders" (compiled with @xlibraries/adapter-shader-sokol into its build/gen/, which goes on the include path).
 // A package that is itself a provider gets its own include folders, test sources and libraries.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { compileShaders } from '@xlibraries/adapter-shader-sokol';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const name = 'native-test';
@@ -54,7 +56,10 @@ export function testArgs(root) {
     const tests = json.xlibraries?.nativeTests ?? {};
     const provs = providers(root);
     const libFlags = libsOf(provs).flatMap((l) => [...(l.isystem ?? []).map((d) => `-isystem${join(l.provider.root, d)}`), ...(l.defines ?? [])]);
-    const includes = provs.flatMap((p) => (p.native.include ?? []).map((d) => `-I${join(p.root, d)}`));
+    const includes = [
+        ...provs.flatMap((p) => (p.native.include ?? []).map((d) => `-I${join(p.root, d)}`)),
+        ...provs.filter((p) => p.native.shaders?.length).map((p) => `-I${join(p.root, 'build/gen')}`),
+    ];
     // the package's logic, then every provider's test sources (its own too), each file once
     const logic = cppFiles(root, 'native');
     const seen = new Set(logic.map((f) => join(root, f)));
@@ -87,11 +92,12 @@ function hostLibrary(lib, run) {
 /**
  * Compiles and runs the package's native tests.
  * @param root The package's folder.
- * @param options `exec` (runs a command) can be replaced, for tests.
+ * @param options `exec` (runs a command), `shdc` (the shader compiler) and `log` can be replaced, for tests.
  * @throws If compiling fails or a test fails (the binary exits non-zero).
  */
-export function runNativeTests(root, { exec = execFileSync } = {}) {
+export async function runNativeTests(root, { exec = execFileSync, shdc, log = console.log } = {}) {
     const run = (cmd, args, cwd = root) => exec(cmd, args, { cwd, stdio: 'inherit' });
+    for (const p of providers(root)) await compileShaders(p.root, p.native.shaders, log, { exec, shdc, dir: '.' });
     mkdirSync(join(root, 'build/native-obj'), { recursive: true });
     const tests = readJson(join(root, 'package.json')).xlibraries?.nativeTests ?? {};
     const objects = libsOf(providers(root)).flatMap((l) => hostLibrary(l, run));

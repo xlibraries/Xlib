@@ -1,12 +1,12 @@
 {
-  "hash": "f070d3c081f2057e9f9cbc8a1498b2a05e87db9dc8aa804b08c9d64d529b51e5",
+  "hash": "5c197fda0daabcf2f9a562dda23547a0469f5e206ca38e20ac83b4f4e7ef5506",
   "toolchain": [
     "toolchain@0.1.0",
     "adapter-cpp-wasm@0.1.0",
     "emscripten 6.0.11",
     "common -std=c++20 -O2 -fno-exceptions -fno-rtti -Wall -Wno-missing-field-initializers -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createGame -sENVIRONMENT=web -sDYNAMIC_EXECUTION=0 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1MB -sEXIT_RUNTIME=0 -sASSERTIONS=0 -sINCOMING_MODULE_JS_API=arguments,canvas,print,printErr,locateFile",
     "backends \"headless\"",
-    "module {\"sources\":[\"world/world.cpp\"],\"headless\":true,\"exportName\":\"createWorld\",\"flags\":[\"-sEXPORTED_FUNCTIONS=_bl_reset,_bl_robot,_bl_torque,_bl_step,_bl_state,_bl_point,_bl_arm,_bl_arm_target,_bl_arm_state,_bl_conveyor,_bl_belt,_bl_cube,_bl_cube_pos,_bl_bin,_bl_sees_cube,_bl_body_count,_bl_shapes,_bl_poses,_bl_quad,_bl_quad_motors,_bl_wind,_bl_quad_state,_bl_quad_range,_malloc,_free\",\"-sEXPORTED_RUNTIME_METHODS=HEAPF32\"]}",
+    "module {\"sources\":[\"world/main.cpp\"],\"headless\":true,\"exportName\":\"createWorld\",\"flags\":[\"-sEXPORTED_FUNCTIONS=_bl_reset,_bl_robot,_bl_torque,_bl_step,_bl_state,_bl_point,_bl_arm,_bl_arm_target,_bl_arm_state,_bl_conveyor,_bl_belt,_bl_cube,_bl_cube_pos,_bl_bin,_bl_sees_cube,_bl_body_count,_bl_shapes,_bl_poses,_bl_quad,_bl_quad_motors,_bl_wind,_bl_quad_state,_bl_quad_range,_malloc,_free\",\"-sEXPORTED_RUNTIME_METHODS=HEAPF32\"]}",
     "provider @xlibraries/physics-3d@0.1.0"
   ]
 }

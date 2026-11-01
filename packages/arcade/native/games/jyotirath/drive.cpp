@@ -1,10 +1,12 @@
 #include "drive.h"
-#include "mesh.h"
+#include "xl_asset.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace jr {
+
+using xl::asset::hash01;
 
 namespace {
 

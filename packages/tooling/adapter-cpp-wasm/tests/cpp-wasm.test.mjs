@@ -237,3 +237,26 @@ describe('C libraries from a provider', () => {
         expect(calls.filter((x) => x.cmd === 'emcc')).toEqual([]);   // fresh objects reused
     });
 });
+
+describe('shaders from a provider', () => {
+    it('compile into the provider\'s build/gen/ (named from its root) before the module\'s; that folder is on the include path; they are inputs', async () => {
+        const base = mkdtempSync(join(tmpdir(), 'cpp-shaders-'));
+        roots.push(base);
+        const write = (path, body = '') => { mkdirSync(dirname(join(base, path)), { recursive: true }); writeFileSync(join(base, path), body); };
+        write('game/native/main.cpp', '#include "xl_render.h"\n');
+        write('render/include/xl_render.h', '#pragma once\n');
+        write('render/shaders/lit.glsl', '@vs vs\n@end\n');
+        const render = { root: join(base, 'render'), name: '@s/render', version: '1.0.0', native: { prefix: 'render', include: ['include'], shaders: ['shaders/lit.glsl'] } };
+        const ctx = { root: join(base, 'game'), name: 'g', spec: { adapter: 'cpp-wasm', sources: ['main.cpp'] }, providers: [render], pkg: {} };
+        const calls = [];
+        const exec = (cmd, args, opts = {}) => { if (args[0] === '--version') return `emcc ${EMSCRIPTEN_VERSION}`; calls.push({ cmd, args, cwd: opts.cwd }); return ''; };
+        await build(ctx, { log: () => {}, exec, shdc: '/bin/shdc' });
+        expect(calls[0]).toEqual({ cmd: '/bin/shdc', args: ['--input', 'shaders/lit.glsl', '--output', 'build/gen/lit.glsl.h', '--slang', 'glsl300es:wgsl', '--reflection'], cwd: render.root });
+        expect(emArgs(ctx, 'webgl2')).toContain(`-I${join(render.root, 'build/gen')}`);
+        expect(inputs(ctx).map((i) => i.label)).toEqual(expect.arrayContaining(['@s/render/shaders/lit.glsl', '@s/render/include/xl_render.h']));
+        expect(fingerprint(ctx).join('\n')).toContain('sokol-shdc');   // the module has none of its own, but its provider does
+        const plain = { ...ctx, providers: [{ ...render, native: { ...render.native, shaders: undefined } }] };
+        expect(fingerprint(plain).join('\n')).not.toContain('sokol-shdc');
+        expect(emArgs(plain, 'webgl2')).not.toContain(`-I${join(render.root, 'build/gen')}`);
+    });
+});

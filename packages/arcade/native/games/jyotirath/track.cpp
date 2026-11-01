@@ -1,5 +1,5 @@
 #include "track.h"
-#include "mesh.h"
+#include "assets/models.h"
 
 #include <algorithm>
 #include <cmath>
@@ -48,16 +48,6 @@ int district_of(int zone) {
         case Zone::UpperTown: case Zone::Plaza: return 4;
         default: return -1;
     }
-}
-
-HouseShape house_shape(uint32_t seed, bool grand) {
-    HouseShape h;
-    const float k = grand ? 1.35f : 1.0f;
-    h.w = (3.0f + hash01(seed * 7 + 1) * 2.0f) * k;
-    h.d = (2.8f + hash01(seed * 7 + 2) * 1.6f) * k;
-    h.upper = hash01(seed * 7 + 3) < (grand ? 0.6f : 0.35f);
-    h.h = (1.6f + hash01(seed * 7 + 4) * 0.6f) * (grand ? 1.25f : 1.0f);
-    return h;
 }
 
 Sample Track::at(float s) const {

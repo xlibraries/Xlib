@@ -3,7 +3,6 @@
   "cycle: bot-lab, bot-lab-projects, bot-lab-runtime, bot-lab-sim",
   "forbidden: arcade -> game-turbo-trails (the Arcade app knows no game by name: games are discovered)",
   "forbidden: arcade -> sample-playground (the Arcade app knows no game by name: games are discovered)",
-  "private: game-jyotirath -> render (mesh.h)",
   "sideways: bot-lab-runtime -> bot-lab-projects (layer 4)",
   "upward: bot-lab-projects -> bot-lab (layer 4 -> 5)",
   "upward: bot-lab-sim -> bot-lab-projects (layer 3 -> 4)",

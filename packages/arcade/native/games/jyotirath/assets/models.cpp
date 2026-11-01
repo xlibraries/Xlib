@@ -1,53 +1,22 @@
 #include "models.h"
+#include "palette.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace jr {
 
-namespace {
-
 constexpr float PI = 3.14159265358979f;
 using Profile = std::vector<std::pair<float, float>>;
 
-// ---------- the palette ----------
-
-Material gold() { return mat(0xF2B84B, 0.26f, 1.0f); }
-Material gold_dark() { return mat(0xD08F2E, 0.34f, 1.0f); }
-Material gold_cloth() { return mat(0xE9B44C, 0.45f, 0.7f); }
-Material cream() { return mat(0xF3E4C6, 0.5f); }
-Material wood() { return mat(0x7E4C2A, 0.62f); }
-Material wood_dark() { return mat(0x55321C, 0.7f); }
-Material teal() { return mat(0x63C7D6, 0.62f); }
-Material teal_velvet() { return mat(0x1F8C93, 0.85f); }
-Material ruby() { return mat(0xC81E35, 0.18f); }
-Material emerald() { return mat(0x1FA387, 0.18f); }
-Material skin() { return mat(0xB7704A, 0.52f, 0, 0, Material::SKIN); }
-Material blush() { return mat(0xC47452, 0.5f, 0, 0, Material::SKIN); }
-Material hair() { return mat(0x1B1311, 0.34f); }
-Material kohl() { return mat(0x120A08, 0.45f); }
-Material lip() { return mat(0x93303B, 0.38f); }
-Material sandstone() { return mat(0xE2C394, 0.72f); }
-Material brick() { return mat(0xC4825A, 0.88f); }
-Material plaster() { return mat(0xEBE1CB, 0.8f); }
-Material terracotta() { return mat(0xB5562E, 0.72f); }
-Material water() { return mat(0x2E8FA3, 0.08f, 0, 0, Material::WATER); }
-Material leaf() { return mat(0x4A8236, 0.6f, 0, 0, Material::FOLIAGE); }
-
-Xform xf_at(V3 p, float yaw = 0) { return translate(p) * rotate_y(yaw); }
-
-void ellipsoid(Mesh& m, V3 c, V3 r, int segments, const Material& mt, const Xform& x = {}) { m.sphere(1, segments, mt, x * translate(c) * scale(r)); }
-
-/** A ring about axis `dir` (perpendicular to it), centred at c. */
-void ring(Mesh& m, V3 c, V3 dir, float major, float minor, const Material& mt, const Xform& x = {}, int segments = 28) {
-    m.torus(major, minor, segments, 8, mt, x * translate(c) * align_y(dir));
-}
-
-/** A tube with radii tapering linearly from r0 to r1. */
-void taper(Mesh& m, const std::vector<V3>& path, float r0, float r1, int sides, const Material& mt, const Xform& x = {}) {
-    std::vector<float> radii;
-    for (size_t i = 0; i < path.size(); i++) radii.push_back(r0 + (r1 - r0) * i / std::max<size_t>(1, path.size() - 1));
-    m.tube(path, r0, sides, mt, x, radii);
+HouseShape house_shape(uint32_t seed, bool grand) {
+    HouseShape h;
+    const float k = grand ? 1.35f : 1.0f;
+    h.w = (3.0f + hash01(seed * 7 + 1) * 2.0f) * k;
+    h.d = (2.8f + hash01(seed * 7 + 2) * 1.6f) * k;
+    h.upper = hash01(seed * 7 + 3) < (grand ? 0.6f : 0.35f);
+    h.h = (1.6f + hash01(seed * 7 + 4) * 0.6f) * (grand ? 1.25f : 1.0f);
+    return h;
 }
 
 /** A bell or onion dome: lathe of a classic profile, `h` tall. */
@@ -68,10 +37,9 @@ void kalash(Mesh& m, V3 base, float s, const Material& mt, const Xform& x = {}) 
 
 // ---------- props ----------
 
-void house(Mesh& m, const Prop& p) {
+void house(Mesh& m, const Placement& p, const HouseShape& h) {
     const size_t from = m.vertices.size();
-    const HouseShape h = house_shape(p.seed, p.scale > 1.2f);
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     const Material b = vary(brick(), p.seed, 0.05f), dark = vary(b, p.seed + 1, 0.02f, 0.82f), light = vary(b, p.seed + 2, 0.02f, 1.08f);
     m.rounded_box({ h.w + 0.3f, 0.22f, h.d + 0.3f }, 0.06f, dark, X * translate({ 0, 0.11f, 0 }), 2);
     m.rounded_box({ h.w, h.h, h.d }, 0.09f, b, X * translate({ 0, h.h / 2 + 0.05f, 0 }), 2);
@@ -110,7 +78,7 @@ void house(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.6f, 0.45f, from);
 }
 
-void palm(Mesh& m, const Prop& p) {
+void palm(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
     const float H = 3.3f * p.scale, lean = 0.25f + hash01(p.seed) * 0.5f;
     const V3 dir = { std::cos(p.yaw), 0, std::sin(p.yaw) };
@@ -155,7 +123,7 @@ void palm(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.5f, 0.4f, from);
 }
 
-void shrub(Mesh& m, const Prop& p) {
+void shrub(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
     const int n = 4 + p.seed % 3;
     for (int k = 0; k < n; k++) {
@@ -172,24 +140,24 @@ void shrub(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.4f, 0.5f, from);
 }
 
-void rock(Mesh& m, const Prop& p) {
+void rock(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
     const float r = 0.55f * p.scale;
-    m.sphere(1, 20, vary(mat(0xA39079, 0.85f), p.seed, 0.05f), xf_at({ p.x, p.y + r * 0.25f, p.z }, p.yaw) * scale({ r * 1.1f, r * 0.65f, r }));
+    m.sphere(1, 20, vary(mat(0xA39079, 0.85f), p.seed, 0.05f), place({ p.x, p.y + r * 0.25f, p.z }, p.yaw) * scale({ r * 1.1f, r * 0.65f, r }));
     m.wobble(0.13f * p.scale, 2.4f / p.scale, p.seed, from);
     m.ground_ao(p.y, 0.3f, 0.5f, from);
 }
 
-void lamp(Mesh& m, const Prop& p) {
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+void lamp(Mesh& m, const Placement& p) {
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.lathe({ { 0, 0 }, { 0.2f, 0 }, { 0.2f, 0.08f }, { 0.1f, 0.15f }, { 0.08f, 0.7f }, { 0.16f, 0.78f }, { 0.18f, 0.85f }, { 0, 0.85f } }, 16, sandstone(), X, 0.6f);
     m.lathe({ { 0, 0 }, { 0.1f, 0 }, { 0.16f, 0.06f }, { 0.15f, 0.09f }, { 0.11f, 0.08f }, { 0, 0.07f } }, 16, terracotta(), X * translate({ 0, 0.85f, 0 }));
     m.lathe({ { 0, 0 }, { 0.045f, 0.03f }, { 0.04f, 0.09f }, { 0.015f, 0.16f }, { 0, 0.2f } }, 12, mat(0xFFB347, 0.5f, 0, 1.0f), X * translate({ 0, 0.92f, 0 }));
 }
 
-void well(Mesh& m, const Prop& p) {
+void well(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.lathe({ { 0.5f, 0.25f }, { 0.5f, 0.55f }, { 0.55f, 0.62f }, { 0.72f, 0.62f }, { 0.76f, 0.55f }, { 0.76f, 0 }, { 0.8f, 0 } }, 32, brick(), X);
     m.cylinder(0.5f, 0.02f, 32, water(), X * translate({ 0, 0.3f, 0 }));
     for (int s = -1; s <= 1; s += 2) m.cylinder(0.05f, 1.3f, 10, wood(), X * translate({ 0, 0.55f, s * 0.68f }));
@@ -200,9 +168,9 @@ void well(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.5f, 0.4f, from);
 }
 
-void great_bath(Mesh& m, const Prop& p) {
+void great_bath(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     const Material b = mat(0xAE6040, 0.85f), dark = vary(b, 3, 0.02f, 0.85f);
     const float W = BATH_W, D = BATH_D, PW = W * 0.55f, PD = D * 0.42f, H = 0.65f;
     const float sd = (D - PD) / 2, sw = (W - PW) / 2;
@@ -226,9 +194,9 @@ void great_bath(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.5f, 0.4f, from);
 }
 
-void stupa(Mesh& m, const Prop& p) {
+void stupa(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw) * scale(STUPA_R / 3.6f);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw) * scale(STUPA_R / 3.6f);
     const float R = 3.6f;
     m.rounded_box({ 2 * R, 0.8f, 2 * R }, 0.1f, mat(0xB46A44, 0.88f), X * translate({ 0, 0.4f, 0 }), 2);
     m.rounded_box({ 2 * R - 1.6f, 0.6f, 2 * R - 1.6f }, 0.1f, mat(0xBF7650, 0.88f), X * translate({ 0, 1.1f, 0 }), 2);
@@ -246,9 +214,9 @@ void stupa(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.6f, 0.4f, from);
 }
 
-void granary(Mesh& m, const Prop& p) {
+void granary(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.rounded_box({ GRANARY_W, 0.6f, GRANARY_D }, 0.08f, mat(0xB06844, 0.88f), X * translate({ 0, 0.3f, 0 }), 2);
     for (int i = 0; i < 3; i++) for (int j = 0; j < 2; j++)
         m.rounded_box({ 2.6f, 1.1f, 2.2f }, 0.08f, vary(brick(), i * 2 + j, 0.05f), X * translate({ -3.1f + i * 3.1f, 1.15f, -1.3f + j * 2.6f }), 2);
@@ -261,9 +229,9 @@ void granary(Mesh& m, const Prop& p) {
 
 void pot_at(Mesh& m, const Xform& x, float s, uint32_t seed);
 
-void cart(Mesh& m, const Prop& p) {
+void cart(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.rounded_box({ 1.6f, 0.1f, 1.0f }, 0.03f, wood(), X * translate({ 0, 0.62f, 0 }), 2);
     for (int s = -1; s <= 1; s += 2) m.rounded_box({ 1.6f, 0.22f, 0.06f }, 0.02f, wood_dark(), X * translate({ 0, 0.78f, s * 0.5f }), 1);
     for (int s = -1; s <= 1; s += 2) m.append(build_wheel(0.45f), X * translate({ -0.1f, 0.45f, s * 0.6f }) * (s < 0 ? rotate_y(PI) : Xform{}));
@@ -294,14 +262,10 @@ void pot_at(Mesh& m, const Xform& x, float s, uint32_t seed) {
 
 // ---------- the desert ----------
 
-Material bronze() { return mat(0x7A5434, 0.4f, 1.0f); }
-Material bone() { return mat(0xEDE3CF, 0.7f); }
-Material straw() { return mat(0xC9A35F, 0.85f); }
-Material saffron() { return mat(0xE8862A, 0.8f); }
 
-void sun_banner(Mesh& m, const Prop& p) {
+void sun_banner(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.cylinder(0.05f, 2.9f, 10, wood(), X, 0.01f);
     for (int k = 0; k < 4; k++) ellipsoid(m, { std::cos(k * 1.6f) * 0.16f, 0.06f, std::sin(k * 1.6f) * 0.16f }, { 0.12f, 0.08f, 0.1f }, 8, mat(0x9C8A78, 0.9f), X);
     const Xform sun = X * translate({ 0.04f, 2.6f, 0 }) * rotate_z(-PI / 2);
@@ -314,9 +278,9 @@ void sun_banner(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.3f, 0.4f, from);
 }
 
-void cactus(Mesh& m, const Prop& p) {
+void cactus(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw) * scale(p.scale);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw) * scale(p.scale);
     const Material g = vary(mat(0x5F8F43, 0.7f), p.seed, 0.04f);
     m.capsule({ 0, -0.1f, 0 }, { 0, 1.7f, 0 }, 0.21f, 16, g, X);
     m.tube({ { 0, 0.75f, 0 }, { 0.3f, 0.78f, 0 }, { 0.42f, 0.95f, 0 }, { 0.43f, 1.3f, 0 } }, 0.13f, 12, g, X);
@@ -343,9 +307,9 @@ void tumbleweed_into(Mesh& m, const Xform& x, uint32_t seed) {
     }
 }
 
-void camel_bones(Mesh& m, const Prop& p) {
+void camel_bones(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y - 0.12f, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y - 0.12f, p.z }, p.yaw);
     std::vector<V3> spine;
     for (int i = 0; i <= 12; i++) spine.push_back({ -0.8f + i * 0.14f, 0.18f + 0.03f * std::sin(i * 1.3f), 0 });
     m.tube(spine, 0.05f, 8, bone(), X);
@@ -362,9 +326,9 @@ void camel_bones(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.3f, 0.5f, from);
 }
 
-void signboard(Mesh& m, const Prop& p) {
+void signboard(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     for (int s = -1; s <= 1; s += 2) m.cylinder(0.075f, 2.1f, 10, wood_dark(), X * translate({ s * 1.0f, 0, 0 }), 0.02f);
     m.rounded_box({ 2.5f, 1.05f, 0.1f }, 0.04f, mat(0xC4935E, 0.75f), X * translate({ 0, 1.55f, 0 }), 2);
     m.rounded_box({ 2.6f, 0.08f, 0.14f }, 0.03f, wood_dark(), X * translate({ 0, 2.1f, 0 }), 1);
@@ -380,9 +344,9 @@ void signboard(Mesh& m, const Prop& p) {
 
 // ---------- street life ----------
 
-void basket(Mesh& m, const Prop& p) {
+void basket(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.lathe({ { 0, 0 }, { 0.22f, 0 }, { 0.3f, 0.12f }, { 0.33f, 0.26f }, { 0.35f, 0.3f }, { 0.31f, 0.3f }, { 0.29f, 0.14f }, { 0, 0.1f } }, 20, vary(straw(), p.seed, 0.05f), X);
     m.wobble(0.012f, 18, p.seed, from);
     const uint32_t fruit[] = { 0xF2A23A, 0xE8C34A, 0xC94A2E, 0x8DB04A };
@@ -393,8 +357,8 @@ void basket(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.2f, 0.5f, from);
 }
 
-void rug(Mesh& m, const Prop& p) {
-    const Xform X = xf_at({ p.x, p.y + 0.02f, p.z }, p.yaw);
+void rug(Mesh& m, const Placement& p) {
+    const Xform X = place({ p.x, p.y + 0.02f, p.z }, p.yaw);
     const uint32_t base[] = { 0xB8323A, 0x2E6E8C, 0xD08A2E };
     const Material b = mat(base[p.seed % 3], 0.95f), border = mat(0xEFD9A0, 0.95f);
     m.rounded_box({ 1.7f, 0.03f, 1.1f }, 0.01f, b, X, 1);
@@ -405,9 +369,9 @@ void rug(Mesh& m, const Prop& p) {
     m.rounded_box({ 0.4f, 0.04f, 0.4f }, 0.01f, border, X * rotate_y(PI / 4), 1);
 }
 
-void stall(Mesh& m, const Prop& p) {
+void stall(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     for (int i = -1; i <= 1; i += 2) for (int j = -1; j <= 1; j += 2) m.cylinder(0.05f, 2.1f + (j > 0 ? 0.25f : 0.0f), 8, wood(), X * translate({ i * 1.0f, 0, j * 0.6f }));
     const uint32_t stripes[] = { 0xD9503F, 0xF3E4C6, 0x2E8A8C, 0xF3E4C6 };
     for (int k = 0; k < 6; k++)
@@ -421,8 +385,8 @@ void stall(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.4f, 0.45f, from);
 }
 
-void prayer_flags(Mesh& m, const Prop& p) {
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+void prayer_flags(Mesh& m, const Placement& p) {
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     const float span = p.scale;
     for (int s = -1; s <= 1; s += 2) m.cylinder(0.06f, 4.2f, 10, wood(), X * translate({ 0, 0, s * span }), 0.02f);
     std::vector<V3> line;
@@ -438,9 +402,9 @@ void prayer_flags(Mesh& m, const Prop& p) {
 
 // ---------- the landmarks ----------
 
-void assembly_hall(Mesh& m, const Prop& p) {
+void assembly_hall(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     const Material b = mat(0xB46A44, 0.88f), pillar = mat(0xC98457, 0.85f), carved = mat(0xE2C394, 0.75f);
     m.rounded_box({ ASSEMBLY_W, 0.5f, ASSEMBLY_D }, 0.08f, b, X * translate({ 0, 0.25f, 0 }), 2);
     for (int k = 0; k < 4; k++) m.rounded_box({ 2.4f - k * 0.1f, 0.12f, 0.45f }, 0.03f, vary(b, k, 0.03f, 0.9f), X * translate({ 0, 0.06f + k * 0.12f, -ASSEMBLY_D / 2 - 0.9f + k * 0.22f }), 1);
@@ -456,9 +420,9 @@ void assembly_hall(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.5f, 0.4f, from);
 }
 
-void great_hall(Mesh& m, const Prop& p) {
+void great_hall(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     const Material wall = mat(0xD49A6E, 0.85f), base = mat(0xB06844, 0.88f), cream_band = mat(0xF1E2C2, 0.8f);
     m.rounded_box({ HALL_W, 0.45f, HALL_D }, 0.08f, base, X * translate({ 0, 0.22f, 0 }), 2);
     m.rounded_box({ HALL_W - 1.2f, 3.4f, HALL_D - 1.6f }, 0.12f, wall, X * translate({ 0, 0.45f + 1.7f, 0.2f }), 2);
@@ -509,17 +473,17 @@ void statue(Mesh& m, const Xform& X) {
 }
 
 /** Her plinth (the statue is drawn on it separately, so she can be stolen). */
-void dancing_girl(Mesh& m, const Prop& p) {
+void dancing_girl(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.lathe({ { 0, 0 }, { 1.0f, 0 }, { 1.0f, 0.25f }, { 0.85f, 0.32f }, { 0.75f, 0.4f }, { 0.72f, 1.0f }, { 0.85f, 1.08f }, { 0.88f, 1.2f }, { 0, 1.2f } }, 32, sandstone(), X);
     for (float y : { 0.55f, 0.75f }) m.torus(0.735f, 0.025f, 32, 6, mat(0xC8A472, 0.7f), X * translate({ 0, y, 0 }));
     m.ground_ao(p.y, 0.4f, 0.4f, from);
 }
 
-void flower_bed(Mesh& m, const Prop& p) {
+void flower_bed(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     m.lathe({ { 0.62f, 0 }, { 0.82f, 0 }, { 0.82f, 0.22f }, { 0.78f, 0.26f }, { 0.66f, 0.26f }, { 0.62f, 0.2f } }, 28, brick(), X);
     m.cylinder(0.64f, 0.2f, 24, mat(0x5A3A26, 0.95f), X);
     const uint32_t flowers[] = { 0xF28C1E, 0xF7C531, 0xF29BB8, 0xF4F1EA, 0xD8343E };
@@ -564,9 +528,9 @@ void person(Mesh& m, uint32_t seed, const Xform& X) {
     m.ground_ao(X.t.y, 0.3f, 0.4f);
 }
 
-void villager(Mesh& m, const Prop& p) { person(m, p.seed, xf_at({ p.x, p.y, p.z }, p.yaw)); }
+void villager(Mesh& m, const Placement& p) { person(m, p.seed, place({ p.x, p.y, p.z }, p.yaw)); }
 
-void wheat(Mesh& m, const Prop& p) {
+void wheat(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
     const Material stalk = mat(0xD9B25A, 0.8f, 0, 0, Material::FOLIAGE), ear = mat(0xE8C46A, 0.7f, 0, 0, Material::FOLIAGE);
     m.cylinder(1.1f * p.scale, 0.04f, 18, mat(0x8A6A3A, 0.95f), translate({ p.x, p.y - 0.02f, p.z }));
@@ -581,18 +545,18 @@ void wheat(Mesh& m, const Prop& p) {
     m.ground_ao(p.y, 0.3f, 0.35f, from);
 }
 
-void canal(Mesh& m, const Prop& p) {
+void canal(Mesh& m, const Placement& p) {
     // a brick-lined channel 3 m long, its water a little below the ground
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     const Material b = vary(brick(), p.seed, 0.04f, 0.92f);
     for (int s = -1; s <= 1; s += 2) m.rounded_box({ 3.02f, 0.62f, 0.22f }, 0.04f, b, X * translate({ 0, -0.2f, s * (CANAL_HALF + 0.05f) }), 1);
     m.rounded_box({ 3.02f, 0.04f, 2 * CANAL_HALF }, 0.01f, mat(0x6B4A30, 0.95f), X * translate({ 0, -0.58f, 0 }), 1);
     m.rounded_box({ 3.02f, 0.02f, 2 * CANAL_HALF - 0.04f }, 0.005f, water(), X * translate({ 0, -0.3f, 0 }), 1);
 }
 
-void sack_pile(Mesh& m, const Prop& p) {
+void sack_pile(Mesh& m, const Placement& p) {
     const size_t from = m.vertices.size();
-    const Xform X = xf_at({ p.x, p.y, p.z }, p.yaw);
+    const Xform X = place({ p.x, p.y, p.z }, p.yaw);
     for (int k = 0; k < 6; k++) {
         const V3 c = k < 3 ? V3{ (k - 1) * 0.5f, 0.22f, 0 } : k < 5 ? V3{ (k - 3.5f) * 0.5f, 0.6f, 0.02f } : V3{ 0, 0.95f, 0 };
         ellipsoid(m, c, { 0.28f, 0.21f, 0.24f }, 14, vary(mat(0xC9AE7C, 0.95f), p.seed + k, 0.05f), X);
@@ -600,247 +564,6 @@ void sack_pile(Mesh& m, const Prop& p) {
     m.wobble(0.03f, 5, p.seed, from);
     m.ground_ao(p.y, 0.4f, 0.4f, from);
 }
-
-/** The shortcut's plank bridge over the pond, and its gates. */
-void bridge(Mesh& m, const Track& t, bool gates) {
-    const V2 a = t.shortcut_a, b = t.shortcut_b;
-    const float dx = b.x - a.x, dz = b.z - a.z, l = std::hypot(dx, dz), yaw = std::atan2(-dz, dx);
-    const float y = t.elevation(t.shortcut_from);
-    int k = 0;
-    for (float u = 8; u < l - 8; u += 0.34f, k++)
-        m.rounded_box({ 0.3f, 0.08f, 3.2f }, 0.02f, vary(wood(), k, 0.05f), xf_at({ a.x + dx / l * u, y + 0.04f, a.z + dz / l * u }, yaw), 1);
-    for (int side = -1; side <= 1; side += 2) {
-        std::vector<V3> rail;
-        for (float u = 8; u <= l - 8; u += 1.6f) {
-            const V3 q = { a.x + dx / l * u - dz / l * 1.65f * side, y, a.z + dz / l * u + dx / l * 1.65f * side };
-            m.cylinder(0.05f, 0.7f, 8, wood_dark(), translate(q + V3{ 0, -0.1f, 0 }));
-            rail.push_back(q + V3{ 0, 0.55f, 0 });
-        }
-        if (rail.size() >= 2) m.tube(rail, 0.035f, 6, wood());
-    }
-    for (float u : { 14.0f, l * 0.5f, l - 14 }) for (int side = -1; side <= 1; side += 2)   // piers
-        m.cylinder(0.22f, 1.2f, 12, mat(0x9A8B7A, 0.85f), translate({ a.x + dx / l * u - dz / l * 1.2f * side, y - 1.15f, a.z + dz / l * u + dx / l * 1.2f * side }), 0.04f);
-    if (gates) for (const Box& g : t.shortcut_gates) {   // a wooden gate across the bridge
-        const Xform X = xf_at({ g.x, y, g.z }, g.yaw);
-        for (int s = -1; s <= 1; s += 2) m.cylinder(0.07f, 1.3f, 10, wood_dark(), X * translate({ 0, 0, s * 1.8f }));
-        for (float hy : { 0.45f, 0.95f }) m.rounded_box({ 0.08f, 0.16f, 3.6f }, 0.03f, wood(), X * translate({ 0, hy, 0 }), 1);
-        m.rounded_box({ 0.08f, 0.9f, 0.14f }, 0.02f, wood(), X * rotate_x(0.95f) * translate({ 0, 0.7f, 0 }), 1);
-    }
-    // the pond
-    m.cylinder(t.basin_r + 4, 0.02f, 48, water(), translate({ t.basin.x, y - 0.35f, t.basin.z }));
-    for (int i = 0; i < 14; i++) {
-        const float ang = i * 2.39996f, r = (0.3f + 0.6f * hash01(i * 7)) * t.basin_r;
-        const V3 c = { t.basin.x + std::cos(ang) * r, y - 0.33f, t.basin.z + std::sin(ang) * r };
-        m.cylinder(0.22f + hash01(i) * 0.12f, 0.02f, 14, vary(mat(0x4E8F3A, 0.5f), i, 0.05f), translate(c));
-        if (i % 3 == 0) ellipsoid(m, c + V3{ 0, 0.09f, 0 }, { 0.08f, 0.05f, 0.08f }, 8, mat(0xF29BB8, 0.5f));
-    }
-}
-
-/** Turns a model into a ruin: cut off at a ragged height, faded, its lamps out and its water gone, rubble round it. */
-void ruinify(Mesh& part, float ground, uint32_t seed) {
-    float top = ground;
-    for (const Vertex& v : part.vertices) top = std::max(top, v.pos[1]);
-    const float h = top - ground;
-    if (h < 0.05f) return;
-    for (Vertex& v : part.vertices) {
-        const float n = noise3({ v.pos[0] * 0.6f, 0, v.pos[2] * 0.6f }, seed) * 0.5f + 0.5f;
-        const float cut = ground + h * (0.28f + 0.3f * n);
-        if (v.pos[1] > cut) {
-            v.pos[1] = cut - 0.04f * noise3({ v.pos[0] * 3, 1, v.pos[2] * 3 }, seed + 1);
-            const V3 nn = normalize(V3{ v.normal[0] * 0.3f, 1, v.normal[2] * 0.3f });
-            v.normal[0] = nn.x; v.normal[1] = nn.y; v.normal[2] = nn.z;
-        }
-        // faded, dusty colour; no glow; water and cloth turn to dust
-        float r = (v.color & 0xff) / 255.0f, g = ((v.color >> 8) & 0xff) / 255.0f, b = ((v.color >> 16) & 0xff) / 255.0f;
-        const uint32_t kind = v.material >> 24;
-        const float lum = r * 0.3f + g * 0.59f + b * 0.11f;
-        const float k = kind == Material::WATER || kind == Material::FOLIAGE ? 0.85f : 0.55f;
-        r = (r + (lum * 0.95f + 0.05f - r) * k) * 0.85f; g = (g + (lum * 0.88f + 0.04f - g) * k) * 0.85f; b = (b + (lum * 0.78f - b) * k) * 0.85f;
-        const auto byte = [](float c) { return static_cast<uint32_t>(std::max(0.0f, std::min(1.0f, c)) * 255 + 0.5f); };
-        v.color = byte(r) | byte(g) << 8 | byte(b) << 16 | (v.color & 0xff000000u);
-        uint32_t rough = std::max<uint32_t>(v.material & 0xff, 210), metal = ((v.material >> 8) & 0xff) / 3;
-        v.material = rough | metal << 8 | 0u << 16 | (kind == Material::WATER || kind == Material::FOLIAGE ? 0u : kind) << 24;
-    }
-}
-
-void rubble(Mesh& m, float x, float y, float z, float spread, uint32_t seed) {
-    const size_t from = m.vertices.size();
-    for (int k = 0; k < 7; k++) {
-        const float a = hash01(seed * 13 + k) * 6.283f, r = spread * (0.4f + 0.6f * hash01(seed * 17 + k));
-        const float sz = 0.12f + 0.18f * hash01(seed * 19 + k);
-        m.rounded_box({ sz * 1.4f, sz * 0.7f, sz }, sz * 0.2f, vary(mat(0xA9846A, 0.9f), seed + k, 0.05f), xf_at({ x + std::cos(a) * r, y + sz * 0.3f, z + std::sin(a) * r }, a), 1);
-    }
-    m.wobble(0.02f, 8, seed, from);
-}
-
-// ---------- the land ----------
-
-struct Look { uint32_t road, ground; };
-Look look(Zone z) {
-    switch (z) {
-        case Zone::Start: case Zone::Desert: return { 0xC99A62, 0xDDB77E };
-        case Zone::LowerTown: return { 0xA87450, 0xCFA673 };
-        case Zone::CanalRoad: return { 0xB98A5E, 0xB9A46A };
-        case Zone::GrainRoad: return { 0xBF915F, 0xC2A462 };
-        case Zone::Climb: return { 0xB98256, 0xC09E70 };
-        case Zone::UpperTown: return { 0xC27A55, 0xBDA46E };
-        case Zone::LampRoad: return { 0xBE8A5C, 0xB8A56C };
-        case Zone::Plaza: return { 0xC9A27A, 0xB9A06C };
-        default: return { 0xB86A45, 0xC9A577 };
-    }
-}
-
-/** The road's and the ground's colours at s, blended into the next zone over 15 m. */
-Look colours_at(const Track& t, float s, Material& road, Material& ground) {
-    const int z = static_cast<int>(t.zone(s));
-    Look a = look(static_cast<Zone>(z));
-    road = mat(a.road, 0.9f); ground = mat(a.ground, 0.95f);
-    if (z + 1 < ZONES && s > ZONE_START[z + 1] - 15) {
-        const float k = (s - (ZONE_START[z + 1] - 15)) / 15;
-        const Look b = look(static_cast<Zone>(z + 1));
-        const Material r2 = mat(b.road, 0.9f), g2 = mat(b.ground, 0.95f);
-        road.r += (r2.r - road.r) * k; road.g += (r2.g - road.g) * k; road.b += (r2.b - road.b) * k;
-        ground.r += (g2.r - ground.r) * k; ground.g += (g2.g - ground.g) * k; ground.b += (g2.b - ground.b) * k;
-    }
-    return a;
-}
-
-void land(Mesh& m, const Track& t, float s0, float s1) {
-    // columns across: the land to the left, the road (with a sharp edge), the land to the right
-    std::vector<float> cols;
-    const int SIDE = 14, ROAD = 8;
-    for (int k = SIDE; k >= 0; k--) cols.push_back(-(1 + std::pow(k / static_cast<float>(SIDE), 1.4f)));   // -2..-1: left land
-    for (int k = 0; k <= ROAD; k++) cols.push_back(-1 + 2.0f * k / ROAD);                                    // -1..1: road
-    for (int k = 0; k <= SIDE; k++) cols.push_back(1 + std::pow(k / static_cast<float>(SIDE), 1.4f));       // 1..2: right land
-    const int nc = static_cast<int>(cols.size());
-    std::vector<float> rows;
-    for (float s = s0; s < s1; s += 0.5f) rows.push_back(s);
-    rows.push_back(std::min(s1, t.length));
-    const int nr = static_cast<int>(rows.size());
-    std::vector<V3> pos(nr * nc);
-    std::vector<float> lats(nr * nc);
-    for (int r = 0; r < nr; r++) {
-        const Sample p = t.at(rows[r]);
-        const float hw = t.road_half(rows[r]);
-        for (int c = 0; c < nc; c++) {
-            const float u = cols[c];
-            float lat;
-            if (u < -1.0001f) lat = -(hw + 0.25f + (p.left - hw - 0.25f) * (-u - 1));
-            else if (u > 1.0001f) lat = hw + 0.25f + (p.right - hw - 0.25f) * (u - 1);
-            else lat = hw * u;
-            const float x = p.x - p.tz * lat, z = p.z + p.tx * lat;
-            pos[r * nc + c] = { x, t.ground(rows[r], lat, x, z), z };
-            lats[r * nc + c] = lat;
-        }
-    }
-    const uint32_t base = static_cast<uint32_t>(m.vertices.size());
-    for (int r = 0; r < nr; r++) {
-        Material road, ground;
-        colours_at(t, rows[r], road, ground);
-        const float hw = t.road_half(rows[r]), elev = t.elevation(rows[r]);
-        const bool desert = t.zone(rows[r]) == Zone::Start || t.zone(rows[r]) == Zone::Desert;
-        for (int c = 0; c < nc; c++) {
-            const V3 a = pos[r * nc + std::max(0, c - 1)], b = pos[r * nc + std::min(nc - 1, c + 1)];
-            const V3 d = pos[std::max(0, r - 1) * nc + c], e = pos[std::min(nr - 1, r + 1) * nc + c];
-            V3 n = normalize(cross(b - a, d - e));
-            if (n.y < 0) n = -n;
-            const V3 q = pos[r * nc + c];
-            const float lat = std::fabs(lats[r * nc + c]);
-            const float big = noise3({ q.x * 0.12f, 0, q.z * 0.12f }, 3), fine = noise3({ q.x * 1.9f, 0, q.z * 1.9f }, 4);
-            Material col = lat <= hw + 0.01f ? road : ground;
-            if (lat <= hw + 0.01f) {
-                const float rut = std::min(std::fabs(lat - hw * 0.45f) / 0.22f, 1.0f), k = 0.88f + 0.12f * rut;
-                col.r *= k; col.g *= k; col.b *= k;
-            } else {
-                const float trodden = std::min(1.0f, (lat - hw) / 1.5f), k = 0.93f + 0.07f * trodden;
-                col.r *= k; col.g *= k; col.b *= k;
-                if (desert) { const float crest = std::min(1.0f, (q.y - elev) / 1.6f); col.r += crest * 0.04f; col.g += crest * 0.04f; col.b += crest * 0.05f; }
-            }
-            const float v = 1 + big * 0.06f + fine * (desert ? 0.03f : 0.05f);
-            col.r *= v; col.g *= v; col.b *= v;
-            m.add(q, n, col);
-        }
-    }
-    for (int r = 0; r + 1 < nr; r++) for (int c = 0; c + 1 < nc; c++) {
-        const uint32_t a = base + r * nc + c, b = a + 1, cc = a + nc, d = cc + 1;
-        m.tri(a, cc, b); m.tri(b, cc, d);
-    }
-
-    // the cut edges: earth strata down to a dark base, a soft lip at the top
-    const float levels[] = { 0, -0.12f, -0.6f, -1.2f, -1.8f, -2.45f, -3.05f, -3.3f };
-    const uint32_t strata[] = { 0xE6C48E, 0xD9AE74, 0xC48E5A, 0xA8693F, 0x8A5434, 0x6E4A3A, 0x55413A, 0x3A2E2A };
-    const int L = 8;
-    const auto wall = [&](int col, float side) {
-        const uint32_t w = static_cast<uint32_t>(m.vertices.size());
-        for (int r = 0; r < nr; r++) {
-            const Sample p = t.at(rows[r]);
-            const V3 top = pos[r * nc + col], out = V3{ -p.tz, 0, p.tx } * side;
-            const float elev = t.elevation(rows[r]);
-            for (int l = 0; l < L; l++) {
-                float y = l == 0 ? top.y : elev + levels[l] + (l < L - 1 ? 0.13f * noise3({ top.x * 0.25f, l * 3.1f, top.z * 0.25f }, 8) : 0);
-                if (l == 1) y = top.y - 0.12f;
-                y = std::min(y, l == 0 ? top.y : top.y - 0.05f * l);
-                const V3 normal = l == 0 ? normalize(out + V3{ 0, 1.2f, 0 }) : l == L - 1 ? normalize(out + V3{ 0, -1, 0 }) : out;
-                Material c = mat(strata[l], 0.95f);
-                const float v = 1 + 0.06f * noise3({ top.x * 0.8f, l * 1.0f, top.z * 0.8f }, 9);
-                c.r *= v; c.g *= v; c.b *= v;
-                m.add(top - out * (l == 0 ? 0.04f : 0.0f) + V3{ 0, y - top.y, 0 }, normal, c, l >= L - 2 ? 0.7f : 1.0f);
-            }
-        }
-        for (int r = 0; r + 1 < nr; r++) for (int l = 0; l < L - 1; l++) {
-            const uint32_t a = w + r * L + l, b = a + 1, c = a + L, d = c + 1;
-            m.tri(a, b, c); m.tri(b, d, c);
-        }
-    };
-    wall(0, -1);
-    wall(nc - 1, 1);
-    // the underside, and the ends of the ribbon
-    const uint32_t under = static_cast<uint32_t>(m.vertices.size());
-    for (int r = 0; r < nr; r++) for (int c : { 0, nc - 1 }) {
-        const V3 q = pos[r * nc + c];
-        m.add({ q.x, t.elevation(rows[r]) - 3.3f, q.z }, { 0, -1, 0 }, mat(0x2E2420, 1.0f));
-    }
-    for (int r = 0; r + 1 < nr; r++) { const uint32_t a = under + r * 2; m.tri(a, a + 1, a + 2); m.tri(a + 1, a + 3, a + 2); }
-    for (int end = 0; end < 2; end++) {
-        const int r = end == 0 ? 0 : nr - 1;
-        if ((end == 0 && rows[r] > 0.01f) || (end == 1 && rows[r] < t.length - 0.01f)) continue;
-        const Sample p = t.at(rows[r]);
-        const V3 out = V3{ p.tx, 0, p.tz } * (end == 0 ? -1.0f : 1.0f);
-        const uint32_t e = static_cast<uint32_t>(m.vertices.size());
-        for (int c = 0; c < nc; c++) {
-            const V3 q = pos[r * nc + c];
-            m.add(q, normalize(out + V3{ 0, 0.8f, 0 }), mat(strata[0], 0.95f));
-            m.add({ q.x, t.elevation(rows[r]) - 3.3f, q.z }, out, mat(strata[L - 2], 0.95f), 0.7f);
-        }
-        for (int c = 0; c + 1 < nc; c++) { const uint32_t a = e + c * 2; m.tri(a, a + 1, a + 2); m.tri(a + 1, a + 3, a + 2); }
-    }
-}
-
-void kerbs_and_potholes(Mesh& m, const Track& t, float s0, float s1) {
-    const Material red = mat(0xA4462E, 0.85f), pale = mat(0xEFE2C6, 0.8f);
-    int k = static_cast<int>(s0 / 0.9f);
-    for (float s = std::ceil(s0 / 0.9f) * 0.9f; s < s1; s += 0.9f, k++) {
-        const Zone z = t.zone(s);
-        if (z == Zone::Start || z == Zone::Desert || s > ROAD_END - 40) continue;
-        const Sample p = t.at(s);
-        const float yaw = std::atan2(-p.tz, p.tx), hw = t.road_half(s), y = t.elevation(s);
-        for (int side = -1; side <= 1; side += 2) {
-            const float off = side * (hw + 0.1f);
-            m.rounded_box({ 0.86f, 0.12f, 0.2f }, 0.035f, (k % 2) ? red : pale, xf_at({ p.x - p.tz * off, y + 0.04f, p.z + p.tx * off }, yaw), 1);
-        }
-    }
-    for (const Pothole& h : t.potholes) {
-        if (h.s < s0 || h.s >= s1) continue;
-        const float y = t.elevation(h.s);
-        m.lathe({ { 0, 0.004f }, { h.r * 0.7f, 0.004f }, { h.r * 0.95f, 0.02f }, { h.r * 1.15f, 0.012f }, { h.r * 1.2f, 0.0f } }, 20, mat(0x4E3324, 0.95f), translate({ h.x, y, h.z }) * scale({ 1, 1, 0.8f }));
-        for (int i = 0; i < 4; i++) {
-            const float a = i * 1.7f + h.s;
-            ellipsoid(m, { h.x + std::cos(a) * h.r * 1.2f, y + 0.02f, h.z + std::sin(a) * h.r }, { 0.07f, 0.04f, 0.06f }, 8, mat(0x9C8A78, 0.9f));
-        }
-    }
-}
-
-} // namespace
 
 // ---------- the chariot ----------
 
@@ -1130,8 +853,6 @@ Mesh build_guide() {
     return m;
 }
 
-enum class Relic { Seal, Shard, Beads, Figurine, Bronze, Fragment };
-
 Mesh build_relic(Relic kind) {
     Mesh m;
     switch (kind) {
@@ -1205,117 +926,23 @@ Mesh build_handcart() {
     return m;
 }
 
-namespace {
-
-/** Builds one prop (its y already set) into m. */
-void build_prop(Mesh& m, const Prop& p) {
-    switch (p.kind) {
-        case PropKind::House: house(m, p); break;
-        case PropKind::Palm: palm(m, p); break;
-        case PropKind::Shrub: shrub(m, p); break;
-        case PropKind::Rock: rock(m, p); break;
-        case PropKind::Well: well(m, p); break;
-        case PropKind::Cart: cart(m, p); break;
-        case PropKind::Lamp: lamp(m, p); break;
-        case PropKind::SunBanner: sun_banner(m, p); break;
-        case PropKind::Cactus: cactus(m, p); break;
-        case PropKind::Tumbleweed: tumbleweed_into(m, xf_at({ p.x, p.y + 0.38f * p.scale, p.z }, p.yaw) * scale(p.scale), p.seed); break;
-        case PropKind::CamelBones: camel_bones(m, p); break;
-        case PropKind::Signboard: signboard(m, p); break;
-        case PropKind::Basket: basket(m, p); break;
-        case PropKind::Rug: rug(m, p); break;
-        case PropKind::Stall: stall(m, p); break;
-        case PropKind::PrayerFlags: prayer_flags(m, p); break;
-        case PropKind::Villager: villager(m, p); break;
-        case PropKind::Wheat: wheat(m, p); break;
-        case PropKind::Canal: canal(m, p); break;
-        case PropKind::SackPile: sack_pile(m, p); break;
-        case PropKind::Granary: granary(m, p); break;
-        case PropKind::GreatBath: great_bath(m, p); break;
-        case PropKind::AssemblyHall: assembly_hall(m, p); break;
-        case PropKind::Stupa: stupa(m, p); break;
-        case PropKind::GreatHall: great_hall(m, p); break;
-        case PropKind::DancingGirl: dancing_girl(m, p); break;
-        case PropKind::FlowerBed: flower_bed(m, p); break;
-        case PropKind::Guide: break;
-    }
-}
-
-bool landmark_kind(PropKind k) {
-    return k == PropKind::Granary || k == PropKind::GreatBath || k == PropKind::AssemblyHall || k == PropKind::Stupa || k == PropKind::GreatHall || k == PropKind::House;
-}
-
-float prop_y(const Track& t, const Prop& p) { return landmark_kind(p.kind) ? t.elevation(p.s) : p.kind == PropKind::Canal ? t.elevation(p.s) : t.height(p.x, p.z, p.s); }
-
-} // namespace
-
-Mesh build_chunk(const Track& t, float s0, float s1) {
+Mesh build_bell() {
     Mesh m;
-    land(m, t, s0, s1);
-    kerbs_and_potholes(m, t, s0, s1);
-    if (t.shortcut_from >= s0 && t.shortcut_from < s1) bridge(m, t, false);
-    for (Prop p : t.props) {
-        if (p.s < s0 || p.s >= s1 || p.kind == PropKind::Guide) continue;
-        if (p.district >= 0 && p.kind != PropKind::DancingGirl) continue;   // built with its district
-        p.y = prop_y(t, p);
-        build_prop(m, p);
-    }
+    m.lathe({ { 0, -0.16f }, { 0.13f, -0.16f }, { 0.15f, -0.14f }, { 0.11f, -0.06f }, { 0.08f, 0.06f }, { 0.05f, 0.1f }, { 0, 0.11f } }, 24, bronze());
+    m.torus(0.03f, 0.01f, 12, 6, bronze(), translate({ 0, 0.13f, 0 }) * rotate_x(PI / 2));
+    m.sphere(0.03f, 8, bronze(), translate({ 0, -0.17f, 0 }));
+    m.torus(0.3f, 0.012f, 40, 6, mat(0xFFD27A, 0.3f, 0, 0.8f), translate({ 0, -0.28f, 0 }));
     return m;
 }
 
-Mesh build_district(const Track& t, int district, bool alive) {
+Mesh build_grain() {
     Mesh m;
-    for (Prop p : t.props) {
-        if (p.district != district || p.kind == PropKind::Guide || p.kind == PropKind::DancingGirl) continue;
-        p.y = prop_y(t, p);
-        if (alive) { build_prop(m, p); continue; }
-        // in ruins: nobody about, nothing left lying around but rubble
-        if (p.kind == PropKind::Villager || p.kind == PropKind::Rug || p.kind == PropKind::Basket || p.kind == PropKind::Cart || p.kind == PropKind::SackPile) continue;
-        Mesh part;
-        build_prop(part, p);
-        ruinify(part, p.y, p.seed * 7 + 3);
-        m.append(part);
-        if (landmark_kind(p.kind) || p.kind == PropKind::Stall) rubble(m, p.x, p.y, p.z, landmark_kind(p.kind) && p.kind != PropKind::House ? 5.5f : 2.2f, p.seed + 11);
-    }
+    ellipsoid(m, { 0, -0.04f, 0 }, { 0.17f, 0.15f, 0.15f }, 16, mat(0xC9AE7C, 0.95f));
+    m.cylinder(0.05f, 0.08f, 10, mat(0xC9AE7C, 0.95f), translate({ 0, 0.09f, 0 }));
+    m.torus(0.05f, 0.012f, 12, 6, mat(0xC8302E, 0.7f), translate({ 0, 0.11f, 0 }));
+    m.wobble(0.01f, 8, 3);
+    m.torus(0.3f, 0.012f, 40, 6, mat(0xFFD27A, 0.3f, 0, 0.8f), translate({ 0, -0.28f, 0 }));
     return m;
-}
-
-Mesh build_gates(const Track& t) {
-    Mesh m;
-    const float y = t.elevation(t.shortcut_from);
-    for (const Box& g : t.shortcut_gates) {
-        const Xform X = xf_at({ g.x, y, g.z }, g.yaw);
-        for (int s = -1; s <= 1; s += 2) m.cylinder(0.07f, 1.3f, 10, wood_dark(), X * translate({ 0, 0, s * 1.8f }));
-        for (float hy : { 0.45f, 0.95f }) m.rounded_box({ 0.08f, 0.16f, 3.6f }, 0.03f, wood(), X * translate({ 0, hy, 0 }), 1);
-        m.rounded_box({ 0.08f, 0.9f, 0.14f }, 0.02f, wood(), X * translate({ 0, 0.7f, 0 }) * rotate_x(0.95f), 1);
-    }
-    return m;
-}
-
-Mesh build_tool(Tool tool) {
-    switch (tool) {
-        case Tool::Seal: return build_relic(Relic::Seal);
-        case Tool::Beads: return build_relic(Relic::Beads);
-        case Tool::Bell: {
-            Mesh m;
-            m.lathe({ { 0, -0.16f }, { 0.13f, -0.16f }, { 0.15f, -0.14f }, { 0.11f, -0.06f }, { 0.08f, 0.06f }, { 0.05f, 0.1f }, { 0, 0.11f } }, 24, bronze());
-            m.torus(0.03f, 0.01f, 12, 6, bronze(), translate({ 0, 0.13f, 0 }) * rotate_x(PI / 2));
-            m.sphere(0.03f, 8, bronze(), translate({ 0, -0.17f, 0 }));
-            m.torus(0.3f, 0.012f, 40, 6, mat(0xFFD27A, 0.3f, 0, 0.8f), translate({ 0, -0.28f, 0 }));
-            return m;
-        }
-        case Tool::Grain: {
-            Mesh m;
-            ellipsoid(m, { 0, -0.04f, 0 }, { 0.17f, 0.15f, 0.15f }, 16, mat(0xC9AE7C, 0.95f));
-            m.cylinder(0.05f, 0.08f, 10, mat(0xC9AE7C, 0.95f), translate({ 0, 0.09f, 0 }));
-            m.torus(0.05f, 0.012f, 12, 6, mat(0xC8302E, 0.7f), translate({ 0, 0.11f, 0 }));
-            m.wobble(0.01f, 8, 3);
-            m.torus(0.3f, 0.012f, 40, 6, mat(0xFFD27A, 0.3f, 0, 0.8f), translate({ 0, -0.28f, 0 }));
-            return m;
-        }
-        case Tool::None: break;
-    }
-    return build_relic(Relic::Fragment);
 }
 
 Mesh build_fragment() { return build_relic(Relic::Fragment); }
@@ -1401,54 +1028,6 @@ Mesh build_zebu() {
     }
     m.wobble(0.01f, 6, 12);
     m.ground_ao(0, 0.4f, 0.45f);
-    return m;
-}
-
-Mesh build_board(const Track& t, const Board& b) {
-    Mesh m;
-    const Material paint = mat(0xFFFFFF, 0.5f, 0, 0.12f), edge = mat(0x6B4A30, 0.6f), gold_paint = mat(0xF2C14E, 0.35f, 0.6f, 0.2f);
-    const auto where = [&](const GoNode& n) { const Sample p = t.at(n.s); return V3{ p.x - p.tz * n.lat, t.elevation(n.s) + 0.06f, p.z + p.tx * n.lat }; };
-    // a shallow pool under the stepping stones
-    float pool0 = 1e9f, pool1 = -1e9f;
-    for (const GoNode& n : b.nodes) if (n.sink >= 0) { pool0 = std::min(pool0, n.s); pool1 = std::max(pool1, n.s); }
-    if (pool1 > pool0) {
-        for (float s = pool0 - 3; s < pool1 + 3; s += 1.5f) {
-            const Sample p = t.at(s);
-            m.rounded_box({ 1.6f, 0.04f, 7.2f }, 0.01f, water(), xf_at({ p.x, t.elevation(s) + 0.02f, p.z }, std::atan2(-p.tz, p.tx)), 1);
-        }
-        for (int side = -1; side <= 1; side += 2) for (float s = pool0 - 3; s < pool1 + 3; s += 1.0f) {
-            const Sample p = t.at(s);
-            m.rounded_box({ 1.0f, 0.18f, 0.25f }, 0.04f, vary(brick(), static_cast<uint32_t>(s), 0.04f), xf_at({ p.x - p.tz * 3.7f * side, t.elevation(s) + 0.06f, p.z + p.tx * 3.7f * side }, std::atan2(-p.tz, p.tx)), 1);
-        }
-    }
-    for (size_t i = 0; i < b.nodes.size(); i++) {
-        const V3 c = where(b.nodes[i]);
-        const bool exit = static_cast<int>(i) == b.exit, start = static_cast<int>(i) == b.start;
-        if (b.nodes[i].pillar) {   // a brick pillar with carved bands
-            const size_t from = m.vertices.size();
-            m.rounded_box({ 0.7f, 2.6f, 0.7f }, 0.08f, vary(mat(0xC98457, 0.85f), static_cast<uint32_t>(i), 0.04f), translate(c + V3{ 0, 1.3f, 0 }), 2);
-            for (float y : { 0.9f, 2.0f }) m.rounded_box({ 0.78f, 0.12f, 0.78f }, 0.03f, sandstone(), translate(c + V3{ 0, y, 0 }), 1);
-            m.wobble(0.015f, 3, static_cast<uint32_t>(i), from);
-            continue;
-        }
-        if (b.nodes[i].sink >= 0) continue;   // stepping stones are drawn as they rise and sink
-        m.lathe({ { 0, 0.03f }, { 0.3f, 0.03f }, { 0.34f, 0.015f }, { 0.36f, -0.04f } }, 28, exit ? gold_paint : paint, translate(c));
-        m.torus(exit ? 0.6f : 0.46f, 0.04f, 36, 6, exit ? gold_paint : edge, translate(c + V3{ 0, -0.02f, 0 }) * scale({ 1, 0.5f, 1 }));
-        if (start) m.torus(0.62f, 0.03f, 36, 6, paint, translate(c + V3{ 0, 0.01f, 0 }) * scale({ 1, 0.4f, 1 }));
-        if (exit) {
-            m.cylinder(0.03f, 1.6f, 8, wood(), translate(c + V3{ -0.5f, 0, 0.5f }));
-            m.rounded_box({ 0.5f, 0.32f, 0.02f }, 0.01f, mat(0xE8862A, 0.8f, 0, 0, Material::FOLIAGE), translate(c + V3{ -0.24f, 1.42f, 0.5f }), 1);
-        }
-    }
-    for (size_t i = 0; i < b.adj.size(); i++) for (int j : b.adj[i]) {
-        if (j < static_cast<int>(i)) continue;
-        const V3 a = where(b.nodes[i]), c = where(b.nodes[j]);
-        const V3 d = c - a;
-        const float len = length(d) - 0.8f;
-        if (len <= 0) continue;
-        const V3 mid = (a + c) * 0.5f;
-        m.rounded_box({ len, 0.03f, 0.1f }, 0.01f, paint, translate(mid + V3{ 0, -0.02f, 0 }) * rotate_y(std::atan2(-d.z, d.x)), 1);
-    }
     return m;
 }
 

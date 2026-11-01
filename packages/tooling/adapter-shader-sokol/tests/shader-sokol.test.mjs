@@ -52,6 +52,7 @@ describe('getting and running sokol-shdc', () => {
         await compileShaders(root, ['shaders/a.glsl', 'shaders/b.glsl'], quiet, { exec, shdc: '/bin/shdc' });
         expect(calls).toEqual([['/bin/shdc', shdcArgs('shaders/a.glsl'), root], ['/bin/shdc', shdcArgs('shaders/b.glsl'), root]]);
         expect(shdcArgs('shaders/a.glsl')).toEqual(['--input', 'native/shaders/a.glsl', '--output', 'build/gen/a.glsl.h', '--slang', 'glsl300es:wgsl', '--reflection']);
+        expect(shdcArgs('shaders/a.glsl', '.')).toEqual(['--input', 'shaders/a.glsl', '--output', 'build/gen/a.glsl.h', '--slang', 'glsl300es:wgsl', '--reflection']);   // a provider's
         expect(existsSync(join(root, 'build/gen'))).toBe(true);
         calls.length = 0;
         await compileShaders(root, [], quiet, { exec, shdc: '/bin/shdc' });

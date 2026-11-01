@@ -44,23 +44,28 @@ export async function ensureShdc(log = console.log, { fetch: get = fetch, tools 
 /** Where a shader's header goes (on the include path of the module that uses it). */
 export const headerOf = (shader) => `build/gen/${posix.basename(shader)}.h`;
 
-/** The sokol-shdc arguments for one shader (relative to <root>/native). */
-export const shdcArgs = (shader) => ['--input', `native/${shader}`, '--output', headerOf(shader), '--slang', SLANGS, '--reflection'];
+/**
+ * The sokol-shdc arguments for one shader.
+ * @param shader Its path, relative to `dir`.
+ * @param dir The folder (relative to the package) shaders are named from: a module's native/, or a provider's own root.
+ */
+export const shdcArgs = (shader, dir = 'native') => ['--input', posix.join(dir, shader), '--output', headerOf(shader), '--slang', SLANGS, '--reflection'];
 
 /**
  * Compiles shaders into build/gen/.
  * @param root The package's folder.
- * @param shaders Paths relative to its native/.
+ * @param shaders Paths relative to `dir`.
  * @param log Where progress goes.
- * @param options `exec` (runs a command) and `shdc` (the binary, skipping the download) can be replaced, for tests.
+ * @param options `dir` (default native/; a provider's shaders are named from its root, '.'); `exec` (runs a command)
+ * and `shdc` (the binary, skipping the download) can be replaced, for tests.
  */
-export async function compileShaders(root, shaders, log = console.log, { exec = execFileSync, shdc } = {}) {
+export async function compileShaders(root, shaders, log = console.log, { exec = execFileSync, shdc, dir = 'native' } = {}) {
     if (!shaders?.length) return;
     const binary = shdc ?? await ensureShdc(log);
     mkdirSync(join(root, 'build/gen'), { recursive: true });
     for (const shader of shaders) {
         log(`  sokol-shdc ${shader}`);
-        exec(binary, shdcArgs(shader), { cwd: root, stdio: 'inherit' });
+        exec(binary, shdcArgs(shader, dir), { cwd: root, stdio: 'inherit' });
     }
 }
 

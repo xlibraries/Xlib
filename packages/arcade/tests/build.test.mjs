@@ -63,12 +63,18 @@ describe('the games as modules (package.json "xlibraries.modules")', () => {
     it('stamps each game with only what it is built from', () => {
         const jr = inputs(ctx('jyotirath')).map((i) => i.label);
         expect(jr).toContain('native/games/jyotirath/hints.cpp');
-        expect(jr).toContain('native/shaders/jyotirath.glsl');
+        expect(jr).toContain('native/games/jyotirath/assets/models.cpp');        // its own assets
+        expect(jr).toContain('@xlibraries/render/shaders/render.glsl');          // the look it's drawn with
+        expect(jr).toContain('@xlibraries/render/src/renderer_sokol.cpp');
+        expect(jr).toContain('@xlibraries/asset-builder/src/mesh.cpp');          // what its models are built with
+        expect(jr.some((l) => l.startsWith('native/shaders/'))).toBe(false);     // no shader of its own
         expect(jr).toContain('@xlibraries/engine-core/include/xl.h');         // included by the game
         expect(jr).toContain('@xlibraries/engine-text/src/xl_font.cpp');      // the text it uses, linked
         expect(jr).toContain('@xlibraries/engine-web/src/xl_web.cpp');        // the platform in the browser, linked
         expect(jr.some((l) => l.includes('turbo-trails'))).toBe(false);          // nothing of another game
         expect(jr.some((l) => l.includes('physics'))).toBe(false);   // no physics: not stale when physics changes
+        const tt = inputs(ctx('turbo-trails')).map((i) => i.label);
+        expect(tt.some((l) => l.includes('@xlibraries/render') || l.includes('asset-builder'))).toBe(false);   // not stale when render changes
     });
 
     it('builds no game on React: no provider a game uses depends on it, directly or through another provider', () => {

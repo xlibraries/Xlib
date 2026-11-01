@@ -1,0 +1,45 @@
+{
+  "name": "@xlibraries/asset-builder",
+  "version": "0.1.0",
+  "description": "Building mid-poly models in code for C++ modules (xl_asset.h): smooth primitives, transforms, materials, modifiers and a few shapes, as meshes in @xlibraries/render's vertex format; no models of its own",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/asset-builder"
+  },
+  "files": [
+    "include",
+    "src"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "xl-native-test",
+    "verify": "xl-native-test"
+  },
+  "dependencies": {
+    "@xlibraries/render": "workspace:^"
+  },
+  "devDependencies": {
+    "@xlibraries/adapter-native-test": "workspace:^"
+  },
+  "xlibraries": {
+    "native": {
+      "prefix": "asset-builder",
+      "include": [
+        "include"
+      ],
+      "link": [
+        "src/mesh.cpp"
+      ],
+      "testSources": "src"
+    },
+    "nativeTests": {
+      "uses": [
+        "@xlibraries/render"
+      ]
+    }
+  }
+}

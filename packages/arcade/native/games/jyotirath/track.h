@@ -2,7 +2,7 @@
 // the zones of the chapter: drives on the open stretches (the desert, the canal road with its one shortcut, the
 // grain road, the climb) and the districts where the boards are (the Lower Town, the Granary, the Great Bath, the
 // Citadel, the Upper Town), the lamp road at dusk, then the Dancing Girl's plaza. Placed props with their colliders and the district each
-// belongs to (ruined until its board is cleared), tools to pick up, potholes, a canal. Graphics-free; models.cpp
+// belongs to (ruined until its board is cleared), tools to pick up, potholes, a canal. Graphics-free; level.cpp
 // turns it into meshes.
 #pragma once
 #include <cstdint>
@@ -61,13 +61,6 @@ struct Pothole { float x, z, r, s; };
 struct Beacon { float x, z, s; };
 constexpr float BEACON_REACH = 2.6f;
 
-/** A mud-brick house's footprint and height, from its seed (the collider and the model agree). */
-struct HouseShape { float w, d, h; bool upper; };
-HouseShape house_shape(uint32_t seed, bool grand = false);
-
-/** Landmark footprints (full sizes, before yaw). */
-constexpr float BATH_W = 11, BATH_D = 8, STUPA_R = 4.2f, GRANARY_W = 10, GRANARY_D = 6, HALL_W = 10, HALL_D = 7,
-                ASSEMBLY_W = 9, ASSEMBLY_D = 9, CART_W = 2.2f, CART_D = 1.3f;
 
 struct Track {
     std::vector<Sample> samples;   // every 0.25 m from 0 to LAND_END
@@ -106,7 +99,6 @@ struct Track {
     float canal_lat(float s) const;
 };
 
-constexpr float CANAL_HALF = 0.9f;
 
 Track build_track(uint32_t seed = 7);
 

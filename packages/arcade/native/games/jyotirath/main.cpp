@@ -3,27 +3,27 @@
 // cleared, then rises again. Between beats, scenes: the chariot rolls itself up to a district, someone stops it, and
 // a wave of light from the sun on its prow lights the board's lanes; after a board, someone sends you off and the
 // chariot rolls out into the next drive already moving. The camera blends between the two views. On the boards,
-// hints.h teaches each rule once, when it's useful. Three passes a frame: the sun's shadow map (a depth texture), the diorama into a 4× MSAA
-// target (Pixar-styled lighting, shaders/jyotirath.glsl), then the post-process pass (tilt-shift, bloom, grade) on
+// hints.h teaches each rule once, when it's useful. Drawn through @xlibraries/render (xl_render.h): the sun's shadow map, the
+// diorama into a 4× MSAA target (its Pixar-styled lighting), then the post-process pass (tilt-shift, bloom, grade) on
 // screen with the HUD and the dialogue (sokol_gl and the engine's baked font) on top. The land and the districts are
 // built as you approach them. Synthesized sound through xl_audio.h. Exports for the page's tests at the bottom.
-#define SOKOL_IMPL
+#define SOKOL_APP_IMPL   // sokol_gfx, sokol_glue and sokol_log come with @xlibraries/render
+#define SOKOL_GL_IMPL
 #include "sokol_gfx.h"
 #include "sokol_app.h"
-#include "sokol_glue.h"
 #include "sokol_log.h"
 #include "sokol_gl.h"
 #define HANDMADE_MATH_USE_RADIANS
 #include "HandmadeMath.h"
 #include "xl.h"
 #include "xl_audio.h"
+#include "xl_render.h"
 #include "xl_text.h"
-#include "jyotirath.glsl.h"
 #include "chapter.h"
 #include "drive.h"
 #include "go.h"
 #include "hints.h"
-#include "models.h"
+#include "level.h"
 #include "story.h"
 #include "track.h"
 
@@ -95,7 +95,7 @@ void mix_audio() {
 
 // ---------- state ----------
 
-struct GpuMesh { sg_buffer vbuf{}, ibuf{}; int count = 0; bool ready = false; };
+struct GpuMesh { xl::render::Mesh mesh; bool ready = false; };   // ready: built (an empty mesh uploads nothing)
 
 enum ParticleKind { DUST, SPARK, SMOKE, GRAIN };
 struct Particle { HMM_Vec3 p, v; float life, max_life, size, spin; ParticleKind kind; HMM_Vec3 color; };
@@ -130,17 +130,11 @@ struct {
     GpuMesh tools[5];
     GpuMesh villagers[4];
     GpuMesh boards[BOARDS];
-    sg_pipeline shadow_pip, lit_pip, sky_pip, post_pip;
-    sg_image shadow_depth{};
-    sg_view shadow_att{}, shadow_tex{};
-    sg_sampler shadow_smp{}, post_smp{};
-    sg_image scene_msaa{}, scene_resolve{}, scene_depth{};
-    sg_view scene_msaa_att{}, scene_resolve_att{}, scene_depth_att{}, scene_tex{};
-    int scene_w = 0, scene_h = 0;
+    std::unique_ptr<xl::render::Renderer> renderer;
+    xl::render::Pass* pass = nullptr;   // the pass being drawn
     sgl_context hud;
     sgl_pipeline hud_blend;
     xl::txt::Text text;
-    bool zo = false;              // WebGPU's clip space has z in 0..1
 
     bool autopilot = false;
     float time = 0, accumulator = 0, stage_time = 0;
@@ -196,26 +190,15 @@ struct {
     bool advance = false, restart = false, menu = false, fresh = false;
 } st;
 
-GpuMesh upload(const Mesh& m) {
-    GpuMesh g;
-    sg_buffer_desc vb = {};
-    vb.usage.vertex_buffer = true;
-    vb.data = { m.vertices.data(), m.vertices.size() * sizeof(Vertex) };
-    g.vbuf = sg_make_buffer(&vb);
-    sg_buffer_desc ib = {};
-    ib.usage.index_buffer = true;
-    ib.data = { m.indices.data(), m.indices.size() * sizeof(uint32_t) };
-    g.ibuf = sg_make_buffer(&ib);
-    g.count = static_cast<int>(m.indices.size());
-    g.ready = true;
-    return g;
-}
+GpuMesh upload(const Mesh& m) { return { st.renderer->upload(m.vertices, m.indices), true }; }
+
+xl::render::Mat4 mat4(const HMM_Mat4& m) { xl::render::Mat4 r; std::memcpy(r.m, &m, sizeof r.m); return r; }
+xl::render::Vec3 vec3(HMM_Vec3 v) { return { v.X, v.Y, v.Z }; }
 
 HMM_Vec3 lin(uint32_t hex) {
     const auto c = [](float v) { return std::pow(v, 2.2f); };
     return HMM_V3(c(((hex >> 16) & 255) / 255.0f), c(((hex >> 8) & 255) / 255.0f), c((hex & 255) / 255.0f));
 }
-HMM_Vec4 v4(HMM_Vec3 v, float w = 1) { return HMM_V4(v.X, v.Y, v.Z, w); }
 float rnd(float a, float b) { return a + (b - a) * (std::rand() / static_cast<float>(RAND_MAX)); }
 float smooth(float t) { t = std::max(0.0f, std::min(1.0f, t)); return t * t * (3 - 2 * t); }
 float wrap(float a) { while (a > HMM_PI32) a -= 2 * HMM_PI32; while (a < -HMM_PI32) a += 2 * HMM_PI32; return a; }
@@ -628,36 +611,17 @@ Input read_input() {
 
 struct Frame {
     HMM_Mat4 view_proj, light_vp;
-    float zscale, zoff;
     bool shadow_pass;
-    HMM_Vec4 reveal;   // the wave of light for what's being drawn (w 0: none)
+    xl::render::Reveal reveal;   // the wave of light for what's being drawn
 };
 Frame frame_info;
 
 void draw(const GpuMesh& m, const HMM_Mat4& model, HMM_Vec3 tint = HMM_V3(1, 1, 1)) {
-    if (!m.ready) return;
-    sg_bindings b = {};
-    b.vertex_buffers[0] = m.vbuf;
-    b.index_buffer = m.ibuf;
-    if (frame_info.shadow_pass) {
-        sg_apply_bindings(&b);
-        shadow_params_t p = {};
-        p.light_mvp = HMM_MulM4(frame_info.light_vp, model);
-        sg_apply_uniforms(UB_shadow_params, SG_RANGE(p));
-    } else {
-        b.views[VIEW_shadow_tex] = st.shadow_tex;
-        b.samplers[SMP_shadow_smp] = st.shadow_smp;
-        sg_apply_bindings(&b);
-        lit_vs_params_t p = {};
-        p.view_proj = frame_info.view_proj;
-        p.model = model;
-        p.light_vp = frame_info.light_vp;
-        p.tint = v4(tint);
-        p.depth_map = HMM_V4(frame_info.zscale, frame_info.zoff, st.time, 0);
-        p.reveal = frame_info.reveal;
-        sg_apply_uniforms(UB_lit_vs_params, SG_RANGE(p));
-    }
-    sg_draw(0, m.count, 1);
+    if (!m.ready || !st.pass) return;
+    xl::render::Look look;
+    look.tint = vec3(tint);
+    look.reveal = frame_info.reveal;
+    st.pass->draw(m.mesh, mat4(model), look);
 }
 
 HMM_Mat4 T(float x, float y, float z) { return HMM_Translate(HMM_V3(x, y, z)); }
@@ -776,7 +740,7 @@ bool stolen() {
 void draw_board(const GoState& g, int index, float radius, HMM_Vec3 at, bool shadow_pass) {
     const Board& b = *g.board;
     const bool lit = radius < 0;
-    if (!lit) frame_info.reveal = HMM_V4(at.X, at.Z, radius, 1);
+    if (!lit) frame_info.reveal = { at.X, at.Z, radius, true };
     if (!shadow_pass) draw(st.boards[index], HMM_M4D(1));
     // stepping stones: up above the water when you'll land safely on your next move
     for (size_t i = 0; i < b.nodes.size(); i++) {
@@ -785,7 +749,7 @@ void draw_board(const GoState& g, int index, float radius, HMM_Vec3 at, bool sha
         const HMM_Vec3 p = node_pos(static_cast<int>(i));
         draw(st.stone, T(p.X, p.Y + (down ? -0.42f : 0.06f) + 0.02f * std::sin(st.time * 2 + i), p.Z));
     }
-    frame_info.reveal = HMM_V4(0, 0, 0, 0);
+    frame_info.reveal = {};
     const float k = smooth(st.hop);
     const HMM_Vec3 me = node_pos(g.player);
     for (size_t i = 0; i < g.pieces.size(); i++) {
@@ -887,45 +851,6 @@ void update_particles(float dt) {
         p.p = HMM_AddV3(p.p, HMM_MulV3F(p.v, dt));
     }
     st.particles.erase(std::remove_if(st.particles.begin(), st.particles.end(), [](const Particle& p) { return p.life <= 0; }), st.particles.end());
-}
-
-/** (Re)creates the MSAA scene target and its resolve texture at the framebuffer's size. */
-void ensure_scene(int w, int h) {
-    if (w == st.scene_w && h == st.scene_h) return;
-    if (st.scene_w) {
-        for (sg_view v : { st.scene_msaa_att, st.scene_resolve_att, st.scene_depth_att, st.scene_tex }) sg_destroy_view(v);
-        for (sg_image i : { st.scene_msaa, st.scene_resolve, st.scene_depth }) sg_destroy_image(i);
-    }
-    st.scene_w = w; st.scene_h = h;
-    const sg_environment env = sglue_environment();
-    sg_image_desc img = {};
-    img.usage.color_attachment = true;
-    img.width = w; img.height = h;
-    img.pixel_format = env.defaults.color_format;
-    img.sample_count = MSAA;
-    st.scene_msaa = sg_make_image(&img);
-    sg_image_desc res = img;
-    res.usage = {};
-    res.usage.resolve_attachment = true;
-    res.sample_count = 1;
-    st.scene_resolve = sg_make_image(&res);
-    sg_image_desc depth = img;
-    depth.usage = {};
-    depth.usage.depth_stencil_attachment = true;
-    depth.pixel_format = SG_PIXELFORMAT_DEPTH;
-    st.scene_depth = sg_make_image(&depth);
-    sg_view_desc v = {};
-    v.color_attachment.image = st.scene_msaa;
-    st.scene_msaa_att = sg_make_view(&v);
-    v = {};
-    v.resolve_attachment.image = st.scene_resolve;
-    st.scene_resolve_att = sg_make_view(&v);
-    v = {};
-    v.depth_stencil_attachment.image = st.scene_depth;
-    st.scene_depth_att = sg_make_view(&v);
-    v = {};
-    v.texture.image = st.scene_resolve;
-    st.scene_tex = sg_make_view(&v);
 }
 
 // ---------- boards ----------
@@ -1406,7 +1331,7 @@ void frame() {
             const float lat = rnd(-12, 12);
             spawn(DUST, HMM_V3(p.x - p.tz * lat, st.track.elevation(s0) + 0.3f, p.z + p.tx * lat), HMM_V3(rnd(-1, 1), rnd(0.5f, 1.5f), rnd(-1, 1)), 1.2f, rnd(0.2f, 0.4f), HMM_V3(0.85f, 0.7f, 0.5f));
         }
-        if (st.rising[d] >= 1 && st.districts[d][0].ready) { sg_destroy_buffer(st.districts[d][0].vbuf); sg_destroy_buffer(st.districts[d][0].ibuf); st.districts[d][0] = GpuMesh{}; }
+        if (st.rising[d] >= 1 && st.districts[d][0].ready) { st.renderer->release(st.districts[d][0].mesh); st.districts[d][0] = GpuMesh{}; }
     }
     st.title_timer = std::max(0.0f, st.title_timer - dt);
     st.notice_timer = std::max(0.0f, st.notice_timer - dt);
@@ -1498,7 +1423,8 @@ void frame() {
     HMM_Vec3 eye = HMM_AddV3(target, HMM_MulV3F(off, dist));
     eye.X += st.shake * 0.5f * std::sin(st.time * 71); eye.Y += st.shake * 0.4f * std::sin(st.time * 93);
     const float fov = HMM_AngleDeg(20.0f);
-    const HMM_Mat4 proj = st.zo ? HMM_Perspective_RH_ZO(fov, w / h, 4.0f, 400.0f) : HMM_Perspective_RH_NO(fov, w / h, 4.0f, 400.0f);
+    const bool zo = st.renderer->zero_to_one();   // WebGPU's clip space has z in 0..1
+    const HMM_Mat4 proj = zo ? HMM_Perspective_RH_ZO(fov, w / h, 4.0f, 400.0f) : HMM_Perspective_RH_NO(fov, w / h, 4.0f, 400.0f);
     frame_info.view_proj = HMM_MulM4(proj, HMM_LookAt_RH(eye, target, HMM_V3(0, 1, 0)));
     st.car_screen = to_screen(HMM_V3(c.x, c.y + 2.5f, c.z));
     st.guide_screen = to_screen(HMM_AddV3(st.guide_at, HMM_V3(0, 2.4f, 0)));
@@ -1523,11 +1449,9 @@ void frame() {
     HMM_Vec4 centre = HMM_MulM4V4(light_view, HMM_V4(target.X, target.Y, target.Z, 1));
     centre.X = std::floor(centre.X / texel) * texel; centre.Y = std::floor(centre.Y / texel) * texel;
     const float near_z = -centre.Z - 60, far_z = -centre.Z + 60;
-    const HMM_Mat4 light_proj = st.zo ? HMM_Orthographic_RH_ZO(centre.X - half, centre.X + half, centre.Y - half, centre.Y + half, near_z, far_z)
+    const HMM_Mat4 light_proj = zo ? HMM_Orthographic_RH_ZO(centre.X - half, centre.X + half, centre.Y - half, centre.Y + half, near_z, far_z)
                                       : HMM_Orthographic_RH_NO(centre.X - half, centre.X + half, centre.Y - half, centre.Y + half, near_z, far_z);
     frame_info.light_vp = HMM_MulM4(light_proj, light_view);
-    frame_info.zscale = st.zo ? 1.0f : 0.5f;
-    frame_info.zoff = st.zo ? 0.0f : 0.5f;
     const float near_s = st.track.nearest(target.X, target.Z, nullptr, g.run.s);
 
     const auto scene = [&](bool shadows) {
@@ -1549,78 +1473,55 @@ void frame() {
         }
     };
 
-    // 1. the shadow map
-    {
-        sg_pass pass = {};
-        pass.action.depth.load_action = SG_LOADACTION_CLEAR;
-        pass.action.depth.clear_value = 1.0f;
-        pass.action.depth.store_action = SG_STOREACTION_STORE;   // the default throws depth away (WebGPU does)
-        pass.attachments.depth_stencil = st.shadow_att;
-        sg_begin_pass(&pass);
-        sg_apply_pipeline(st.shadow_pip);
-        scene(true);
-        sg_end_pass();
-    }
-
-    // 2. the diorama
-    ensure_scene(sapp_width(), sapp_height());
-    {
-        sg_pass pass = {};
-        pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
-        pass.action.colors[0].store_action = SG_STOREACTION_DONTCARE;
-        pass.action.colors[0].clear_value = { 0.9f, 0.75f, 0.6f, 1 };
-        pass.attachments.colors[0] = st.scene_msaa_att;
-        pass.attachments.resolves[0] = st.scene_resolve_att;
-        pass.attachments.depth_stencil = st.scene_depth_att;
-        sg_begin_pass(&pass);
-        sg_apply_pipeline(st.sky_pip);
-        sky_params_t sky = {};
-        const float dusk = storm_near * 0.6f;
-        const auto mix3 = [](HMM_Vec4 a, HMM_Vec4 b, float k) { return HMM_V4(a.X + (b.X - a.X) * k, a.Y + (b.Y - a.Y) * k, a.Z + (b.Z - a.Z) * k, a.W); };
-        sky.top = mix3(HMM_V4(0.93f - dusk * 0.3f, 0.82f - dusk * 0.35f, 0.68f - dusk * 0.4f, 1), HMM_V4(0.32f, 0.26f, 0.48f, 1), night);
-        sky.bottom = mix3(HMM_V4(0.64f, 0.45f - dusk * 0.1f, 0.4f - dusk * 0.15f, 1), HMM_V4(0.62f, 0.32f, 0.3f, 1), night);
-        sky.glow = mix3(HMM_V4(1.0f, 0.9f, 0.74f, 0.3f), HMM_V4(1.0f, 0.55f, 0.35f, 0.3f), night);
-        sky.centre = HMM_V4(0.5f, 0.62f, w / h, 0);
-        sg_apply_uniforms(UB_sky_params, SG_RANGE(sky));
-        sg_draw(0, 3, 1);
-        sg_apply_pipeline(st.lit_pip);
-        lit_fs_params_t fs = {};
-        fs.sun_dir = v4(sun, 2.3f * (1 - dusk * 0.5f) * (1 - 0.72f * night));
-        fs.sun_color = v4(HMM_LerpV3(lin(0xFFE2B8), night, lin(0xFF8A5A)), 2.5f * night);
-        fs.sky_top = v4(HMM_MulV3F(HMM_LerpV3(lin(0x8DB8E8), night, lin(0x4A4A8A)), 0.7f * (1 - 0.4f * night)), 0.68f);
-        fs.sky_horizon = v4(HMM_MulV3F(HMM_LerpV3(lin(0xF2D2B0), night, lin(0xA06A80)), 0.8f * (1 - 0.4f * night)));
-        fs.ground_color = v4(HMM_MulV3F(lin(0xC99A62), 0.35f * (1 - 0.5f * night)));
-        fs.cam_pos = v4(eye, st.time);
-        fs.shadow_info = HMM_V4(1.0f / SHADOW_SIZE, 0.0015f, sg_query_features().origin_top_left ? 1.0f : 0.0f, 0.8f);
-        fs.haze = v4(HMM_LerpV3(lin(0xB98A7A), night, lin(0x5A4060)), 0.85f);
-        sg_apply_uniforms(UB_lit_fs_params, SG_RANGE(fs));
-        scene(false);
-        sg_end_pass();
-    }
-
-    // 3. on screen: post-processing, then the HUD
-    draw_hud(w, h);
-    {
-        sg_pass pass = {};
-        pass.action.colors[0].load_action = SG_LOADACTION_DONTCARE;
-        pass.swapchain = sglue_swapchain();
-        sg_begin_pass(&pass);
-        sg_apply_pipeline(st.post_pip);
-        sg_bindings b = {};
-        b.views[VIEW_scene_tex] = st.scene_tex;
-        b.samplers[SMP_scene_smp] = st.post_smp;
-        sg_apply_bindings(&b);
-        post_params_t p = {};
-        p.texel = HMM_V4(1.0f / w, 1.0f / h, sg_query_features().origin_top_left ? 0.0f : 1.0f, std::fmod(st.time, 10.0f));
-        p.focus = HMM_V4(std::max(0.1f, std::min(0.9f, st.car_screen.Y - 0.08f)), 0.14f + 0.08f * m + 0.1f * e, (3.5f + 2.0f * e) * sapp_dpi_scale(), 0.4f);
-        p.grade = HMM_V4(0.45f + storm_near * 0.4f + night * 0.25f, 1.15f, 0.02f, 0.0f);
-        p.centre = HMM_V4(st.car_screen.X, st.car_screen.Y, 0, 0);
-        sg_apply_uniforms(UB_post_params, SG_RANGE(p));
-        sg_draw(0, 3, 1);
+    xl::render::Frame f;
+    f.width = sapp_width();
+    f.height = sapp_height();
+    f.view_proj = mat4(frame_info.view_proj);
+    f.eye = vec3(eye);
+    f.light_vp = mat4(frame_info.light_vp);
+    f.time = st.time;
+    f.clear[0] = 0.9f; f.clear[1] = 0.75f; f.clear[2] = 0.6f;
+    // the backdrop: warm by day, dusky in the storm and at night
+    const float dusk = storm_near * 0.6f;
+    const auto mix3 = [](HMM_Vec3 a, HMM_Vec3 b, float k) { return vec3(HMM_V3(a.X + (b.X - a.X) * k, a.Y + (b.Y - a.Y) * k, a.Z + (b.Z - a.Z) * k)); };
+    f.backdrop.top = mix3(HMM_V3(0.93f - dusk * 0.3f, 0.82f - dusk * 0.35f, 0.68f - dusk * 0.4f), HMM_V3(0.32f, 0.26f, 0.48f), night);
+    f.backdrop.bottom = mix3(HMM_V3(0.64f, 0.45f - dusk * 0.1f, 0.4f - dusk * 0.15f), HMM_V3(0.62f, 0.32f, 0.3f), night);
+    f.backdrop.glow = mix3(HMM_V3(1.0f, 0.9f, 0.74f), HMM_V3(1.0f, 0.55f, 0.35f), night);
+    f.backdrop.glow_strength = 0.3f;
+    f.backdrop.glow_x = 0.5f;
+    f.backdrop.glow_y = 0.62f;
+    xl::render::Lighting& l = f.lighting;
+    l.sun_dir = vec3(sun);
+    l.sun_intensity = 2.3f * (1 - dusk * 0.5f) * (1 - 0.72f * night);
+    l.sun_color = vec3(HMM_LerpV3(lin(0xFFE2B8), night, lin(0xFF8A5A)));
+    l.lamp_glow = 2.5f * night;
+    l.sky_top = vec3(HMM_MulV3F(HMM_LerpV3(lin(0x8DB8E8), night, lin(0x4A4A8A)), 0.7f * (1 - 0.4f * night)));
+    l.exposure = 0.68f;
+    l.sky_horizon = vec3(HMM_MulV3F(HMM_LerpV3(lin(0xF2D2B0), night, lin(0xA06A80)), 0.8f * (1 - 0.4f * night)));
+    l.ground = vec3(HMM_MulV3F(lin(0xC99A62), 0.35f * (1 - 0.5f * night)));
+    l.haze = vec3(HMM_LerpV3(lin(0xB98A7A), night, lin(0x5A4060)));
+    l.haze_strength = 0.85f;
+    l.shadow_strength = 0.8f;
+    l.shadow_bias = 0.0015f;
+    // on screen: tilt-shift round the chariot's band, a little bloom, the grade
+    xl::render::Post& p = f.post;
+    p.focus_y = std::max(0.1f, std::min(0.9f, st.car_screen.Y - 0.08f));
+    p.focus_half = 0.14f + 0.08f * m + 0.1f * e;
+    p.blur = (3.5f + 2.0f * e) * sapp_dpi_scale();
+    p.bloom = 0.4f;
+    p.vignette = 0.45f + storm_near * 0.4f + night * 0.25f;
+    p.saturation = 1.15f;
+    p.grain = 0.02f;
+    p.streak_x = st.car_screen.X;
+    p.streak_y = st.car_screen.Y;
+    st.renderer->render(f, [&](xl::render::Pass& pass) {
+        st.pass = &pass;
+        scene(pass.shadow());
+        st.pass = nullptr;
+    }, [&] {
+        draw_hud(w, h);
         sgl_context_draw(st.hud);
-        sg_end_pass();
-    }
-    sg_commit();
+    });
     mix_audio();
 }
 
@@ -1664,33 +1565,12 @@ void event(const sapp_event* ev) {
     }
 }
 
-sg_pipeline_desc mesh_layout(sg_shader shader, bool full) {
-    sg_pipeline_desc pd = {};
-    pd.shader = shader;
-    pd.layout.buffers[0].stride = sizeof(Vertex);
-    if (full) {
-        pd.layout.attrs[ATTR_lit_position] = { 0, offsetof(Vertex, pos), SG_VERTEXFORMAT_FLOAT3 };
-        pd.layout.attrs[ATTR_lit_normal] = { 0, offsetof(Vertex, normal), SG_VERTEXFORMAT_FLOAT3 };
-        pd.layout.attrs[ATTR_lit_color0] = { 0, offsetof(Vertex, color), SG_VERTEXFORMAT_UBYTE4N };
-        pd.layout.attrs[ATTR_lit_material] = { 0, offsetof(Vertex, material), SG_VERTEXFORMAT_UBYTE4N };
-    } else {
-        pd.layout.attrs[ATTR_shadow_position] = { 0, offsetof(Vertex, pos), SG_VERTEXFORMAT_FLOAT3 };
-    }
-    pd.index_type = SG_INDEXTYPE_UINT32;
-    pd.depth.write_enabled = true;
-    pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
-    pd.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
-    pd.cull_mode = SG_CULLMODE_NONE;
-    return pd;
-}
-
 void init() {
-    sg_desc gfx = {};
-    gfx.environment = sglue_environment();
-    gfx.logger.func = slog_func;
-    gfx.buffer_pool_size = 256;
-    sg_setup(&gfx);
-    st.zo = sg_query_backend() == SG_BACKEND_WGPU;
+    xl::render::Renderer::Config config;
+    config.shadow_size = SHADOW_SIZE;
+    config.msaa = MSAA;
+    config.buffers = 256;
+    st.renderer = xl::render::Renderer::create(config);
     sgl_desc_t gl = {};
     gl.logger.func = slog_func;
     sgl_setup(&gl);
@@ -1746,48 +1626,6 @@ void init() {
     }
     st.hints_seen = static_cast<uint32_t>(std::strtoul(xl::load("hints", "0").c_str(), nullptr, 10));
 
-    // the shadow map: a depth texture, sampled with a comparison
-    sg_image_desc img = {};
-    img.usage.depth_stencil_attachment = true;
-    img.width = img.height = SHADOW_SIZE;
-    img.pixel_format = SG_PIXELFORMAT_DEPTH;
-    img.sample_count = 1;
-    st.shadow_depth = sg_make_image(&img);
-    sg_view_desc v = {};
-    v.depth_stencil_attachment.image = st.shadow_depth;
-    st.shadow_att = sg_make_view(&v);
-    v = {};
-    v.texture.image = st.shadow_depth;
-    st.shadow_tex = sg_make_view(&v);
-    sg_sampler_desc smp = {};
-    smp.min_filter = smp.mag_filter = SG_FILTER_LINEAR;
-    smp.wrap_u = smp.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
-    smp.compare = SG_COMPAREFUNC_LESS;
-    st.shadow_smp = sg_make_sampler(&smp);
-    smp.compare = SG_COMPAREFUNC_NEVER;
-    st.post_smp = sg_make_sampler(&smp);
-
-    const sg_environment env = sglue_environment();
-    sg_pipeline_desc sp = mesh_layout(sg_make_shader(shadow_shader_desc(sg_query_backend())), false);
-    sp.colors[0].pixel_format = SG_PIXELFORMAT_NONE;   // depth only
-    sp.sample_count = 1;
-    sp.depth.bias = 1.0f;
-    sp.depth.bias_slope_scale = 1.5f;
-    st.shadow_pip = sg_make_pipeline(&sp);
-    sg_pipeline_desc lp = mesh_layout(sg_make_shader(lit_shader_desc(sg_query_backend())), true);
-    lp.colors[0].pixel_format = env.defaults.color_format;
-    lp.sample_count = MSAA;
-    st.lit_pip = sg_make_pipeline(&lp);
-    sg_pipeline_desc sky = {};
-    sky.shader = sg_make_shader(sky_shader_desc(sg_query_backend()));
-    sky.colors[0].pixel_format = env.defaults.color_format;
-    sky.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
-    sky.sample_count = MSAA;
-    st.sky_pip = sg_make_pipeline(&sky);
-    sg_pipeline_desc post = {};
-    post.shader = sg_make_shader(post_shader_desc(sg_query_backend()));
-    st.post_pip = sg_make_pipeline(&post);
-
     xl::audio_setup(1);
     std::srand(xl::seed());
     // the title over wherever you left off
@@ -1805,7 +1643,7 @@ void cleanup() {
     xl::audio_shutdown();
     st.text.shutdown();
     sgl_shutdown();
-    sg_shutdown();
+    st.renderer.reset();   // shuts sokol_gfx down
 }
 
 } // namespace

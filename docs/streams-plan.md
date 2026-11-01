@@ -1,8 +1,9 @@
 # Streams plan: engine, Arcade, Bot Lab (current vs proposed)
 
-> **Status: phases 0–3 done; progress is tracked in [MIGRATION.md](../MIGRATION.md).** The toolchain landed in
-> `packages/tooling/` rather than `packages/engine/`: it's layer 0 and serves more than the engine. Each phase below is
-> one PR with `pnpm verify` green.
+> **Status: phases 0–4 done; progress is tracked in [MIGRATION.md](../MIGRATION.md).** The toolchain landed in
+> `packages/tooling/` rather than `packages/engine/`: it's layer 0 and serves more than the engine. Building models
+> is its own package, `asset-builder` (top level, not under `engine/`): assets change often and stay out of `render`.
+> Each phase below is one PR with `pnpm verify` green.
 
 ## 0. The principle
 
@@ -90,7 +91,8 @@ flowchart TB
 | `engine-react` | 1 | `EngineView`: loading a module into a canvas, lifecycle, focus, backend fallback. React lives **only** here | engine-web (JS side) |
 | `engine-audio` | 2 | voices, mixing, `xl_audio` | engine-core |
 | `engine-text` | 2 | font baking, text layout and drawing; ships the primary font (Lilita One) as the default, and lets a game register its own fonts alongside it | engine-core |
-| `render` | 2 | Mesh, MeshBuilder (primitives, wobble, AO), Material, Camera, Lighting, RenderTarget, RenderPipeline (shadow pass, MSAA scene, resolve), PostProcess (tilt-shift, bloom, grade); its shaders. sokol types never appear in its public headers | engine-core |
+| `render` | 2 | the vertex format, meshes by handle, Frame (camera, Lighting, Backdrop, Post), Renderer and Pass (shadow pass, MSAA scene, resolve, post), its shaders, a fake renderer. sokol types never appear in its public headers. No models, no mesh building | engine-core |
+| `asset-builder` | 2 | building models in code: primitives, transforms, materials, modifiers (wobble, ground AO, vary), a few shapes, as `render` vertices. No models: each game keeps its own (a game that wants another's copies it) | render |
 | `physics-2d` | 2 | World2D, Body2D, Collider2D, Contact2D, Raycast2D; **Box2D behind it** | — |
 | `physics-3d` | 2 | World3D, Body3D, Collider3D, Joint, Contact3D, Raycast3D; **Jolt behind it** | — |
 | `app-sdk` | 3 | (exists) the desktop ↔ app contract: AppProps, Host | — |

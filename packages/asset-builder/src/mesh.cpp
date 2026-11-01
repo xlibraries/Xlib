@@ -1,14 +1,16 @@
-#include "mesh.h"
+/**
+ * @file mesh.cpp
+ * @brief xl_asset.h: transforms, materials, the mesh's primitives and modifiers, the shapes made of them, and noise.
+ */
+#include "xl_asset.h"
 
 #include <algorithm>
 
-namespace jr {
+namespace xl::asset {
 
 namespace {
 
 constexpr float PI = 3.14159265358979f;
-
-uint8_t byte(float v) { return static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, v)) * 255.0f + 0.5f); }
 
 uint32_t hash32(uint32_t n) {
     n ^= n >> 16; n *= 0x7feb352du;
@@ -92,8 +94,8 @@ uint32_t Mesh::add(V3 p, V3 n, const Material& m, float ao) {
     Vertex v;
     v.pos[0] = p.x; v.pos[1] = p.y; v.pos[2] = p.z;
     v.normal[0] = n.x; v.normal[1] = n.y; v.normal[2] = n.z;
-    v.color = byte(m.r) | byte(m.g) << 8 | byte(m.b) << 16 | static_cast<uint32_t>(byte(ao)) << 24;
-    v.material = byte(m.rough) | byte(m.metal) << 8 | byte(m.emissive) << 16 | static_cast<uint32_t>(m.kind) << 24;
+    v.color = render::pack_color(m.r, m.g, m.b, ao);
+    v.material = render::pack_material(m.rough, m.metal, m.emissive, static_cast<render::Surface>(m.kind));
     vertices.push_back(v);
     return static_cast<uint32_t>(vertices.size() - 1);
 }
@@ -287,8 +289,22 @@ void Mesh::ground_ao(float ground, float reach, float strength, size_t from) {
         Vertex& v = vertices[i];
         const float f = std::max(0.0f, std::min(1.0f, (v.pos[1] - ground) / reach));
         const float ao = (v.color >> 24) / 255.0f * (1.0f - strength * (1 - f) * (1 - f));
-        v.color = (v.color & 0x00ffffffu) | static_cast<uint32_t>(byte(ao)) << 24;
+        v.color = (v.color & 0x00ffffffu) | static_cast<uint32_t>(render::unorm8(ao)) << 24;
     }
 }
 
-} // namespace jr
+// ---------- shapes ----------
+
+void ellipsoid(Mesh& m, V3 c, V3 r, int segments, const Material& mt, const Xform& x) { m.sphere(1, segments, mt, x * translate(c) * scale(r)); }
+
+void ring(Mesh& m, V3 c, V3 dir, float major, float minor, const Material& mt, const Xform& x, int segments) {
+    m.torus(major, minor, segments, 8, mt, x * translate(c) * align_y(dir));
+}
+
+void taper(Mesh& m, const std::vector<V3>& path, float r0, float r1, int sides, const Material& mt, const Xform& x) {
+    std::vector<float> radii;
+    for (size_t i = 0; i < path.size(); i++) radii.push_back(r0 + (r1 - r0) * i / std::max<size_t>(1, path.size() - 1));
+    m.tube(path, r0, sides, mt, x, radii);
+}
+
+} // namespace xl::asset

@@ -13,9 +13,11 @@ Each is versioned, built and tested on its own, and a module links only the ones
 | `engine-text` | 2 | `xl_font.h` (stb_truetype, kept private) and `xl_text.h` (sokol_gl); Lilita One is the primary font, a module can add its own | `include/`, links `xl_font.cpp`, `fonts/` |
 | `physics-3d` | 2 | `xl_physics.h`: rigid bodies, joints with motors, ray casts, contacts; Jolt v5.6.0 behind it (deterministic); `xl_physics_fake.h` for tests | `include/`, links `backend_jolt.cpp`, library `jolt` |
 | `physics-2d` | 2 | `xl_physics2d.h`: bodies, boxes, circles, chains, wheel joints with motors, contact events; Box2D v3.1.1 behind it; `xl_physics2d_fake.h` for tests | `include/`, links `backend_box2d.cpp`, C library `box2d` |
+| `render` | 2 | `xl_render.h`: the vertex format, meshes by handle, a frame (camera, sun and sky light, backdrop, post pass) drawn in two passes (the shadow map, then lit into a 4× MSAA target) and post-processed on screen; sokol_gfx behind it; `xl_render_fake.h` for tests | `include/`, links `renderer_sokol.cpp` and `app/glue.cpp` (sokol_gfx, sokol_glue and sokol_log's implementations), shader `render.glsl` |
 
-The physics headers name no backend (each package's tests check it), so code on them can move to another backend,
-and can be tested on the fakes without simulating anything.
+The physics and render headers name no backend (each package's tests check it), so code on them can move to another
+backend, and can be tested on the fakes without simulating or drawing anything. `render` draws meshes; building them is
+`packages/asset-builder` (`xl_asset.h`), which has no models: each game keeps its own assets.
 
 Nothing native depends on React: `engine-react` is the only package that does, and no module uses it (the Arcade's
 tests check this).

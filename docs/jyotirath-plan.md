@@ -94,10 +94,10 @@ the districts restored) is saved on the device.
 
 ## Look
 
-- **Mid-poly, made in code** (`mesh.h`: lathes, spheres, capsules, tori, rounded boxes, swept tubes, with a little
-  deliberate imperfection). The chariot and charioteer follow the golden concept art; every building, prop and
-  character is built in `models.cpp`, each district twice: ruined and alive.
-- **Pixar-styled shading** (`shaders/jyotirath.glsl`): GGX specular with a sky reflection, wrapped diffuse, warm
+- **Mid-poly, made in code** (`@xlibraries/asset-builder`: lathes, spheres, capsules, tori, rounded boxes, swept tubes,
+  with a little deliberate imperfection). The chariot and charioteer follow the golden concept art; every building,
+  prop and character is built in `assets/models.cpp`, and `level.cpp` builds each district twice: ruined and alive.
+- **Pixar-styled shading** (`@xlibraries/render`, which grew out of this game): GGX specular with a sky reflection, wrapped diffuse, warm
   subsurface on skin, translucent leaves and cloth, soft shadows from a depth map, hemisphere ambient, per-vertex
   AO, a rim light, ACES tone mapping; then tilt-shift, bloom and a grade in the post pass.
 - **The diorama**: the land is a ribbon either side of the road, its cut edge showing earth strata. Boards are
@@ -107,7 +107,6 @@ the districts restored) is saved on the device.
 
 | File | What |
 | --- | --- |
-| `mesh.h/.cpp` | Mesh builder and primitives |
 | `track.h/.cpp` | The road (a turtle walk of arcs), its zones, the land, heights, props, colliders |
 | `go.h/.cpp` | Boards: pieces, sacks, sinking stones, sight lines, the thief, tools, the rules, the solver |
 | `boards.cpp` | Chapter I's six boards |
@@ -115,7 +114,8 @@ the districts restored) is saved on the device.
 | `drive.h/.cpp` | Handling, collisions and a drive's goal (reach, chase, clock, deliver, storm, lamps); rolling starts |
 | `chapter.h/.cpp` | The chapter's beats, your tools, the consequences of each board, restoration, saving |
 | `story.h/.cpp` | What's said, beat by beat, and by whom between beats |
-| `models.h/.cpp` | Every model; the land in chunks, the districts ruined and alive |
-| `main.cpp` | Rendering, the camera blending between the modes, the scenes between beats, dialogue and HUD, sound |
+| `assets/models.h/.cpp` | The assets module: every model and prop from plain parameters, built with `@xlibraries/asset-builder`; no game types |
+| `level.h/.cpp` | The level: the land in chunks, the districts ruined and alive, the boards and gates, placed from the track |
+| `main.cpp` | Drawing through `@xlibraries/render`, the camera blending between the modes, the scenes between beats, dialogue and HUD, sound |
 
 Everything but `main.cpp` is graphics-free and tested natively.
