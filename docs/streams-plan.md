@@ -1,6 +1,6 @@
 # Streams plan: engine, Arcade, Bot Lab (current vs proposed)
 
-> **Status: phases 0 and 1 done; progress is tracked in [MIGRATION.md](../MIGRATION.md).** The toolchain landed in
+> **Status: phases 0–2 done; progress is tracked in [MIGRATION.md](../MIGRATION.md).** The toolchain landed in
 > `packages/tooling/` rather than `packages/engine/`: it's layer 0 and serves more than the engine. Each phase below is
 > one PR with `pnpm verify` green.
 
@@ -109,7 +109,7 @@ Folders: `packages/engine/{core,web,react,audio,text,render,physics-2d,physics-3
 move. Each package owns its own types: there is no shared-types package.
 
 For convenience a consumer may use a **meta-package** (`@xlibraries/engine` re-exporting core, web, audio, text,
-render), but nothing inside the graph depends on it.
+render), but nothing inside the graph depends on it. (Phase 2 didn't build it: nothing needed it.)
 
 ## 3. Contracts before code
 

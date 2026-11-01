@@ -5,7 +5,6 @@
 #include "sokol_app.h"
 #include "sokol_glue.h"
 #include "sokol_log.h"
-#define XL_IMPL
 #include "xl.h"
 
 namespace {

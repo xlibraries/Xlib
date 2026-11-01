@@ -7,7 +7,7 @@ Arcade app picks WebGPU when the browser has an adapter, otherwise WebGL2 (or wh
 ## Layout
 
 ```
-native/games/<id>/        each game's C++ (one sokol_main per game), on @xlibraries/engine
+native/games/<id>/        each game's C++ (one sokol_main per game), on packages/engine/*
 native/shaders/*.glsl     shaders, written once (sokol-shdc annotated GLSL), cross-compiled to GLSL ES 3.0 + WGSL
 third_party/box2d/        Box2D v3.1.1 for Turbo Trails, pinned (see Versions)
 package.json              "xlibraries.modules": each game as a module for @xlibraries/toolchain (adapter cpp-wasm)

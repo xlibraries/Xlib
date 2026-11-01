@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check, context, manifest } from '@xlibraries/toolchain';
@@ -12,12 +13,14 @@ const GAMES = pkg.modules;
 const ctx = (name) => context(pkg, name);
 
 describe('the games as modules (package.json "xlibraries.modules")', () => {
-    it('builds every registered game, and only those, with the C++/WebAssembly adapter on the engine', () => {
+    it('builds every registered game, and only those, with the C++/WebAssembly adapter on the engine it needs', () => {
         expect(Object.keys(GAMES).sort()).toEqual(REGISTERED.map(g => g.id).sort());
         for (const spec of Object.values(GAMES)) {
             expect(spec.adapter).toBe('cpp-wasm');
-            expect(spec.uses).toEqual(['@xlibraries/engine']);
+            expect(spec.uses.slice(0, 2)).toEqual(['@xlibraries/engine-core', '@xlibraries/engine-web']);   // the platform, in the browser
         }
+        expect(GAMES.showcase.uses).toContain('@xlibraries/physics-3d');
+        expect(GAMES.hello.uses).not.toContain('@xlibraries/engine-audio');   // silent: no worklet, no mixer linked
     });
 
     it('compiles each backend with the right sokol define and no eval', () => {
@@ -32,12 +35,12 @@ describe('the games as modules (package.json "xlibraries.modules")', () => {
         expect(() => context(pkg, 'nope')).toThrow(/unknown module/);
     });
 
-    it('has committed builds for every game and backend, with the audio worklet beside each', () => {
-        for (const game of Object.keys(GAMES)) {
+    it('has committed builds for every game and backend, with the audio worklet beside each game with sound', () => {
+        for (const [game, spec] of Object.entries(GAMES)) {
             for (const backend of BACKENDS) {
                 for (const ext of ['js', 'wasm']) expect(existsSync(join(ROOT, `dist/${game}/${backend}.${ext}`)), `${game}/${backend}.${ext}`).toBe(true);
             }
-            expect(existsSync(join(ROOT, `dist/${game}/xl-audio-worklet.js`)), game).toBe(true);
+            expect(existsSync(join(ROOT, `dist/${game}/xl-audio-worklet.js`)), game).toBe(spec.uses.includes('@xlibraries/engine-audio'));
         }
     });
 
@@ -46,7 +49,7 @@ describe('the games as modules (package.json "xlibraries.modules")', () => {
         expect(args).toContain('-Ithird_party/box2d/include');
         expect(args).toContain('build/obj/x.o');
         expect(GAMES['turbo-trails'].cLibraries[0].flags).toContain('-DBOX2D_DISABLE_SIMD');
-        expect(GAMES['turbo-trails'].features).toEqual(['text']);
+        expect(GAMES['turbo-trails'].uses).toEqual(expect.arrayContaining(['@xlibraries/engine-text', '@xlibraries/engine-audio']));
         expect(args.join(' ')).toContain('LilitaOne-Regular.ttf@/LilitaOne-Regular.ttf');
         expect(args.join(' ')).toContain('xl_font.cpp');
         for (const f of ['chariots-bg.mp3', 'chariots-wheel.mp3']) expect(existsSync(join(ROOT, `dist/turbo-trails/${f}`)), f).toBe(true);
@@ -56,10 +59,25 @@ describe('the games as modules (package.json "xlibraries.modules")', () => {
         const jr = inputs(ctx('jyotirath')).map((i) => i.label);
         expect(jr).toContain('native/games/jyotirath/hints.cpp');
         expect(jr).toContain('native/shaders/jyotirath.glsl');
-        expect(jr).toContain('@xlibraries/engine/native/runtime/xl.h');          // included by the game
-        expect(jr).toContain('@xlibraries/engine/native/runtime/xl_font.cpp');   // its text feature
+        expect(jr).toContain('@xlibraries/engine-core/include/xl.h');         // included by the game
+        expect(jr).toContain('@xlibraries/engine-text/src/xl_font.cpp');      // the text it uses, linked
+        expect(jr).toContain('@xlibraries/engine-web/src/xl_web.cpp');        // the platform in the browser, linked
         expect(jr.some((l) => l.includes('turbo-trails'))).toBe(false);          // nothing of another game
-        expect(jr.some((l) => l.includes('jolt') || l.includes('xl_physics'))).toBe(false);   // no physics: not stale when physics changes
+        expect(jr.some((l) => l.includes('physics'))).toBe(false);   // no physics: not stale when physics changes
+    });
+
+    it('builds no game on React: no provider a game uses depends on it, directly or through another provider', () => {
+        const seen = new Map();
+        const reactIn = (name, from) => {
+            if (seen.has(name)) return seen.get(name);
+            const json = JSON.parse(readFileSync(join(dirname(createRequire(join(from, 'package.json')).resolve(`${name}/package.json`)), 'package.json'), 'utf8'));
+            const deps = Object.keys({ ...json.dependencies, ...json.peerDependencies });
+            const dir = dirname(createRequire(join(from, 'package.json')).resolve(`${name}/package.json`));
+            const found = deps.some((d) => d === 'react' || d === 'react-dom') || deps.filter((d) => d.startsWith('@xlibraries/')).some((d) => reactIn(d, dir));
+            seen.set(name, found);
+            return found;
+        };
+        for (const [game, spec] of Object.entries(GAMES)) for (const p of spec.uses) expect(reactIn(p, ROOT), `${game} uses ${p}`).toBe(false);
     });
 
     it('has builds that match their sources (after changing a game, `pnpm build:native` rebuilds just that one)', async () => {

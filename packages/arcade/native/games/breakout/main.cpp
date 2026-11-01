@@ -7,9 +7,7 @@
 #include "sokol_log.h"
 #include "sokol_gl.h"
 #include "sokol_debugtext.h"
-#define XL_IMPL
 #include "xl.h"
-#define XL_AUDIO_IMPL
 #include "xl_audio.h"
 #include "logic.h"
 

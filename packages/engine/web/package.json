@@ -1,0 +1,42 @@
+{
+  "name": "@xlibraries/engine-web",
+  "version": "0.1.0",
+  "description": "The browser adapter: implements xl.h with Emscripten (focus, pause, gamepad, tilt, haptics, saved values), and the page-side helpers (backend choice, gamepad reading)",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/engine/web"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "eslint . && tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "@xlibraries/engine-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  },
+  "xlibraries": {
+    "native": {
+      "prefix": "engine-web",
+      "link": [
+        "src/xl_web.cpp"
+      ]
+    }
+  }
+}

@@ -1,6 +1,6 @@
 // Turns the code you write in the Shader Playground into a complete fragment shader for the running backend, and
 // maps compiler errors back to your lines. The uniform layout matches native/games/playground/main.cpp.
-import type { Backend } from '@xlibraries/engine';
+import type { Backend } from '@xlibraries/engine-react';
 
 const GLSL_BEFORE = `#version 300 es
 precision highp float;

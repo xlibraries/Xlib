@@ -3,15 +3,15 @@
 The plan and its reasons are in [docs/streams-plan.md](docs/streams-plan.md); this file tracks the work. Tick a box
 when it's merged with `pnpm verify` green. Each phase is one PR.
 
-**Backlog:** `pnpm graph` → **66** known violations in [architecture/baseline.json](architecture/baseline.json)
-(56 private, 5 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
+**Backlog:** `pnpm graph` → **12** known violations in [architecture/baseline.json](architecture/baseline.json)
+(2 private, 5 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
 the number here when a phase lands.
 
 | Phase | Status | Violations left after it |
 | --- | --- | --- |
 | 0. Rules first | ✅ (registry: the "Needs you" items) | 72 (it only measures) |
 | 1. Toolchain | ✅ | 66 |
-| 2. Engine split | ⬜ | |
+| 2. Engine split | ✅ | 12 |
 | 3. Physics | ⬜ | |
 | 4. Render | ⬜ | |
 | 5. Arcade | ⬜ | |
@@ -69,14 +69,23 @@ the number here when a phase lands.
 
 ## Phase 2: engine split
 
-- [ ] Every public header's declarations documented in Doxygen style (the convention in CLAUDE.md) as it moves
-
-- [ ] `engine-core` (platform contract), `engine-web` (sokol_app, Emscripten glue, backend choice, audio-worklet bridge),
-      `engine-react` (`EngineView`)
-- [ ] `engine-audio`, `engine-text` (ships Lilita One as the primary font; games register their own)
-- [ ] Public headers in each package's `include/`; consumers stop including runtime internals
-- [ ] Optional meta-package `@xlibraries/engine` re-exporting core, web, audio, text, render
-- **Done when:** a native module builds with no React anywhere in its dependency tree
+- [x] Public headers documented in Doxygen style as they moved (`xl.h`, `xl_color.h`, `xl_audio.h`, `xl_font.h`,
+      `xl_text.h`; `xl_physics.h` got its `@file` block, its declarations are documented with phase 3's new contract)
+- [x] `engine-core`: the platform contract `xl.h` (declarations only), `xl_color.h`, sokol and HandmadeMath in `include/`
+- [x] `engine-web`: `xl.h`'s browser implementation as its own source (`xl_web.cpp`, linked into every module that uses
+      it; games no longer define `XL_IMPL`), backend choice, gamepad reading
+- [x] `engine-react`: `EngineView` (the only package with React)
+- [x] `engine-audio` (`xl_audio.h` + `xl_audio.cpp`; the worklet ships only with games that use it) and `engine-text`
+      (`xl_font.h`, `xl_text.h`, stb private; Lilita One the primary font, games can add their own)
+- [x] `physics-3d` moved as-is (Jolt and `xl_physics`); its backend-independent contract is phase 3
+- [x] Using a package links it (`link` sources and libraries in `xlibraries.native`); the "features" switches are gone
+- [x] Every module's `uses` lists exactly what it links (hello: core + web; JyotiRath: + audio + text; showcase and
+      Bot Lab's world: + physics-3d)
+- [ ] Meta-package `@xlibraries/engine`: not built; nothing needs it
+- [ ] Phase 7: a CI check that every changeset names a package that exists (phase 2 deleted `@xlibraries/engine`
+      while two changesets still named it, which would have failed the release; caught and fixed by hand)
+- **Done when:** a native module builds with no React anywhere in its dependency tree ✅ (the Arcade's tests check every
+  game's providers; 54 private-header violations cleared)
 
 ## Phase 3: physics
 
@@ -133,3 +142,4 @@ the number here when a phase lands.
 | 2026-11-01 | Flaky tests: admin logins get their own client address; the engine keeps the volume for games whose audio starts later |
 | 2026-11-01 | Phase 1: toolchain + adapters, per-module stamps, `/native/` serving; baseline 72 → 66 |
 | 2026-11-01 | Doxygen-style comments (CLAUDE.md, "Comments"); `Doxyfile` + `pnpm docs:api` for the C/C++, checked in CI |
+| 2026-11-01 | Phase 2: the engine as six packages under `packages/engine/`; baseline 66 → 12 |

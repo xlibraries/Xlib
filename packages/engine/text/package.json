@@ -1,0 +1,50 @@
+{
+  "name": "@xlibraries/engine-text",
+  "version": "0.1.0",
+  "description": "Text for C++/sokol modules: TrueType fonts baked with stb_truetype (xl_font.h) and drawn through sokol_gl (xl_text.h); Lilita One is the primary font, modules can add their own",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/engine/text"
+  },
+  "files": [
+    "include",
+    "src",
+    "fonts"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "xl-native-test",
+    "verify": "xl-native-test"
+  },
+  "dependencies": {
+    "@xlibraries/engine-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@xlibraries/adapter-native-test": "workspace:^",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  },
+  "xlibraries": {
+    "native": {
+      "prefix": "engine-text",
+      "include": [
+        "include"
+      ],
+      "link": [
+        "src/xl_font.cpp"
+      ],
+      "fonts": "fonts",
+      "testSources": "src"
+    },
+    "nativeTests": {
+      "uses": [
+        "@xlibraries/engine-core"
+      ]
+    }
+  }
+}

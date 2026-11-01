@@ -7,7 +7,7 @@
 //               header outside its include/ folder (between units of one package too: they're packages to be)
 //   upward      an edge to a higher layer
 //   sideways    an edge between two different units on the same layer, unless the layer map allows that pair
-//   impure      a unit marked pure importing React or the engine, or touching the DOM
+//   impure      a unit marked pure importing React (or engine-react, engine-web), or touching the DOM
 //   forbidden   an edge the layer map rules out by name (`forbid`: from/to patterns, `*` matching anything)
 //   cycle       units that depend on each other, round in a loop
 //   unmapped    a workspace package the layer map doesn't mention
@@ -22,7 +22,8 @@ const SCRIPT = /\.(m?[jt]sx?)$/;
 const NATIVE = /\.(h|hh|hpp|c|cc|cpp)$/;
 const HEADER = /\.(h|hh|hpp)$/;
 const SKIP = new Set(['node_modules', 'dist', 'build', 'coverage', 'test-results', '__pycache__', 'fixtures']);   // fixtures: test data, not code
-const IMPURE_MODULES = /^(react|react-dom|@xlibraries\/engine(-[\w-]+)?)(\/|$)/;
+/** What a pure unit may not use: React, and the packages that bring React or the DOM. */
+const IMPURE_MODULES = /^(react|react-dom|@xlibraries\/engine-(react|web))(\/|$)/;
 const DOM = /\b(window|document|navigator|localStorage|sessionStorage)\.\w/;
 
 const toPosix = (p) => p.split(sep).join(posix.sep);

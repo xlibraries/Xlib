@@ -10,7 +10,6 @@
 #include "sokol_debugtext.h"
 #define HANDMADE_MATH_USE_RADIANS
 #include "HandmadeMath.h"
-#define XL_IMPL
 #include "xl.h"
 #include "xl_physics.h"
 #include "scene.h"

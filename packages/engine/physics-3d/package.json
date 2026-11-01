@@ -1,0 +1,58 @@
+{
+  "name": "@xlibraries/physics-3d",
+  "version": "0.1.0",
+  "description": "Rigid-body physics for C++ modules: a small deterministic API (xl_physics.h) over Jolt Physics v5.6.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/engine/physics-3d"
+  },
+  "files": [
+    "include",
+    "src",
+    "third_party"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "xl-native-test",
+    "verify": "xl-native-test"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@xlibraries/adapter-native-test": "workspace:^",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  },
+  "xlibraries": {
+    "native": {
+      "prefix": "physics-3d",
+      "include": [
+        "include"
+      ],
+      "link": [
+        "src/xl_physics.cpp"
+      ],
+      "testSources": "src",
+      "libraries": {
+        "jolt": {
+          "sources": "third_party/jolt/Jolt",
+          "isystem": [
+            "third_party/jolt"
+          ],
+          "defines": [
+            "-DJPH_OBJECT_LAYER_BITS=32",
+            "-DJPH_DISABLE_CUSTOM_ALLOCATOR",
+            "-DJPH_CROSS_PLATFORM_DETERMINISTIC",
+            "-DNDEBUG"
+          ]
+        }
+      }
+    },
+    "nativeTests": {
+      "uses": []
+    }
+  }
+}

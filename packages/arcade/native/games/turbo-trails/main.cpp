@@ -9,9 +9,7 @@
 #include "sokol_glue.h"
 #include "sokol_log.h"
 #include "sokol_gl.h"
-#define XL_IMPL
 #include "xl.h"
-#define XL_AUDIO_IMPL
 #include "xl_audio.h"
 #include "turbo-trails.glsl.h"
 #include "eras.h"

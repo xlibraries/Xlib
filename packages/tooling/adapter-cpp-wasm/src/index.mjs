@@ -5,20 +5,20 @@
 // A module (package.json "xlibraries.modules.<name>"):
 //   sources      C++ files, relative to native/
 //   shaders      GLSL files, relative to native/
-//   uses         providers (packages offering native code); each describes itself in "xlibraries.native":
+//   uses         providers (packages offering native code), in link order; each describes itself in
+//                "xlibraries.native", and using one links all of it:
 //                  prefix     the name its paths are mapped to (reproducible builds)
 //                  include    folders on the include path
-//                  features   named extras a module can ask for: { sources, libraries }
-//                  libraries  precompiled sets of sources: { sources (a folder), isystem, defines }
+//                  link       sources compiled into every module that uses it
+//                  libraries  sets of sources compiled once and linked: { sources (a folder), isystem, defines }
 //                  fonts      the folder fonts are embedded from
 //                  assets     files copied beside every graphical build
-//   features     which of the providers' features to link, in order (e.g. ["text"], ["physics"])
 //   fonts        provider fonts to embed, served at /<file>
 //   cLibraries   C sources of the module's own: [{ sources (a folder), flags }], compiled with emcc
 //   flags        extra em++ flags; assets: a folder under native/ copied beside the build
 //   headless     no graphics: one build for pages, workers and Node; exportName: its factory's name
 //
-// Inputs (for the stamp): the sources, shaders, fonts and assets, the providers' feature and library sources, and
+// Inputs (for the stamp): the sources, shaders, fonts and assets, the providers' linked and library sources, and
 // every header they include, transitively, resolved like the compiler would.
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -56,25 +56,13 @@ function walk(base, dir, keep = () => true) {
     });
 }
 
-/** The features a module links, resolved against its providers: [{ provider, sources, libraries }]. */
-export function features(ctx) {
-    return (ctx.spec.features ?? []).map((f) => {
-        const p = ctx.providers.find((pr) => pr.native.features?.[f]);
-        if (!p) throw new Error(`${ctx.name}: no provider in "uses" offers the feature "${f}"`);
-        return { provider: p, ...p.native.features[f] };
-    });
-}
-
-/** The libraries a module's features need: [{ provider, name, sources, isystem, defines }]. */
+/**
+ * The libraries a module's providers bring, compiled once each and linked.
+ * @param ctx The module's context.
+ * @return [{ provider, name, sources, isystem, defines }], in the providers' order.
+ */
 export function libraries(ctx) {
-    const out = [];
-    for (const f of features(ctx)) for (const lib of f.libraries ?? []) {
-        if (out.some((l) => l.provider === f.provider && l.name === lib)) continue;
-        const spec = f.provider.native.libraries?.[lib];
-        if (!spec) throw new Error(`${f.provider.name} names a library "${lib}" it doesn't describe`);
-        out.push({ provider: f.provider, name: lib, ...spec });
-    }
-    return out;
+    return ctx.providers.flatMap((p) => Object.entries(p.native.libraries ?? {}).map(([name, spec]) => ({ provider: p, name, ...spec })));
 }
 
 const libraryFlags = (ctx) => libraries(ctx).flatMap((l) => [...(l.isystem ?? []).map((d) => `-isystem${join(l.provider.root, d)}`), ...(l.defines ?? [])]);
@@ -87,7 +75,8 @@ export function includeFlags(ctx) {
     ];
 }
 
-const featureSources = (ctx) => features(ctx).flatMap((f) => (f.sources ?? []).map((s) => join(f.provider.root, s)));
+/** The providers' `link` sources, in `uses` order. */
+const linkedSources = (ctx) => ctx.providers.flatMap((p) => (p.native.link ?? []).map((s) => join(p.root, s)));
 const fontFlags = (ctx) => (ctx.spec.fonts ?? []).flatMap((f) => {
     const p = ctx.providers.find((pr) => pr.native.fonts && existsSync(join(pr.root, pr.native.fonts, f)));
     if (!p) throw new Error(`${ctx.name}: no provider has the font ${f}`);
@@ -98,7 +87,7 @@ const fontFlags = (ctx) => (ctx.spec.fonts ?? []).flatMap((f) => {
 export function emArgs(ctx, backend, objects = []) {
     if (!BACKEND_FLAGS[backend]) throw new Error(`unknown backend: ${backend}`);
     const { spec } = ctx;
-    return [...COMMON, ...includeFlags(ctx), ...BACKEND_FLAGS[backend], ...libraryFlags(ctx), ...(spec.flags ?? []), ...fontFlags(ctx), ...spec.sources.map((s) => `native/${s}`), ...featureSources(ctx), ...objects, '-o', `dist/${ctx.name}/${backend}.js`];
+    return [...COMMON, ...includeFlags(ctx), ...BACKEND_FLAGS[backend], ...libraryFlags(ctx), ...(spec.flags ?? []), ...fontFlags(ctx), ...spec.sources.map((s) => `native/${s}`), ...linkedSources(ctx), ...objects, '-o', `dist/${ctx.name}/${backend}.js`];
 }
 
 /** The em++ arguments for a headless module: one build for pages, workers and Node, no graphics backend. */
@@ -106,7 +95,7 @@ export function headlessArgs(ctx, objects = []) {
     const { spec } = ctx;
     if (!spec.headless) throw new Error(`${ctx.name} isn't a headless module`);
     const common = COMMON.map((f) => f === '-sENVIRONMENT=web' ? '-sENVIRONMENT=web,worker,node' : f.startsWith('-sEXPORT_NAME=') ? `-sEXPORT_NAME=${spec.exportName ?? 'createModule'}` : f);
-    return [...common, ...includeFlags(ctx), ...libraryFlags(ctx), ...(spec.flags ?? []), ...spec.sources.map((s) => `native/${s}`), ...featureSources(ctx), ...objects, '-o', `dist/${ctx.name}/headless.js`];
+    return [...common, ...includeFlags(ctx), ...libraryFlags(ctx), ...(spec.flags ?? []), ...spec.sources.map((s) => `native/${s}`), ...linkedSources(ctx), ...objects, '-o', `dist/${ctx.name}/headless.js`];
 }
 
 export const outputs = (ctx) => ctx.spec.headless
@@ -153,7 +142,7 @@ export function inputs(ctx) {
     const dirs = [join(root, 'native'), ...ctx.providers.flatMap((p) => (p.native.include ?? []).map((d) => join(p.root, d))), ...flagDirs, ...libs.flatMap((l) => (l.isystem ?? []).map((d) => join(l.provider.root, d)))];
     const roots = [
         ...spec.sources.map((s) => join(root, 'native', s)),
-        ...featureSources(ctx),
+        ...linkedSources(ctx),
         ...libs.flatMap((l) => walk(l.provider.root, l.sources, (f) => f.endsWith('.cpp')).map((f) => join(l.provider.root, f))),
         ...(spec.cLibraries ?? []).flatMap((c) => walk(root, c.sources, (f) => f.endsWith('.c')).map((f) => join(root, f))),
     ];

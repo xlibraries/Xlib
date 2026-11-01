@@ -15,9 +15,7 @@
 #include "sokol_gl.h"
 #define HANDMADE_MATH_USE_RADIANS
 #include "HandmadeMath.h"
-#define XL_IMPL
 #include "xl.h"
-#define XL_AUDIO_IMPL
 #include "xl_audio.h"
 #include "xl_text.h"
 #include "jyotirath.glsl.h"

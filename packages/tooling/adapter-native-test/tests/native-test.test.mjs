@@ -32,10 +32,14 @@ describe('native tests', () => {
         expect(existsSync(join(INCLUDE, 'doctest.h'))).toBe(true);   // doctest is this package's public header
     });
 
-    it('treat a provider testing itself as its own provider, without linking its runtime twice', () => {
+    it('treat a provider testing itself as its own provider, without linking its sources twice', () => {
         const root = join(setup(), 'engine');
         expect(providers(root).map((p) => p.self)).toEqual([true]);
-        const args = testArgs(root);
-        expect(args.filter((a) => a.endsWith('xl.cpp'))).toEqual(['native/runtime/xl.cpp']);
+        expect(testArgs(root).filter((a) => a.endsWith('xl.cpp'))).toEqual(['native/runtime/xl.cpp']);   // under native/ and testSources: once
+        const text = join(dirname(root), 'text');
+        mkdirSync(join(text, 'src'), { recursive: true });
+        writeFileSync(join(text, 'package.json'), JSON.stringify({ name: '@s/text', version: '1.0.0', xlibraries: { native: { include: ['include'], testSources: 'src' } } }));
+        writeFileSync(join(text, 'src/font.cpp'), '');
+        expect(testArgs(text)).toContain('src/font.cpp');   // a provider's own sources outside native/
     });
 });

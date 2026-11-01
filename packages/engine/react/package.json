@@ -1,0 +1,39 @@
+{
+  "name": "@xlibraries/engine-react",
+  "version": "0.1.0",
+  "description": "EngineView: hosts a C++/sokol WebAssembly module in a React component, on WebGPU or WebGL2",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/engine/react"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "eslint . && tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "@xlibraries/engine-web": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.3.0",
+    "react": "^19.2.9",
+    "typescript": "^5.9.3",
+    "vitest": "3.2.4"
+  }
+}

@@ -88,19 +88,21 @@ folders the explorer shows (`lib/file-tree.ts` resolves paths). The UI is `compo
 `Explorer`, the `SimplifiedView` and the `Resume` viewer. The resume preview renders `public/files/Aman-Agrawal-Resume.pdf` with
 pdf.js from `public/vendor/`, loaded as a native module (bundling pdf.js through Next's dev server crashes).
 
-## Engine (`packages/engine`)
+## Engine (`packages/engine/*`)
 
-The shared C++20/[sokol](https://github.com/floooh/sokol) engine, a library package (it imports no app; apps
-with C++ modules depend on it). Modules are compiled by Emscripten twice, for WebGPU (`SOKOL_WGPU`,
-emdawnwebgpu) and WebGL2 (`SOKOL_GLES3`); shaders are written once and cross-compiled by `sokol-shdc`
-(through `@xlibraries/toolchain`, see below; pinned toolchain, reproducible paths). The
-runtime (`native/runtime/`): `xl.h` bridges the page (focus: keys reach a module only while its canvas is focused,
-sokol's page-wide listeners let everything through; pause while hidden; gamepad; a phone's tilt; haptics; saved
-values; `sapp_quit()` on close), `xl_audio.h` plays sound through an AudioWorklet with a GainNode the desktop's
-volume slider drives, `xl_text.h` draws TrueType text (stb_truetype, Lilita One embedded). `EngineView` (React)
-picks the backend (WebGPU if an adapter exists), loads the matching build on its own canvas and drives the bridge.
-The security policy allows `'wasm-unsafe-eval'` for this. The engine describes what it offers native modules in its
-`package.json` (`xlibraries.native`: include folders, the `text` and `physics` features, fonts, the audio worklet).
+The shared C++20/[sokol](https://github.com/floooh/sokol) engine, as separate library packages (they import no app;
+`packages/engine/README.md`). Modules are compiled by Emscripten twice, for WebGPU (`SOKOL_WGPU`, emdawnwebgpu) and
+WebGL2 (`SOKOL_GLES3`); shaders are written once and cross-compiled by `sokol-shdc` (through `@xlibraries/toolchain`,
+see below; pinned toolchain, reproducible paths). `engine-core` holds the platform contract (`xl.h`: focus, so keys
+reach a module only while its canvas is focused, as sokol's page-wide listeners let everything through; pause while
+hidden; gamepad; a phone's tilt; haptics; saved values; `sapp_quit()` on close) with sokol and HandmadeMath;
+`engine-web` implements it in the browser (`xl_web.cpp`) and picks the backend; `engine-audio` plays sound through an
+AudioWorklet with a GainNode the desktop's volume slider drives; `engine-text` draws TrueType text (stb_truetype, Lilita
+One); `physics-3d` wraps Jolt. `EngineView` (`engine-react`, the only package with React) picks the backend (WebGPU if
+an adapter exists), loads the matching build on its own canvas and drives the bridge. The security policy allows
+`'wasm-unsafe-eval'` for this. Each package describes what it offers native modules in its `package.json`
+(`xlibraries.native`: public `include/` folders, sources linked into every module that uses it, libraries, fonts,
+assets); a module lists the packages it links in `uses`.
 
 ## Toolchain (`packages/tooling`)
 

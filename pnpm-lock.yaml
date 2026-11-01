@@ -141,9 +141,9 @@ importers:
       '@xlibraries/app-sdk':
         specifier: workspace:^
         version: link:../app-sdk
-      '@xlibraries/engine':
+      '@xlibraries/engine-react':
         specifier: workspace:^
-        version: link:../engine
+        version: link:../engine/react
     devDependencies:
       '@types/node':
         specifier: ^25.3.3
@@ -157,6 +157,21 @@ importers:
       '@xlibraries/adapter-native-test':
         specifier: workspace:^
         version: link:../tooling/adapter-native-test
+      '@xlibraries/engine-audio':
+        specifier: workspace:^
+        version: link:../engine/audio
+      '@xlibraries/engine-core':
+        specifier: workspace:^
+        version: link:../engine/core
+      '@xlibraries/engine-text':
+        specifier: workspace:^
+        version: link:../engine/text
+      '@xlibraries/engine-web':
+        specifier: workspace:^
+        version: link:../engine/web
+      '@xlibraries/physics-3d':
+        specifier: workspace:^
+        version: link:../engine/physics-3d
       '@xlibraries/toolchain':
         specifier: workspace:^
         version: link:../tooling/toolchain
@@ -175,9 +190,9 @@ importers:
       '@xlibraries/app-sdk':
         specifier: workspace:^
         version: link:../app-sdk
-      '@xlibraries/engine':
-        specifier: workspace:*
-        version: link:../engine
+      '@xlibraries/engine-react':
+        specifier: workspace:^
+        version: link:../engine/react
       avr8js:
         specifier: 0.21.1
         version: 0.21.1
@@ -197,6 +212,15 @@ importers:
       '@xlibraries/adapter-cpp-wasm':
         specifier: workspace:^
         version: link:../tooling/adapter-cpp-wasm
+      '@xlibraries/engine-core':
+        specifier: workspace:^
+        version: link:../engine/core
+      '@xlibraries/engine-web':
+        specifier: workspace:^
+        version: link:../engine/web
+      '@xlibraries/physics-3d':
+        specifier: workspace:^
+        version: link:../engine/physics-3d
       '@xlibraries/toolchain':
         specifier: workspace:^
         version: link:../tooling/toolchain
@@ -244,7 +268,53 @@ importers:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
-  packages/engine:
+  packages/engine/audio:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.3
+        version: 25.3.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/engine/core:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.3
+        version: 25.3.3
+      '@xlibraries/adapter-native-test':
+        specifier: workspace:^
+        version: link:../../tooling/adapter-native-test
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/engine/physics-3d:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.3
+        version: 25.3.3
+      '@xlibraries/adapter-native-test':
+        specifier: workspace:^
+        version: link:../../tooling/adapter-native-test
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/engine/react:
+    dependencies:
+      '@xlibraries/engine-web':
+        specifier: workspace:^
+        version: link:../web
     devDependencies:
       '@types/node':
         specifier: ^25.3.3
@@ -252,12 +322,44 @@ importers:
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
-      '@xlibraries/adapter-native-test':
-        specifier: workspace:^
-        version: link:../tooling/adapter-native-test
       react:
         specifier: ^19.2.9
         version: 19.2.9
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/engine/text:
+    dependencies:
+      '@xlibraries/engine-core':
+        specifier: workspace:^
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.3
+        version: 25.3.3
+      '@xlibraries/adapter-native-test':
+        specifier: workspace:^
+        version: link:../../tooling/adapter-native-test
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/engine/web:
+    dependencies:
+      '@xlibraries/engine-core':
+        specifier: workspace:^
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.3
+        version: 25.3.3
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

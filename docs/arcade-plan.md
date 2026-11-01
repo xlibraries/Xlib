@@ -17,7 +17,7 @@ flowchart TB
         public[("public/native/arcade@version/<br/>(copied by scripts/vendor.mjs)")]
     end
 
-    subgraph engine["packages/engine (@xlibraries/engine) — shared by every app with C++ modules"]
+    subgraph engine["packages/engine/* (engine-core, -web, -react, -audio, -text, physics-3d) — shared by every app with C++ modules"]
         view["src/EngineView.tsx<br/>canvas host: load, focus, pause, gamepad,<br/>volume, tilt, fullscreen"]
         pick["src/backend.ts<br/>WebGPU if an adapter exists, else WebGL2"]
         runtime["native/runtime/<br/>xl.h (page bridge) · xl_audio.h (worklet) ·<br/>xl_text.h (TrueType text) · xl_physics.h (Jolt)"]

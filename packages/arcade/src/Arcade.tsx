@@ -2,7 +2,7 @@
 // available, else WebGL2) or forced; the choice is remembered on this device.
 import { Suspense, useState, type ComponentType } from 'react';
 import type { AppProps } from '@xlibraries/app-sdk';
-import { EngineView, type BackendChoice } from '@xlibraries/engine';
+import { EngineView, type BackendChoice } from '@xlibraries/engine-react';
 import { GAMES, type GameInfo } from './games';
 
 export interface ArcadeConfig {

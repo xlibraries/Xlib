@@ -5,7 +5,7 @@
 // The package says what its tests need in package.json:
 //   "xlibraries": { "nativeTests": { "uses": ["@xlibraries/engine"], "cLibraries": [{ "sources", "flags" }], "includes": [] } }
 // A provider offers "testSources" (a folder of .cpp files tests link) and "libraries" (compiled once for the host).
-// A package that is itself a provider gets its own include folders and libraries (its native/ is compiled anyway).
+// A package that is itself a provider gets its own include folders, test sources and libraries.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -55,8 +55,12 @@ export function testArgs(root) {
     const provs = providers(root);
     const libFlags = libsOf(provs).flatMap((l) => [...(l.isystem ?? []).map((d) => `-isystem${join(l.provider.root, d)}`), ...(l.defines ?? [])]);
     const includes = provs.flatMap((p) => (p.native.include ?? []).map((d) => `-I${join(p.root, d)}`));
-    const runtime = provs.filter((p) => !p.self && p.native.testSources).flatMap((p) => cppFiles(p.root, p.native.testSources).map((f) => join(p.root, f)));
-    return ['-std=c++20', '-O1', '-Wall', '-Wextra', '-Inative', ...includes, `-I${INCLUDE}`, ...libFlags, ...(tests.includes ?? []), ...cppFiles(root, 'native'), ...runtime, ...cppFiles(root, 'tests/native'), MAIN];
+    // the package's logic, then every provider's test sources (its own too), each file once
+    const logic = cppFiles(root, 'native');
+    const seen = new Set(logic.map((f) => join(root, f)));
+    const runtime = provs.filter((p) => p.native.testSources).flatMap((p) => cppFiles(p.root, p.native.testSources).map((f) => ({ path: join(p.root, f), own: p.self ? f : null })))
+        .filter(({ path }) => !seen.has(path) && seen.add(path)).map(({ path, own }) => own ?? path);
+    return ['-std=c++20', '-O1', '-Wall', '-Wextra', '-Inative', ...includes, `-I${INCLUDE}`, ...libFlags, ...(tests.includes ?? []), ...logic, ...runtime, ...cppFiles(root, 'tests/native'), MAIN];
 }
 
 /** Compiles a provider's library for the host once (objects cached by mtime) into its build/native-obj/<name>/. */

@@ -28,16 +28,13 @@ function setup() {
     write('engine/jolt/Jolt/World.cpp', '#include <Jolt/Jolt.h>\n');
     write('engine/fonts/Hand.ttf', 'font');
     write('engine/runtime/worklet.js', '');
-    const provider = {
-        root: join(base, 'engine'), name: '@s/engine', version: '1.0.0',
-        native: {
-            prefix: 'engine', include: ['runtime', 'vendor'], fonts: 'fonts', assets: ['runtime/worklet.js'],
-            features: { text: { sources: ['runtime/xl_font.cpp'] }, physics: { sources: ['runtime/xl_physics.cpp'], libraries: ['jolt'] } },
-            libraries: { jolt: { sources: 'jolt/Jolt', isystem: ['jolt'], defines: ['-DJOLT'] } },
-        },
-    };
+    const core = { root: join(base, 'engine'), name: '@s/core', version: '1.0.0', native: { prefix: 'core', include: ['runtime', 'vendor'], fonts: 'fonts', assets: ['runtime/worklet.js'] } };
+    const text = { root: join(base, 'engine'), name: '@s/text', version: '1.0.0', native: { prefix: 'text', link: ['runtime/xl_font.cpp'] } };
+    const physics = { root: join(base, 'engine'), name: '@s/physics', version: '1.0.0', native: { prefix: 'physics', link: ['runtime/xl_physics.cpp'], libraries: { jolt: { sources: 'jolt/Jolt', isystem: ['jolt'], defines: ['-DJOLT'] } } } };
+    const all = { core, text, physics };
     const root = join(base, 'game');
-    return (name, spec) => ({ root, name, spec: { adapter: 'cpp-wasm', uses: ['@s/engine'], ...spec }, providers: [provider], pkg: {} });
+    /** A module using `uses` (names in `all`; core by default). */
+    return (name, spec, uses = ['core']) => ({ root, name, spec: { adapter: 'cpp-wasm', uses: uses.map((u) => all[u].name), ...spec }, providers: uses.map((u) => all[u]), pkg: {} });
 }
 
 describe('em++ arguments', () => {
@@ -51,7 +48,7 @@ describe('em++ arguments', () => {
         for (const args of [gl, gpu]) {
             expect(args).toContain('-sDYNAMIC_EXECUTION=0');
             expect(args).toContain(`-I${join(plain.providers[0].root, 'runtime')}`);
-            expect(args).toContain(`-ffile-prefix-map=${plain.providers[0].root}=engine`);
+            expect(args).toContain(`-ffile-prefix-map=${plain.providers[0].root}=core`);
             expect(args).toContain(`-ffile-prefix-map=${plain.root}=.`);
         }
         expect(gl.slice(-2)).toEqual(['-o', 'dist/a/webgl2.js']);
@@ -60,9 +57,9 @@ describe('em++ arguments', () => {
         expect(outputs(plain)).toEqual(['dist/a/webgpu.js', 'dist/a/webgpu.wasm', 'dist/a/webgl2.js', 'dist/a/webgl2.wasm']);
     });
 
-    it('links a feature and embeds a font only for modules that ask, and its library with its defines', () => {
-        const hud = ctx('a', { sources: ['games/a/main.cpp'], features: ['text'], fonts: ['Hand.ttf'] });
-        const world = ctx('w', { sources: ['games/b/main.cpp'], features: ['physics'] });
+    it('links what a module uses, and embeds a font only when asked, with a library and its defines', () => {
+        const hud = ctx('a', { sources: ['games/a/main.cpp'], fonts: ['Hand.ttf'] }, ['core', 'text']);
+        const world = ctx('w', { sources: ['games/b/main.cpp'] }, ['core', 'physics']);
         expect(emArgs(plain, 'webgl2').join(' ')).not.toMatch(/xl_font|xl_physics|JOLT|embed-file/);
         expect(emArgs(hud, 'webgl2').join(' ')).toContain('xl_font.cpp');
         expect(emArgs(hud, 'webgl2').join(' ')).toContain(`--embed-file ${join(hud.providers[0].root, 'fonts/Hand.ttf')}@/Hand.ttf`);
@@ -71,11 +68,11 @@ describe('em++ arguments', () => {
         expect(args).toContain(`-isystem${join(world.providers[0].root, 'jolt')}`);
         expect(args).toContain('-DJOLT');
         expect(args).toContain('/obj/jolt_World.o');
-        expect(() => emArgs(ctx('x', { sources: [], features: ['sound'] }), 'webgl2')).toThrow(/no provider in "uses" offers the feature "sound"/);
+        expect(() => emArgs(ctx('x', { sources: [], fonts: ['Missing.ttf'] }), 'webgl2')).toThrow(/no provider has the font Missing.ttf/);
     });
 
     it('builds a headless module once for pages, workers and Node, with no graphics backend', () => {
-        const sim = ctx('sim', { sources: ['games/b/main.cpp'], headless: true, features: ['physics'], exportName: 'createSim' });
+        const sim = ctx('sim', { sources: ['games/b/main.cpp'], headless: true, exportName: 'createSim' }, ['physics']);
         const args = headlessArgs(sim);
         expect(args).toContain('-sENVIRONMENT=web,worker,node');
         expect(args).toContain('-sEXPORT_NAME=createSim');
@@ -107,14 +104,14 @@ describe('inputs', () => {
         const a = ctx('a', { sources: ['games/a/main.cpp'], shaders: ['shaders/a.glsl'], assets: 'games/a/assets' });
         const labels = inputs(a).map((i) => i.label).sort();
         expect(labels).toEqual([
-            '@s/engine/runtime/worklet.js', '@s/engine/runtime/xl.h', '@s/engine/runtime/xl_color.h',
+            '@s/core/runtime/worklet.js', '@s/core/runtime/xl.h', '@s/core/runtime/xl_color.h',
             'native/games/a/assets/song.mp3', 'native/games/a/logic.h', 'native/games/a/main.cpp', 'native/shaders/a.glsl', 'native/shared/util.h',
         ]);
-        const b = ctx('b', { sources: ['games/b/main.cpp'], features: ['physics'], headless: true });
+        const b = ctx('b', { sources: ['games/b/main.cpp'], headless: true }, ['core', 'physics']);
         const bl = inputs(b).map((i) => i.label);
-        expect(bl).toEqual(expect.arrayContaining(['@s/engine/runtime/xl_physics.cpp', '@s/engine/jolt/Jolt/World.cpp', '@s/engine/jolt/Jolt/Jolt.h', '@s/engine/jolt/Jolt/Core/Core.h']));
+        expect(bl).toEqual(expect.arrayContaining(['@s/core/runtime/xl_physics.cpp', '@s/core/jolt/Jolt/World.cpp', '@s/core/jolt/Jolt/Jolt.h', '@s/core/jolt/Jolt/Core/Core.h']));
         expect(bl.some((l) => l.includes('games/a') || l.includes('worklet'))).toBe(false);   // not another game's; no assets headless
-        const hud = inputs(ctx('a', { sources: ['games/a/main.cpp'], features: ['text'], fonts: ['Hand.ttf'] })).map((i) => i.label);
-        expect(hud).toEqual(expect.arrayContaining(['@s/engine/runtime/xl_font.cpp', '@s/engine/vendor/stb_truetype.h', '@s/engine/fonts/Hand.ttf']));
+        const hud = inputs(ctx('a', { sources: ['games/a/main.cpp'], fonts: ['Hand.ttf'] }, ['core', 'text'])).map((i) => i.label);
+        expect(hud).toEqual(expect.arrayContaining(['@s/core/runtime/xl_font.cpp', '@s/core/vendor/stb_truetype.h', '@s/core/fonts/Hand.ttf']));
     });
 });

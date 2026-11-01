@@ -10,29 +10,72 @@
     "6": "the site"
   },
   "packages": {
+    "@xlibraries/adapter-cpp-wasm": {
+      "layer": 0,
+      "as": "adapter-cpp-wasm"
+    },
+    "@xlibraries/adapter-native-test": {
+      "layer": 0,
+      "as": "adapter-native-test"
+    },
+    "@xlibraries/adapter-shader-sokol": {
+      "layer": 0,
+      "as": "adapter-shader-sokol"
+    },
     "@xlibraries/graph": {
       "layer": 0,
       "as": "graph"
     },
-    "@xlibraries/engine": {
+    "@xlibraries/toolchain": {
+      "layer": 0,
+      "as": "toolchain"
+    },
+    "@xlibraries/engine-core": {
       "layer": 1,
-      "as": "engine-core"
+      "as": "engine-core",
+      "pure": true
+    },
+    "@xlibraries/engine-react": {
+      "layer": 1,
+      "as": "engine-react"
+    },
+    "@xlibraries/engine-web": {
+      "layer": 1,
+      "as": "engine-web"
+    },
+    "@xlibraries/engine-audio": {
+      "layer": 2,
+      "as": "engine-audio"
+    },
+    "@xlibraries/engine-text": {
+      "layer": 2,
+      "as": "engine-text",
+      "pure": true
+    },
+    "@xlibraries/physics-3d": {
+      "layer": 2,
+      "as": "physics-3d",
+      "pure": true
     },
     "@xlibraries/app-sdk": {
       "layer": 3,
       "as": "app-sdk"
     },
+    "@xlibraries/analytics": {
+      "layer": 5,
+      "as": "analytics"
+    },
     "@xlibraries/arcade": {
       "layer": 5,
       "as": "arcade"
     },
+    "@xlibraries/arduino-compiler": {
+      "layer": 5,
+      "as": "arduino-compiler"
+    },
     "@xlibraries/bot-lab": {
       "layer": 5,
       "as": "bot-lab"
-    },
-    "@xlibraries/analytics": {
-      "layer": 5,
-      "as": "analytics"
     },
     "@xlibraries/browser": {
       "layer": 5,
@@ -50,114 +93,12 @@
       "layer": 5,
       "as": "terminal"
     },
-    "@xlibraries/arduino-compiler": {
-      "layer": 5,
-      "as": "arduino-compiler"
-    },
     "@xlibraries/web": {
       "layer": 6,
       "as": "web"
-    },
-    "@xlibraries/toolchain": {
-      "layer": 0,
-      "as": "toolchain"
-    },
-    "@xlibraries/adapter-cpp-wasm": {
-      "layer": 0,
-      "as": "adapter-cpp-wasm"
-    },
-    "@xlibraries/adapter-shader-sokol": {
-      "layer": 0,
-      "as": "adapter-shader-sokol"
-    },
-    "@xlibraries/adapter-native-test": {
-      "layer": 0,
-      "as": "adapter-native-test"
     }
   },
   "units": {
-    "@xlibraries/engine": {
-      "native/runtime": {
-        "as": "engine-core",
-        "layer": 1
-      },
-      "third_party/HandmadeMath": {
-        "as": "engine-core",
-        "layer": 1
-      },
-      "src/backend": {
-        "as": "engine-web",
-        "layer": 1
-      },
-      "src/gamepad": {
-        "as": "engine-web",
-        "layer": 1
-      },
-      "third_party/sokol": {
-        "as": "engine-web",
-        "layer": 1
-      },
-      "tests/backend": {
-        "as": "engine-web",
-        "layer": 1
-      },
-      "tests/gamepad": {
-        "as": "engine-web",
-        "layer": 1
-      },
-      "src": {
-        "as": "engine-react",
-        "layer": 1
-      },
-      "tests/engine-view": {
-        "as": "engine-react",
-        "layer": 1
-      },
-      "native/runtime/xl_audio": {
-        "as": "engine-audio",
-        "layer": 2
-      },
-      "native/runtime/xl-audio-worklet": {
-        "as": "engine-audio",
-        "layer": 2
-      },
-      "tests/audio-worklet": {
-        "as": "engine-audio",
-        "layer": 2
-      },
-      "native/runtime/xl_text": {
-        "as": "engine-text",
-        "layer": 2
-      },
-      "native/runtime/xl_font": {
-        "as": "engine-text",
-        "layer": 2
-      },
-      "native/fonts": {
-        "as": "engine-text",
-        "layer": 2
-      },
-      "third_party/stb": {
-        "as": "engine-text",
-        "layer": 2
-      },
-      "tests/native/font_test": {
-        "as": "engine-text",
-        "layer": 2
-      },
-      "native/runtime/xl_physics": {
-        "as": "physics-3d",
-        "layer": 2
-      },
-      "third_party/jolt": {
-        "as": "physics-3d",
-        "layer": 2
-      },
-      "tests/native/physics_test": {
-        "as": "physics-3d",
-        "layer": 2
-      }
-    },
     "@xlibraries/arcade": {
       "native/games/jyotirath": {
         "as": "game-jyotirath",

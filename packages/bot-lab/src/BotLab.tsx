@@ -3,7 +3,7 @@
 // (runtime/client.ts → runtime/worker.ts with sim/bench.ts); this file draws its snapshots and forwards clicks.
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { AppProps } from '@xlibraries/app-sdk';
-import { EngineView, type EngineInstance } from '@xlibraries/engine';
+import { EngineView, type EngineInstance } from '@xlibraries/engine-react';
 import { TICK, type PartState } from './sim/bench';
 import { CATALOG, GROUPS, LED_MODELS, type PartSpec } from './sim/parts/catalog';
 import { addPart, boardOf, connect, dropFromWorld, disconnect, emptyProject, loadProjects, nets, removePart, samePin, saveProjects, type Board, type PartInstance, type PinRef, type Project, type Saved } from './sim/project';

@@ -93,7 +93,7 @@ flowchart TB
         settings["Site Settings<br/>app display names"]
     end
 
-    subgraph engine["packages/engine (@xlibraries/engine) — shared"]
+    subgraph engine["packages/engine/* (engine-core, -web, -react, physics-3d …) — shared"]
         rt["native/runtime<br/>xl.h · xl_audio.h · text · art primitives · post-process"]
         physics["native/physics<br/>Jolt (or Rapier bridge): bodies, joints, motors, ray casts"]
         buildpipe["@xlibraries/toolchain (xl-build)<br/>sokol-shdc + em++, per-module stamps"]

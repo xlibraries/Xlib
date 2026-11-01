@@ -1,38 +1,43 @@
-# @xlibraries/engine
+# packages/engine
 
-The C++/sokol WebAssembly engine behind the desktop's real-time apps (the Arcade's games; Bot Lab's world). It is
-a library package: apps build on it, it imports no app.
+The engine behind the desktop's real-time apps (the Arcade's games, Bot Lab's world and view), as separate packages.
+Each is versioned, built and tested on its own, and a module links only the ones it uses (`"uses"` in its
+`package.json` module; `docs/streams-plan.md`).
 
-```
-native/runtime/     xl.h (page bridge: focus, pause, gamepad, tilt, haptics, saved values, frame stats),
-                    xl_audio.h + xl-audio-worklet.js (sound through an AudioWorklet, the desktop's volume),
-                    xl_font.h/.cpp + xl_text.h (TrueType text through sokol_gl), xl_color.h
-                    xl_physics.h/.cpp (rigid bodies, joints with motors, ray casts, contacts over Jolt; deterministic)
-native/fonts/       Lilita One (OFL)
-third_party/        sokol · HandmadeMath · stb_truetype · Jolt Physics v5.6.0 (pinned)
-src/                EngineView (React canvas host: backend pick, focus, pause, gamepad, volume, tilt, fullscreen,
-                    landscape on phones), backend.ts, gamepad.ts
-```
+| Package | Layer | What | Native (`"xlibraries.native"`) |
+| --- | --- | --- | --- |
+| `engine-core` | 1 | The platform contract (`xl.h`: focus, pause, gamepad, tilt, haptics, saved values, frame stats, `app_desc`), `xl_color.h`; vendored sokol and HandmadeMath | `include/` |
+| `engine-web` | 1 | `xl.h` in the browser (`src/xl_web.cpp`, Emscripten); the page side: backend choice (`pickBackend`), gamepad reading | links `xl_web.cpp` |
+| `engine-react` | 1 | `EngineView`: hosts a module in a React component on WebGPU or WebGL2; drives focus, pause, gamepad, volume, tilt | (TypeScript only) |
+| `engine-audio` | 2 | `xl_audio.h`: a push-model mixer API on an AudioWorklet, with a gain the desktop's volume drives | `include/`, links `xl_audio.cpp`, ships `xl-audio-worklet.js` |
+| `engine-text` | 2 | `xl_font.h` (stb_truetype, kept private) and `xl_text.h` (sokol_gl); Lilita One is the primary font, a module can add its own | `include/`, links `xl_font.cpp`, `fonts/` |
+| `physics-3d` | 2 | `xl_physics.h`: rigid bodies, joints with motors, ray casts, contacts over Jolt v5.6.0 (deterministic) | `include/`, links `xl_physics.cpp`, library `jolt` |
+
+Nothing native depends on React: `engine-react` is the only package that does, and no module uses it (the Arcade's
+tests check this).
 
 ## Using it from a package
 
-The engine is a *provider* for `@xlibraries/toolchain` (`packages/tooling`): its `package.json` says what it offers
-native modules (`"xlibraries": { "native": … }`): its include folders, the features a module can ask for (`text`
-links the font renderer; `physics` links `xl_physics` and Jolt, compiled once into `build/obj/jolt` with
-`JPH_CROSS_PLATFORM_DETERMINISTIC`, no RTTI or exceptions), its fonts, and the audio worklet copied beside every build.
-A package names it in a module's `uses`:
-
 ```json
-"xlibraries": { "modules": { "hello": { "adapter": "cpp-wasm", "uses": ["@xlibraries/engine"], "sources": ["games/hello/main.cpp"], "shaders": ["shaders/hello.glsl"] } } }
+"xlibraries": { "modules": { "hello": {
+  "adapter": "cpp-wasm",
+  "uses": ["@xlibraries/engine-core", "@xlibraries/engine-web", "@xlibraries/engine-text"],
+  "sources": ["games/hello/main.cpp"], "shaders": ["shaders/hello.glsl"], "fonts": ["LilitaOne-Regular.ttf"]
+} } }
 ```
 
-A module's stamp covers only the engine files it includes or links, so a change here makes stale just the modules
-built from what changed (a change to `xl_physics` doesn't touch a game without physics).
+The module's sources include the public headers (`#include "sokol_app.h"`, `"xl.h"`, `"xl_text.h"`), and the build
+links what each package it uses offers. A module's stamp covers only the files it's built from, so a change to one
+package makes stale only the modules built from what changed.
 
 ```tsx
-import { EngineView } from '@xlibraries/engine';
+import { EngineView } from '@xlibraries/engine-react';
 <EngineView id="hello" title="Hello" baseUrl="/native/arcade@1.0.0" choice="auto" volume={host.volume} onBack={...} renderPanel={(instance, backend) => ...} />
 ```
 
-Native tests run through `@xlibraries/adapter-native-test` (`xl-native-test`): a package lists the engine in
-`"xlibraries.nativeTests.uses"` and gets its runtime sources (`testSources`) and Jolt linked.
+Native tests run through `@xlibraries/adapter-native-test` (`xl-native-test`): a package lists what it needs in
+`"xlibraries.nativeTests.uses"` and gets those packages' test sources and libraries linked.
+
+## Documentation
+
+Public headers are documented in Doxygen style (`CLAUDE.md`, "Comments"); `pnpm docs:api` builds them.

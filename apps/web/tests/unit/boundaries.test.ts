@@ -1,7 +1,7 @@
 // Keeps packages/* independent, so any of them can move to its own repo (as a git submodule or a published
 // package) without changes: a package may import only its own files, its declared dependencies, Node built-ins
-// and the library packages @xlibraries/app-sdk, @xlibraries/engine and the build tools in packages/tooling (which
-// themselves import no app package). The site may import packages only through their public entry points.
+// and the library packages @xlibraries/app-sdk, the engine's packages and the build tools (which themselves import no
+// app package). The site may import packages only through their public entry points.
 import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { builtinModules } from 'node:module';
@@ -11,11 +11,11 @@ const ROOT = resolve(__dirname, '../../../..');
 const PACKAGES = join(ROOT, 'packages');
 const SITE = join(ROOT, 'apps/web');
 const SOURCE = /\.(m?[jt]sx?)$/;
-// packages other packages may build on; they must not import app packages themselves: the contracts, the engine, and
-// the build tools in packages/tooling (layer 0 of architecture/layers.json, which `pnpm graph` checks in full)
-const TOOLING = join(PACKAGES, 'tooling');
-const LIBRARIES = ['@xlibraries/app-sdk', '@xlibraries/engine',
-    ...(existsSync(TOOLING) ? readdirSync(TOOLING).filter((d) => existsSync(join(TOOLING, d, 'package.json'))).map((d) => JSON.parse(readFileSync(join(TOOLING, d, 'package.json'), 'utf8')).name as string) : [])];
+// packages other packages may build on; they must not import app packages themselves: the contracts, the engine's
+// packages (packages/engine) and the build tools (packages/tooling) (layer 0 of architecture/layers.json, which `pnpm graph` checks in full)
+/** The packages in a folder of packages (packages/tooling, packages/engine). */
+const namesIn = (folder: string) => existsSync(join(PACKAGES, folder)) ? readdirSync(join(PACKAGES, folder)).filter((d) => existsSync(join(PACKAGES, folder, d, 'package.json'))).map((d) => JSON.parse(readFileSync(join(PACKAGES, folder, d, 'package.json'), 'utf8')).name as string) : [];
+const LIBRARIES = ['@xlibraries/app-sdk', ...namesIn('engine'), ...namesIn('tooling')];
 
 function sourceFiles(dir: string): string[] {
     if (!existsSync(dir)) return [];

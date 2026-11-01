@@ -28,10 +28,10 @@
   },
   "dependencies": {
     "@xlibraries/app-sdk": "workspace:^",
+    "@xlibraries/engine-react": "workspace:^",
     "avr8js": "0.21.1",
     "pyodide": "314.0.7",
-    "rp2040js": "1.4.0",
-    "@xlibraries/engine": "workspace:*"
+    "rp2040js": "1.4.0"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -40,6 +40,9 @@
     "@types/node": "^25.3.3",
     "@types/react": "^19.3.0",
     "@xlibraries/adapter-cpp-wasm": "workspace:^",
+    "@xlibraries/engine-core": "workspace:^",
+    "@xlibraries/engine-web": "workspace:^",
+    "@xlibraries/physics-3d": "workspace:^",
     "@xlibraries/toolchain": "workspace:^",
     "react": "^19.2.9",
     "typescript": "^5.9.3",
@@ -50,7 +53,8 @@
       "view": {
         "adapter": "cpp-wasm",
         "uses": [
-          "@xlibraries/engine"
+          "@xlibraries/engine-core",
+          "@xlibraries/engine-web"
         ],
         "sources": [
           "view/view.cpp"
@@ -66,15 +70,12 @@
       "world": {
         "adapter": "cpp-wasm",
         "uses": [
-          "@xlibraries/engine"
+          "@xlibraries/physics-3d"
         ],
         "sources": [
           "world/world.cpp"
         ],
         "headless": true,
-        "features": [
-          "physics"
-        ],
         "exportName": "createWorld",
         "flags": [
           "-sEXPORTED_FUNCTIONS=_bl_reset,_bl_robot,_bl_torque,_bl_step,_bl_state,_bl_point,_bl_arm,_bl_arm_target,_bl_arm_state,_bl_conveyor,_bl_belt,_bl_cube,_bl_cube_pos,_bl_bin,_bl_sees_cube,_bl_body_count,_bl_shapes,_bl_poses,_bl_quad,_bl_quad_motors,_bl_wind,_bl_quad_state,_bl_quad_range,_malloc,_free",
