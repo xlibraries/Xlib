@@ -93,19 +93,31 @@ pdf.js from `public/vendor/`, loaded as a native module (bundling pdf.js through
 The shared C++20/[sokol](https://github.com/floooh/sokol) engine, a library package (it imports no app; apps
 with C++ modules depend on it). Modules are compiled by Emscripten twice, for WebGPU (`SOKOL_WGPU`,
 emdawnwebgpu) and WebGL2 (`SOKOL_GLES3`); shaders are written once and cross-compiled by `sokol-shdc`
-(`scripts/build.mjs`, pinned toolchain, reproducible paths, a `dist/sources.sha256` stamp over every input). The
+(through `@xlibraries/toolchain`, see below; pinned toolchain, reproducible paths). The
 runtime (`native/runtime/`): `xl.h` bridges the page (focus: keys reach a module only while its canvas is focused,
 sokol's page-wide listeners let everything through; pause while hidden; gamepad; a phone's tilt; haptics; saved
 values; `sapp_quit()` on close), `xl_audio.h` plays sound through an AudioWorklet with a GainNode the desktop's
 volume slider drives, `xl_text.h` draws TrueType text (stb_truetype, Lilita One embedded). `EngineView` (React)
 picks the backend (WebGPU if an adapter exists), loads the matching build on its own canvas and drives the bridge.
-The security policy allows `'wasm-unsafe-eval'` for this. `scripts/test.mjs` runs a consumer's graphics-free code
-under doctest with the system compilers.
+The security policy allows `'wasm-unsafe-eval'` for this. The engine describes what it offers native modules in its
+`package.json` (`xlibraries.native`: include folders, the `text` and `physics` features, fonts, the audio worklet).
+
+## Toolchain (`packages/tooling`)
+
+`@xlibraries/toolchain` builds the modules a package declares (`xlibraries.modules` in its `package.json`) through
+adapter packages it names: `adapter-cpp-wasm` (em++ for WebGPU and WebGL2, or headless), which compiles shaders with
+`adapter-shader-sokol` first. The core knows no compiler: a new kind of module is a new adapter. Each module's
+`dist/<module>/stamp.json` hashes the toolchain's and adapter's versions, the pinned Emscripten and sokol-shdc, its
+flags, its providers' versions and every file it's built from, including what its sources include, transitively; a
+build skips modules whose stamps are current, and the packages' unit tests check the stamps. `adapter-native-test`
+runs a package's graphics-free C++ under doctest (its public header) with the system compilers. The site serves every
+module of its dependencies at `/native/<package>@<version>/<module>/` (`scripts/vendor.mjs`, from the manifests;
+`lib/native.ts` gives each app its folder).
 
 ## Arcade (`packages/arcade`)
 
 The games, on the engine: `native/games/*` and their panels, Box2D vendored for Turbo Trails. The compiled
-`dist/` is committed (CI rebuilds and diffs it) and copied to `/arcade/` by `scripts/vendor.mjs`. Plan:
+`dist/` is committed (CI rebuilds and diffs it) and served at `/native/arcade@<version>/`. Plan:
 [arcade-plan.md](arcade-plan.md).
 
 ## Bot Lab (`packages/bot-lab`)

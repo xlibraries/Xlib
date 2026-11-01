@@ -30,10 +30,13 @@ jobs:
         with:
           node-version: 24.x
           cache: pnpm
+          # writes an .npmrc that authenticates @xlibraries on GitHub Packages with NODE_AUTH_TOKEN
+          registry-url: https://npm.pkg.github.com
+          scope: "@xlibraries"
       - name: Install
         run: pnpm install --frozen-lockfile --ignore-scripts
         env:
-          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Any changesets?
         id: pending
         run: |
@@ -50,12 +53,12 @@ jobs:
           git commit --no-verify -m "Release packages [skip release]"
           git push
         env:
-          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to GitHub Packages
         if: steps.pending.outputs.yes == 'true'
         run: |
           pnpm changeset publish
           git push --follow-tags
         env:
-          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: "false"

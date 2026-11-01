@@ -18,7 +18,7 @@ class FakeWorker {
 
 function client() {
     const workers: FakeWorker[] = [];
-    const c = new RuntimeClient(() => { const w = new FakeWorker(); workers.push(w); return w as unknown as Worker; }, 'https://example.test');
+    const c = new RuntimeClient('/native/bot-lab@1.0.0', () => { const w = new FakeWorker(); workers.push(w); return w as unknown as Worker; }, 'https://example.test');
     const snaps: Snapshot[] = [];
     c.onSnapshot(s => snaps.push(s));
     c.start();
@@ -31,7 +31,7 @@ describe('the runtime client', () => {
         c.send({ type: 'load', project: emptyProject('a') });
         c.send({ type: 'run' });
         expect(workers[0].sent.map(m => m.type)).toEqual(['init', 'load', 'run']);
-        expect(workers[0].sent[0]).toEqual({ type: 'init', origin: 'https://example.test' });
+        expect(workers[0].sent[0]).toEqual({ type: 'init', origin: 'https://example.test', native: '/native/bot-lab@1.0.0' });
     });
 
     it('Stop goes to a responsive worker as a message', () => {
@@ -50,7 +50,7 @@ describe('the runtime client', () => {
         c.send({ type: 'stop' });
         expect(workers[0].terminated).toBe(true);
         expect(workers).toHaveLength(2);
-        expect(workers[1].sent).toEqual([{ type: 'init', origin: 'https://example.test' }, { type: 'load', project }]);
+        expect(workers[1].sent).toEqual([{ type: 'init', origin: 'https://example.test', native: '/native/bot-lab@1.0.0' }, { type: 'load', project }]);
         expect(snaps.at(-1)).toMatchObject({ running: false, time: 3 });
     });
 

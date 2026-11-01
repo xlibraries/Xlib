@@ -60,11 +60,12 @@ jobs:
           actions-cache-folder: emsdk-cache
       - name: Install
         run: pnpm install --frozen-lockfile --ignore-scripts
+      # --force: the committed stamps say every module is up to date, so only a forced rebuild proves it reproduces
       - name: Build games (WebGPU + WebGL2)
-        run: pnpm --filter @xlibraries/arcade build:native
+        run: pnpm --filter @xlibraries/arcade build:native --force
       - name: Committed dist/ matches the sources
         run: git diff --exit-code --stat -- packages/arcade/dist
       - name: Build Bot Lab's native modules (the physics world)
-        run: pnpm --filter @xlibraries/bot-lab build:native
+        run: pnpm --filter @xlibraries/bot-lab build:native --force
       - name: Bot Lab's committed dist/ matches the sources
         run: git diff --exit-code --stat -- packages/bot-lab/dist

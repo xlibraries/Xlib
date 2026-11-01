@@ -3,7 +3,8 @@ import { buildRoadTrips, distanceKm, osrmUrl, simplifyRoute } from '../../script
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { photoDropConfigJs, vendor, vendorFiles } from '../../scripts/vendor.mjs';
+import { nativeBase, nativeModules, photoDropConfigJs, vendor, vendorFiles } from '../../scripts/vendor.mjs';
+import { nativeBase as appsNativeBase } from '../../lib/native';
 import { deploymentIdFrom, keyHash } from '../../scripts/deploy-photo-drop.mjs';
 
 describe('music snapshot', () => {
@@ -46,6 +47,13 @@ describe('build_road_trips', () => {
 });
 
 describe('vendor', () => {
+    it('serves native modules where the apps look for them, found through manifests', () => {
+        expect(nativeBase({ name: '@xlibraries/arcade', version: '1.2.3' })).toBe('/native/arcade@1.2.3');
+        expect(appsNativeBase({ name: '@xlibraries/arcade', version: '1.2.3' })).toBe(nativeBase({ name: '@xlibraries/arcade', version: '1.2.3' }));
+        const targets = nativeModules().map(([, to]) => to);
+        expect(targets).toEqual(expect.arrayContaining([expect.stringMatching(/^native\/arcade@[\d.]+\/jyotirath$/), expect.stringMatching(/^native\/bot-lab@[\d.]+\/world$/)]));
+    });
+
     it('finds every library file in node_modules', () => {
         for (const [from] of vendorFiles()) expect(existsSync(from), from).toBe(true);
     });
@@ -63,6 +71,12 @@ describe('vendor', () => {
             const app = ['components/apps/side-quests/data.ts', 'components/apps/side-quests/WorldMap.tsx', 'components/apps/about/Resume.tsx']
                 .map((f) => readFileSync(f, 'utf8')).join('\n');
             for (const ref of app.match(/\/vendor\/[\w./-]+/g)) expect(existsSync(join(out, ref.slice(1))), ref).toBe(true);
+            // every native module, at its package's versioned folder: the Arcade's games, Bot Lab's world and view
+            const arcade = JSON.parse(readFileSync('node_modules/@xlibraries/arcade/package.json', 'utf8'));
+            const botLab = JSON.parse(readFileSync('node_modules/@xlibraries/bot-lab/package.json', 'utf8'));
+            for (const game of Object.keys(arcade.xlibraries.modules)) expect(existsSync(join(out, nativeBase(arcade).slice(1), game, 'webgl2.wasm')), game).toBe(true);
+            expect(existsSync(join(out, nativeBase(botLab).slice(1), 'world/headless.wasm'))).toBe(true);
+            expect(existsSync(join(out, nativeBase(botLab).slice(1), 'view/webgpu.wasm'))).toBe(true);
             // the page loads the site's settings
             expect(readFileSync(join(out, 'drop/index.html'), 'utf8')).toContain('src="./config.js"');
             expect(readFileSync(join(out, 'drop/config.js'), 'utf8')).toContain('window.PHOTO_DROP');

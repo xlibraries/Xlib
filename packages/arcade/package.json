@@ -13,16 +13,15 @@
     "src",
     "dist",
     "native",
-    "third_party",
-    "scripts"
+    "third_party"
   ],
   "scripts": {
-    "build:native": "node scripts/build-native.mjs",
+    "build:native": "xl-build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node scripts/test-native.mjs",
-    "verify": "eslint . && tsc --noEmit && vitest run && node scripts/test-native.mjs",
-    "test:native": "node scripts/test-native.mjs"
+    "test": "vitest run && xl-native-test",
+    "verify": "eslint . && tsc --noEmit && vitest run && xl-native-test",
+    "test:native": "xl-native-test"
   },
   "dependencies": {
     "@xlibraries/app-sdk": "workspace:^",
@@ -34,8 +33,158 @@
   "devDependencies": {
     "@types/node": "^25.3.3",
     "@types/react": "^19.3.0",
+    "@xlibraries/adapter-cpp-wasm": "workspace:^",
+    "@xlibraries/adapter-native-test": "workspace:^",
+    "@xlibraries/toolchain": "workspace:^",
     "react": "^19.2.9",
     "typescript": "^5.9.3",
     "vitest": "3.2.4"
+  },
+  "xlibraries": {
+    "modules": {
+      "hello": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "games/hello/main.cpp"
+        ],
+        "shaders": [
+          "shaders/hello.glsl"
+        ]
+      },
+      "breakout": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "games/breakout/main.cpp",
+          "games/breakout/logic.cpp"
+        ]
+      },
+      "showcase": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "games/showcase/main.cpp",
+          "games/showcase/scene.cpp"
+        ],
+        "shaders": [
+          "shaders/showcase.glsl"
+        ],
+        "features": [
+          "physics"
+        ],
+        "flags": [
+          "-sEXPORTED_FUNCTIONS=_main"
+        ]
+      },
+      "playground": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "games/playground/main.cpp"
+        ],
+        "flags": [
+          "-sEXPORTED_RUNTIME_METHODS=stringToNewUTF8",
+          "-sEXPORTED_FUNCTIONS=_main,_free"
+        ]
+      },
+      "turbo-trails": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "games/turbo-trails/main.cpp",
+          "games/turbo-trails/physics_box2d.cpp",
+          "games/turbo-trails/terrain.cpp",
+          "games/turbo-trails/rules.cpp",
+          "games/turbo-trails/eras.cpp",
+          "games/turbo-trails/feel.cpp"
+        ],
+        "cLibraries": [
+          {
+            "sources": "third_party/box2d/src",
+            "flags": [
+              "-std=gnu17",
+              "-DBOX2D_DISABLE_SIMD",
+              "-Ithird_party/box2d/include",
+              "-Ithird_party/box2d/src"
+            ]
+          }
+        ],
+        "shaders": [
+          "shaders/turbo-trails.glsl"
+        ],
+        "flags": [
+          "-Ithird_party/box2d/include",
+          "-sEXPORTED_RUNTIME_METHODS=UTF8ToString",
+          "-sEXPORTED_FUNCTIONS=_main,_free"
+        ],
+        "features": [
+          "text"
+        ],
+        "fonts": [
+          "LilitaOne-Regular.ttf"
+        ],
+        "assets": "games/turbo-trails/assets"
+      },
+      "jyotirath": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "games/jyotirath/main.cpp",
+          "games/jyotirath/mesh.cpp",
+          "games/jyotirath/models.cpp",
+          "games/jyotirath/track.cpp",
+          "games/jyotirath/drive.cpp",
+          "games/jyotirath/story.cpp",
+          "games/jyotirath/go.cpp",
+          "games/jyotirath/boards.cpp",
+          "games/jyotirath/chapter.cpp",
+          "games/jyotirath/hints.cpp"
+        ],
+        "shaders": [
+          "shaders/jyotirath.glsl"
+        ],
+        "flags": [
+          "-sEXPORTED_RUNTIME_METHODS=UTF8ToString",
+          "-sEXPORTED_FUNCTIONS=_main,_free"
+        ],
+        "features": [
+          "text"
+        ],
+        "fonts": [
+          "LilitaOne-Regular.ttf"
+        ]
+      }
+    },
+    "nativeTests": {
+      "uses": [
+        "@xlibraries/engine"
+      ],
+      "cLibraries": [
+        {
+          "sources": "third_party/box2d/src",
+          "flags": [
+            "-DBOX2D_DISABLE_SIMD",
+            "-Ithird_party/box2d/include",
+            "-Ithird_party/box2d/src"
+          ]
+        }
+      ],
+      "includes": [
+        "-Ithird_party/box2d/include"
+      ]
+    }
   }
 }

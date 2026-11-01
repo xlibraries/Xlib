@@ -1,6 +1,9 @@
 import dynamic from 'next/dynamic';
 import { createElement, type ComponentType } from 'react';
 import type { AppProps } from '@xlibraries/app-sdk';
+import arcadePackage from '@xlibraries/arcade/package.json';
+import botLabPackage from '@xlibraries/bot-lab/package.json';
+import { nativeBase } from './lib/native';
 
 // Every app is a component that takes { host } (see packages/app-sdk); its code is downloaded the first
 // time its window opens
@@ -29,8 +32,8 @@ const displayMusic = lazyApp(async () => {
 const displayTodoist = lazyApp(() => import('./components/apps/todoist'));
 const displayTrash = lazyApp(() => import('./components/apps/trash'));
 const displayGedit = lazyApp(() => import('./components/apps/gedit'));
-const displayArcade = lazyApp(() => import('@xlibraries/arcade').then(m => ({ default: m.createArcade({ baseUrl: '/arcade', leaderboardUrl: '/api/arcade/leaderboard' }) })));
-const displayBotLab = lazyApp(() => Promise.all([import('@xlibraries/bot-lab'), import('./lib/bot-lab-client')]).then(([m, c]) => ({ default: m.createBotLab({ compile: c.compileSketch, compilerAvailable: c.compilerAvailable }) })));
+const displayArcade = lazyApp(() => import('@xlibraries/arcade').then(m => ({ default: m.createArcade({ baseUrl: nativeBase(arcadePackage), leaderboardUrl: '/api/arcade/leaderboard' }) })));
+const displayBotLab = lazyApp(() => Promise.all([import('@xlibraries/bot-lab'), import('./lib/bot-lab-client')]).then(([m, c]) => ({ default: m.createBotLab({ compile: c.compileSketch, compilerAvailable: c.compilerAvailable, nativeBaseUrl: nativeBase(botLabPackage) }) })));
 
 export interface AppConfig {
     id: string;

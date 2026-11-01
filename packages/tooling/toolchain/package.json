@@ -1,0 +1,37 @@
+{
+  "name": "@xlibraries/toolchain",
+  "version": "0.1.0",
+  "description": "Builds a package's modules through adapters and stamps each with everything that went into it; knows nothing about any one language or compiler",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/tooling/toolchain"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "bin": {
+    "xl-build": "./bin/xl-build.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.mts",
+      "default": "./src/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "bin"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run",
+    "verify": "eslint . && vitest run"
+  },
+  "devDependencies": {
+    "vitest": "3.2.4"
+  }
+}

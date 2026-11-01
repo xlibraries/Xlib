@@ -96,7 +96,7 @@ flowchart TB
     subgraph engine["packages/engine (@xlibraries/engine) — shared"]
         rt["native/runtime<br/>xl.h · xl_audio.h · text · art primitives · post-process"]
         physics["native/physics<br/>Jolt (or Rapier bridge): bodies, joints, motors, ray casts"]
-        buildpipe["scripts/build-native.mjs<br/>sokol-shdc + em++, dist stamp"]
+        buildpipe["@xlibraries/toolchain (xl-build)<br/>sokol-shdc + em++, per-module stamps"]
         host["src/EngineView.tsx<br/>canvas host: backend pick, focus, pause, gamepad, volume, tilt"]
         third["third_party/<br/>sokol · HandmadeMath · stb · Jolt (pinned)"]
     end

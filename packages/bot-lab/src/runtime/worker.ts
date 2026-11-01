@@ -4,13 +4,14 @@
 // synchronously with busy-wait pacing, and the app restarts the worker to stop it.
 import { Bench, TICK } from '../sim/bench';
 import { parseProject, type Project } from '../sim/project';
-import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, WORLD_PATH, type Command, type Snapshot, type WorkerToApp } from './protocol';
+import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, WORLD_FILE, type Command, type Snapshot, type WorkerToApp } from './protocol';
 import type { PicoFirmware } from '../sim/boards/pico';
 import { MachineWorld, type WorldModule } from '../sim/world';
 import { PiRuntime, canSuspend, type PyodideLike } from './pi';
 import { PY_MORE, PY_PROMPT, SHELL_PROMPT, shell } from './terminal';
 
 let origin = '';
+let native = '';   // where Bot Lab's native modules are served (the init command says)
 let bench: Bench | null = null;
 let project: Project | null = null;
 let running = false;
@@ -283,7 +284,7 @@ function attachWorld(b: Bench) {
 function loadWorld(): Promise<WorldModule> {
     if (!worldModule) {
         worldModule = (async () => {
-            const mod = (await import(/* webpackIgnore: true */ `${origin}${WORLD_PATH}`)) as { default: () => Promise<WorldModule> };
+            const mod = (await import(/* webpackIgnore: true */ `${origin}${native}/${WORLD_FILE}`)) as { default: () => Promise<WorldModule> };
             return mod.default();
         })();
         worldModule.catch(() => { worldModule = null; });
@@ -306,7 +307,7 @@ async function loadPython(): Promise<PyodideLike> {
 self.onmessage = (e: MessageEvent<Command>) => {
     const m = e.data;
     switch (m.type) {
-        case 'init': origin = m.origin; break;
+        case 'init': origin = m.origin; native = m.native; break;
         case 'load': load(m.project); break;
         case 'run': void run(); break;
         case 'stop': stop(); break;

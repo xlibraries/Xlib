@@ -15,7 +15,8 @@ export class RuntimeClient {
     private readonly listeners = new Set<(s: Snapshot) => void>();
     private readonly errors = new Set<(message: string) => void>();
 
-    constructor(private readonly createWorker: WorkerFactory = defaultWorker, private readonly origin = globalThis.location?.origin ?? '') {}
+    /** native: the folder Bot Lab's native modules are served from (see BotLabOptions.nativeBaseUrl) */
+    constructor(private readonly native: string, private readonly createWorker: WorkerFactory = defaultWorker, private readonly origin = globalThis.location?.origin ?? '') {}
 
     start() {
         if (this.worker) return;
@@ -25,7 +26,7 @@ export class RuntimeClient {
             else if (e.data.type === 'error') for (const l of this.errors) l(e.data.message);
         };
         worker.onerror = (e) => { for (const l of this.errors) l(e.message || 'the runtime worker failed'); };
-        worker.postMessage({ type: 'init', origin: this.origin } satisfies Command);
+        worker.postMessage({ type: 'init', origin: this.origin, native: this.native } satisfies Command);
         if (this.project) worker.postMessage({ type: 'load', project: this.project } satisfies Command);
         this.worker = worker;
     }

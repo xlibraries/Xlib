@@ -602,7 +602,7 @@ void init() {
     hud.max_commands = 1 << 12;
     st.hud = sgl_make_context(&hud);
     st.hud_blend = sgl_context_make_pipeline(st.hud, &pip);
-    {   // the HUD font, embedded in the build (see build-native.mjs)
+    {   // the HUD font, embedded in the build (package.json: "fonts")
         std::ifstream in("/LilitaOne-Regular.ttf", std::ios::binary);
         std::vector<uint8_t> ttf((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         st.text.setup(ttf, 44);

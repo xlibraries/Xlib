@@ -14,14 +14,14 @@ First three experiences: a **neon arcade game**, a **shader playground** and a *
 flowchart TB
     subgraph site["apps/web"]
         config["apps.config.ts<br/>registers the Arcade app"]
-        public[("public/arcade/<br/>(copied by scripts/vendor.mjs)")]
+        public[("public/native/arcade@version/<br/>(copied by scripts/vendor.mjs)")]
     end
 
     subgraph engine["packages/engine (@xlibraries/engine) — shared by every app with C++ modules"]
         view["src/EngineView.tsx<br/>canvas host: load, focus, pause, gamepad,<br/>volume, tilt, fullscreen"]
         pick["src/backend.ts<br/>WebGPU if an adapter exists, else WebGL2"]
         runtime["native/runtime/<br/>xl.h (page bridge) · xl_audio.h (worklet) ·<br/>xl_text.h (TrueType text) · xl_physics.h (Jolt)"]
-        buildpipe["scripts/build.mjs · scripts/test.mjs<br/>sokol-shdc + em++, dist stamp; doctest harness"]
+        buildpipe["@xlibraries/toolchain + adapters<br/>sokol-shdc + em++, per-module stamps; doctest"]
         third["third_party/<br/>sokol · HandmadeMath · stb · doctest (pinned)"]
     end
 

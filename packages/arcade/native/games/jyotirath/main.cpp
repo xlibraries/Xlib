@@ -1705,7 +1705,7 @@ void init() {
     blend.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
     blend.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
     st.hud_blend = sgl_context_make_pipeline(st.hud, &blend);
-    {   // the HUD font, embedded in the build (see build-native.mjs)
+    {   // the HUD font, embedded in the build (package.json: "fonts")
         std::ifstream in("/LilitaOne-Regular.ttf", std::ios::binary);
         std::vector<uint8_t> ttf((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         st.text.setup(ttf, 48);

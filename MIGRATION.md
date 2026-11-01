@@ -3,14 +3,14 @@
 The plan and its reasons are in [docs/streams-plan.md](docs/streams-plan.md); this file tracks the work. Tick a box
 when it's merged with `pnpm verify` green. Each phase is one PR.
 
-**Backlog:** `pnpm graph` → **72** known violations in [architecture/baseline.json](architecture/baseline.json)
-(62 private, 5 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
+**Backlog:** `pnpm graph` → **66** known violations in [architecture/baseline.json](architecture/baseline.json)
+(56 private, 5 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
 the number here when a phase lands.
 
 | Phase | Status | Violations left after it |
 | --- | --- | --- |
-| 0. Rules first | 🟡 in progress | 72 (it only measures) |
-| 1. Toolchain | ⬜ | |
+| 0. Rules first | ✅ (registry: the "Needs you" items) | 72 (it only measures) |
+| 1. Toolchain | ✅ | 66 |
 | 2. Engine split | ⬜ | |
 | 3. Physics | ⬜ | |
 | 4. Render | ⬜ | |
@@ -20,12 +20,14 @@ the number here when a phase lands.
 
 ## Needs you (outside the repo)
 
-- [ ] **Vercel:** add `GITHUB_PACKAGES_TOKEN`: a GitHub token (classic, `read:packages`) for Production and Preview,
-      so builds can install published `@xlibraries` versions. Needed before the first package pins a published version
-      (phase 1).
+- [ ] **Vercel:** add the variable `NPM_RC` (Production and Preview) with this content, so builds can install published
+      `@xlibraries` versions (needed once a package pins one):
+      `@xlibraries:registry=https://npm.pkg.github.com` and, on a second line,
+      `//npm.pkg.github.com/:_authToken=<the read:packages token>`
 - [x] **The token:** classic, `read:packages`, in `apps/web/.env.local` (git-ignored); checked against GitHub
       (2026-11-01). `xlibraries` is a user account, so packages publish under it; there are no org settings.
-- [ ] **Your shell:** pnpm doesn't read `.env.local`; add `export GITHUB_PACKAGES_TOKEN=…` to `~/.zshrc` before phase 1.
+- [ ] **Your machine:** add `//npm.pkg.github.com/:_authToken=<the token>` to `~/.npmrc` (pnpm doesn't read
+      `.env.local`, and the repo's `.npmrc` holds no token, so commands don't warn when it's missing).
 - [ ] **Repo settings:** Settings → Actions → General → Workflow permissions: *Read and write* (the release workflow
       pushes its version commit and publishes with the built-in token).
 - [ ] **Branch protection on `master`, if any:** the release workflow pushes a version commit to `master`; allow
@@ -45,16 +47,25 @@ the number here when a phase lands.
 
 ## Phase 1: toolchain
 
-- [ ] `packages/engine/toolchain` (`@xlibraries/toolchain`): the core (manifests, graph, stamps, cache), no C++ knowledge
-- [ ] Adapters as their own packages: `adapter-cpp-wasm`, `adapter-shader-sokol`, `adapter-native-test`
-- [ ] Manifests: `"xlibraries": { "modules": … }` in each package with native modules
-- [ ] Full stamps: sources, generated headers, transitive dependency versions and hashes, toolchain/adapter/Emscripten/
-      sokol-shdc versions, flags, backend
-- [ ] One `.tools/` (today: `engine/.tools` and `arcade/.tools`)
-- [ ] Serving at `/native/<package>@<version>/<module>/` from manifests; `vendor.mjs` lists no package by name
-- [ ] doctest exposed from the toolchain's `include/` (clears the `-> toolchain (doctest.h)` violations)
-- [ ] First published package: `@xlibraries/toolchain` (drop `private`, add `repository` and `publishConfig`)
-- **Done when:** every module rebuilds byte-identical; a JyotiRath-only edit rebuilds JyotiRath only
+- [x] `packages/tooling/toolchain` (`@xlibraries/toolchain`, `xl-build`): the core (manifests, providers, adapters,
+      stamps, skipping what's current), no C++ knowledge. In `packages/tooling/`, not `packages/engine/`: it's layer 0
+      and serves more than the engine (the graph checker moved there too)
+- [x] Adapters as their own packages: `adapter-cpp-wasm` (uses `adapter-shader-sokol`), `adapter-shader-sokol`,
+      `adapter-native-test` (`xl-native-test`)
+- [x] Manifests: `"xlibraries.modules"` in the Arcade and Bot Lab; the engine describes itself as a provider
+      (`"xlibraries.native"`); native tests in `"xlibraries.nativeTests"`
+- [x] Full stamps per module (`dist/<module>/stamp.json`): toolchain and adapter versions, pinned Emscripten and
+      sokol-shdc, flags, backends, provider versions, and every file it's built from, includes followed transitively
+- [x] One `.tools/` (in `adapter-shader-sokol`)
+- [x] Serving at `/native/<package>@<version>/<module>/` from manifests (`vendor.mjs` names no package for native
+      modules; Bot Lab's Pyodide and firmware are still named: they're vendored files, not modules); `lib/native.ts`;
+      `createBotLab({ nativeBaseUrl })`
+- [x] doctest is `adapter-native-test`'s public header (cleared the 6 `-> toolchain (doctest.h)` violations)
+- [x] CI rebuilds with `--force` (stamps say up to date, so only a forced rebuild proves it reproduces)
+- [ ] First publish: `@xlibraries/toolchain` and the three adapters are publish-ready (not private, `repository`,
+      `publishConfig`); they publish when this branch merges to `master`
+- **Done when:** every module rebuilds byte-identical ✅ (all 8, checked with `git status`); a JyotiRath-only edit
+  rebuilds JyotiRath only ✅ (and an edit to the engine's physics makes stale only `showcase` and Bot Lab's `world`)
 
 ## Phase 2: engine split
 
@@ -117,3 +128,5 @@ the number here when a phase lands.
 | Date | What |
 | --- | --- |
 | 2026-11-01 | Phase 0: graph checker, layer map, baseline (72), Changesets, registry config, release workflow; packages token verified |
+| 2026-11-01 | Flaky tests: admin logins get their own client address; the engine keeps the volume for games whose audio starts later |
+| 2026-11-01 | Phase 1: toolchain + adapters, per-module stamps, `/native/` serving; baseline 72 → 66 |

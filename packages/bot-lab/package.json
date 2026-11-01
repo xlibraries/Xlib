@@ -24,7 +24,7 @@
     "compile:templates": "node scripts/compile-templates.mjs",
     "sync:templates": "node scripts/sync-templates.mjs",
     "sync:python": "node scripts/sync-python.mjs",
-    "build:native": "node scripts/build-native.mjs"
+    "build:native": "xl-build"
   },
   "dependencies": {
     "@xlibraries/app-sdk": "workspace:^",
@@ -39,8 +39,48 @@
   "devDependencies": {
     "@types/node": "^25.3.3",
     "@types/react": "^19.3.0",
+    "@xlibraries/adapter-cpp-wasm": "workspace:^",
+    "@xlibraries/toolchain": "workspace:^",
     "react": "^19.2.9",
     "typescript": "^5.9.3",
     "vitest": "3.2.4"
+  },
+  "xlibraries": {
+    "modules": {
+      "view": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "view/view.cpp"
+        ],
+        "shaders": [
+          "shaders/view.glsl"
+        ],
+        "flags": [
+          "-sEXPORTED_FUNCTIONS=_main,_malloc,_free,_bl_view_track,_bl_view_bodies,_bl_view_poses,_bl_view_sensors,_bl_view_focus",
+          "-sEXPORTED_RUNTIME_METHODS=HEAPF32"
+        ]
+      },
+      "world": {
+        "adapter": "cpp-wasm",
+        "uses": [
+          "@xlibraries/engine"
+        ],
+        "sources": [
+          "world/world.cpp"
+        ],
+        "headless": true,
+        "features": [
+          "physics"
+        ],
+        "exportName": "createWorld",
+        "flags": [
+          "-sEXPORTED_FUNCTIONS=_bl_reset,_bl_robot,_bl_torque,_bl_step,_bl_state,_bl_point,_bl_arm,_bl_arm_target,_bl_arm_state,_bl_conveyor,_bl_belt,_bl_cube,_bl_cube_pos,_bl_bin,_bl_sees_cube,_bl_body_count,_bl_shapes,_bl_poses,_bl_quad,_bl_quad_motors,_bl_wind,_bl_quad_state,_bl_quad_range,_malloc,_free",
+          "-sEXPORTED_RUNTIME_METHODS=HEAPF32"
+        ]
+      }
+    }
   }
 }

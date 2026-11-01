@@ -7,12 +7,11 @@ Arcade app picks WebGPU when the browser has an adapter, otherwise WebGL2 (or wh
 ## Layout
 
 ```
-native/runtime/xl.h       the bridge to the page: --canvas/--game arguments, focus, pause, saved values, frame stats
-native/games/<id>/        each game's C++ (one sokol_main per game)
+native/games/<id>/        each game's C++ (one sokol_main per game), on @xlibraries/engine
 native/shaders/*.glsl     shaders, written once (sokol-shdc annotated GLSL), cross-compiled to GLSL ES 3.0 + WGSL
-third_party/              sokol headers and HandmadeMath, pinned (see Versions)
-scripts/build-native.mjs  sokol-shdc + em++ → dist/<id>/{webgpu,webgl2}.{js,wasm}
-dist/                     committed build output (CI rebuilds and checks it matches; sources.sha256 stamps the inputs)
+third_party/box2d/        Box2D v3.1.1 for Turbo Trails, pinned (see Versions)
+package.json              "xlibraries.modules": each game as a module for @xlibraries/toolchain (adapter cpp-wasm)
+dist/<id>/                committed build output, with stamp.json over everything it's built from (CI rebuilds and diffs)
 src/                      React: the Arcade launcher, GameView (canvas host), backend detection
 ```
 
@@ -45,15 +44,16 @@ source ~/emsdk/emsdk_env.sh            # Emscripten 6.0.11 (see Versions)
 pnpm --filter @xlibraries/arcade build:native
 ```
 
-`sokol-shdc` is downloaded (pinned) into `.tools/` on first use. Build every game (no arguments) before committing: the
-runtime headers are shared, and the unit tests compare `dist/sources.sha256` against the sources. Commit the updated `dist/`; CI rebuilds it with the
-same toolchain and fails if it differs.
+It rebuilds only the games whose stamps are out of date (`build:native jyotirath` for one, `--force` for all). Each
+game's `dist/<id>/stamp.json` covers its own sources and shaders and only the engine files it uses, and the unit tests
+check every stamp, so a change makes just the affected games fail until they're rebuilt. Commit the updated `dist/`;
+CI rebuilds everything with the same toolchain (`--force`) and fails if it differs.
 
 ## Testing game logic
 
 Rules that don't need a GPU live in `native/games/<id>/logic.cpp` and are unit-tested natively with
 [doctest](https://github.com/doctest/doctest) (`tests/native/`): `pnpm --filter @xlibraries/arcade test:native`
-compiles them with the system C++ compiler (also part of `test`/`verify`).
+compiles them with the system C++ compiler through `@xlibraries/adapter-native-test` (also part of `test`/`verify`).
 
 ## Turbo Trails
 
@@ -80,7 +80,7 @@ valid shaders reach the game (`pg_set_shader`).
 1. `native/games/<id>/main.cpp` with a `sokol_main` that returns `xl::app_desc(argc, argv, desc)`; include `xl.h`
    with `XL_IMPL` once.
 2. Its shaders in `native/shaders/`.
-3. Register it in `scripts/build-native.mjs` (`GAMES`) and `src/games.ts`, then build.
+3. Declare it in `package.json` (`xlibraries.modules`) and register it in `src/games.ts`, then build.
 
 ## Versions
 

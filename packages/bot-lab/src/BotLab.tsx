@@ -25,9 +25,11 @@ export interface BotLabOptions {
     compile?: Compiler;
     /** Whether `compile` can work here (asked when the editor opens); Build is hidden when it says no. */
     compilerAvailable?: () => Promise<boolean>;
+    /** Where the site serves this package's native modules (its dist/: the physics world and the 3D view) */
+    nativeBaseUrl: string;
 }
 
-export function createBotLab(options: BotLabOptions = {}): ComponentType<AppProps> {
+export function createBotLab(options: BotLabOptions): ComponentType<AppProps> {
     return function BotLab({ host }: AppProps) {
         const [projects, setProjects] = useState<Saved[]>([]);
         const [current, setCurrent] = useState<Saved | null>(null);
@@ -48,7 +50,7 @@ export function createBotLab(options: BotLabOptions = {}): ComponentType<AppProp
         };
         const remove = (id: string) => persist(projects.filter(s => s.id !== id));
 
-        if (current) return <Workbench key={current.id} saved={current} compile={options.compile} compilerAvailable={options.compilerAvailable} onChange={update} onBack={() => setCurrent(null)} />;
+        if (current) return <Workbench key={current.id} saved={current} native={options.nativeBaseUrl} compile={options.compile} compilerAvailable={options.compilerAvailable} onChange={update} onBack={() => setCurrent(null)} />;
         return (
             <div className="h-full w-full overflow-y-auto p-4 text-white" style={{ background: 'radial-gradient(ellipse at top, #0f2a22, #0a1410 70%)' }}>
                 <div className="text-xl font-bold tracking-wide">Bot Lab</div>
@@ -87,7 +89,7 @@ type Tab = 'parts' | 'code' | 'monitor';
 
 const EMPTY: Snapshot = { type: 'snapshot', time: 0, running: false, states: {}, volts: {}, serial: [], console: [], warnings: [] };
 
-function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { saved: Saved; compile?: Compiler; compilerAvailable?: () => Promise<boolean>; onChange: (p: Project) => void; onBack: () => void }) {
+function Workbench({ saved, native, compile, compilerAvailable, onChange, onBack }: { saved: Saved; native: string; compile?: Compiler; compilerAvailable?: () => Promise<boolean>; onChange: (p: Project) => void; onBack: () => void }) {
     const [project, setProject] = useState<Project>(saved.project);
     const [snap, setSnap] = useState<Snapshot>(EMPTY);
     const [error, setError] = useState<string | null>(null);
@@ -100,13 +102,13 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
 
     // the runtime worker lives for the whole visit to this project; the current project is loaded into it on change
     useEffect(() => {
-        const c = new RuntimeClient();
+        const c = new RuntimeClient(native);
         client.current = c;
         c.start();
         const offSnap = c.onSnapshot(setSnap);
         const offErr = c.onError(setError);
         return () => { offSnap(); offErr(); c.dispose(); client.current = null; };
-    }, []);
+    }, [native]);
     useEffect(() => { if (!running) client.current?.send({ type: 'load', project }); }, [project, running]);
 
     // every change is saved at once (projects are small); drags save on release
@@ -194,7 +196,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
                         {(['bench', 'world'] as const).map(v => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={'px-3 py-1 capitalize ' + (view === v ? 'bg-emerald-500 text-black font-semibold' : 'bg-black bg-opacity-40 text-gray-300')}>{v}</button>)}
                     </div>
                 )}
-                {project.world && view === 'world' && <WorldView spec={project.world} state={snap.world} states={snap.states} editable={!running} onChange={world => change({ ...project, world })} />}
+                {project.world && view === 'world' && <WorldView native={native} spec={project.world} state={snap.world} states={snap.states} editable={!running} onChange={world => change({ ...project, world })} />}
                 <div className={'flex-grow min-h-0 overflow-auto relative' + (project.world && view === 'world' ? ' hidden' : '')} style={{ background: 'repeating-linear-gradient(0deg, #0f1d17 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, #0f1d17 0 1px, transparent 1px 16px)' }} data-testid="bench" data-running={running ? 'true' : 'false'} data-time={snap.time.toFixed(2)}>
                     <svg width={Math.max(800, ...project.parts.map(p => (p.x + spec(p).width + 4) * GRID))} height={Math.max(500, ...project.parts.map(p => (p.y + spec(p).height + 4) * GRID))} className="block select-none" style={{ touchAction: 'none' }}>
                         {project.wires.map((w, i) => {
@@ -244,7 +246,7 @@ function Workbench({ saved, compile, compilerAvailable, onChange, onBack }: { sa
 /** The world from above (x right, z down), in metres: every body (from the world itself, built on load), the track and,
  *  for a robot, its sensor spots. Stopped, a robot's world is an editor: track presets, drawing the line point by point,
  *  its width, open or closed, and the robot's start (drag it; turn it with the slider). */
-function WorldView({ spec, state, states, editable, onChange }: { spec: WorldSpec; state?: WorldState; states: Record<string, PartState>; editable: boolean; onChange: (spec: WorldSpec) => void }) {
+function WorldView({ native, spec, state, states, editable, onChange }: { native: string; spec: WorldSpec; state?: WorldState; states: Record<string, PartState>; editable: boolean; onChange: (spec: WorldSpec) => void }) {
     const [drawing, setDrawing] = useState(false);
     const [mode, setMode] = useState<'top' | '3d'>('top');
     const svg = useRef<SVGSVGElement>(null);
@@ -280,7 +282,7 @@ function WorldView({ spec, state, states, editable, onChange }: { spec: WorldSpe
             <div className="absolute z-10 bottom-2 right-2 flex text-xs rounded-full overflow-hidden border border-white border-opacity-20" role="tablist" aria-label="Camera">
                 {(['top', '3d'] as const).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setDrawing(false); }} className={'px-3 py-1 ' + (mode === m ? 'bg-emerald-500 text-black font-semibold' : 'bg-black bg-opacity-40 text-gray-300')}>{m === 'top' ? 'Top' : '3D'}</button>)}
             </div>
-            {mode === '3d' && <World3D spec={spec} state={state} states={states} />}
+            {mode === '3d' && <World3D native={native} spec={spec} state={state} states={states} />}
             {mode === 'top' && editingRobot && (
                 <div className="flex flex-wrap items-center gap-1 px-2 pt-10 pb-1 text-xs text-gray-200" aria-label="Track editor">
                     <button type="button" onClick={() => { setDrawing(false); track(ovalTrack()); }} className="px-2 py-0.5 rounded bg-white bg-opacity-10 hover:bg-opacity-20">Oval</button>
@@ -381,7 +383,7 @@ function withFloats(m: ViewModule, values: number[], call: (ptr: number) => void
 }
 
 /** The world in 3D (native/view, on the engine): it draws the bodies the snapshots carry; drag to orbit, scroll to zoom. */
-function World3D({ spec, state, states }: { spec: WorldSpec; state?: WorldState; states: Record<string, PartState> }) {
+function World3D({ native, spec, state, states }: { native: string; spec: WorldSpec; state?: WorldState; states: Record<string, PartState> }) {
     const [view, setView] = useState<ViewModule | null>(null);
     useEffect(() => {
         if (!view) return;
@@ -400,7 +402,7 @@ function World3D({ spec, state, states }: { spec: WorldSpec; state?: WorldState;
     }, [view, state, states, spec.robot, spec.arm, spec.conveyor]);
     return (
         <div className="flex-grow min-h-0" data-testid="world-3d">
-            <EngineView id="view" title="Bot Lab world" baseUrl="/vendor/bot-lab" choice="auto" embedded onBack={() => {}} onReady={instance => setView(instance as ViewModule)} />
+            <EngineView id="view" title="Bot Lab world" baseUrl={native} choice="auto" embedded onBack={() => {}} onReady={instance => setView(instance as ViewModule)} />
         </div>
     );
 }

@@ -1,0 +1,14 @@
+{
+  "hash": "0858a9bd1bd666bca37d59c61d7ab9ee8689f04e096beab22b10e20447acb87b",
+  "toolchain": [
+    "toolchain@0.1.0",
+    "adapter-cpp-wasm@0.1.0",
+    "emscripten 6.0.11",
+    "common -std=c++20 -O2 -fno-exceptions -fno-rtti -Wall -Wno-missing-field-initializers -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createGame -sENVIRONMENT=web -sDYNAMIC_EXECUTION=0 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1MB -sEXIT_RUNTIME=0 -sASSERTIONS=0 -sINCOMING_MODULE_JS_API=arguments,canvas,print,printErr,locateFile",
+    "backends {\"webgl2\":[\"-DSOKOL_GLES3\",\"-sUSE_WEBGL2=1\",\"-sMIN_WEBGL_VERSION=2\",\"-sMAX_WEBGL_VERSION=2\"],\"webgpu\":[\"-DSOKOL_WGPU\",\"--use-port=emdawnwebgpu\"]}",
+    "module {\"sources\":[\"games/turbo-trails/main.cpp\",\"games/turbo-trails/physics_box2d.cpp\",\"games/turbo-trails/terrain.cpp\",\"games/turbo-trails/rules.cpp\",\"games/turbo-trails/eras.cpp\",\"games/turbo-trails/feel.cpp\"],\"cLibraries\":[{\"sources\":\"third_party/box2d/src\",\"flags\":[\"-std=gnu17\",\"-DBOX2D_DISABLE_SIMD\",\"-Ithird_party/box2d/include\",\"-Ithird_party/box2d/src\"]}],\"shaders\":[\"shaders/turbo-trails.glsl\"],\"flags\":[\"-Ithird_party/box2d/include\",\"-sEXPORTED_RUNTIME_METHODS=UTF8ToString\",\"-sEXPORTED_FUNCTIONS=_main,_free\"],\"features\":[\"text\"],\"fonts\":[\"LilitaOne-Regular.ttf\"],\"assets\":\"games/turbo-trails/assets\"}",
+    "sokol-shdc 11d0cf678105d614d675e6d9bd2aaf3eeff12f8c",
+    "slang glsl300es:wgsl",
+    "provider @xlibraries/engine@0.1.0"
+  ]
+}

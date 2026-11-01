@@ -10,104 +10,372 @@
     "6": "the site"
   },
   "packages": {
-    "@xlibraries/graph": { "layer": 0, "as": "graph" },
-    "@xlibraries/engine": { "layer": 1, "as": "engine-core" },
-    "@xlibraries/app-sdk": { "layer": 3, "as": "app-sdk" },
-    "@xlibraries/arcade": { "layer": 5, "as": "arcade" },
-    "@xlibraries/bot-lab": { "layer": 5, "as": "bot-lab" },
-    "@xlibraries/analytics": { "layer": 5, "as": "analytics" },
-    "@xlibraries/browser": { "layer": 5, "as": "browser" },
-    "@xlibraries/music": { "layer": 5, "as": "music" },
-    "@xlibraries/photo-drop": { "layer": 5, "as": "photo-drop" },
-    "@xlibraries/terminal": { "layer": 5, "as": "terminal" },
-    "@xlibraries/arduino-compiler": { "layer": 5, "as": "arduino-compiler" },
-    "@xlibraries/web": { "layer": 6, "as": "web" }
+    "@xlibraries/graph": {
+      "layer": 0,
+      "as": "graph"
+    },
+    "@xlibraries/engine": {
+      "layer": 1,
+      "as": "engine-core"
+    },
+    "@xlibraries/app-sdk": {
+      "layer": 3,
+      "as": "app-sdk"
+    },
+    "@xlibraries/arcade": {
+      "layer": 5,
+      "as": "arcade"
+    },
+    "@xlibraries/bot-lab": {
+      "layer": 5,
+      "as": "bot-lab"
+    },
+    "@xlibraries/analytics": {
+      "layer": 5,
+      "as": "analytics"
+    },
+    "@xlibraries/browser": {
+      "layer": 5,
+      "as": "browser"
+    },
+    "@xlibraries/music": {
+      "layer": 5,
+      "as": "music"
+    },
+    "@xlibraries/photo-drop": {
+      "layer": 5,
+      "as": "photo-drop"
+    },
+    "@xlibraries/terminal": {
+      "layer": 5,
+      "as": "terminal"
+    },
+    "@xlibraries/arduino-compiler": {
+      "layer": 5,
+      "as": "arduino-compiler"
+    },
+    "@xlibraries/web": {
+      "layer": 6,
+      "as": "web"
+    },
+    "@xlibraries/toolchain": {
+      "layer": 0,
+      "as": "toolchain"
+    },
+    "@xlibraries/adapter-cpp-wasm": {
+      "layer": 0,
+      "as": "adapter-cpp-wasm"
+    },
+    "@xlibraries/adapter-shader-sokol": {
+      "layer": 0,
+      "as": "adapter-shader-sokol"
+    },
+    "@xlibraries/adapter-native-test": {
+      "layer": 0,
+      "as": "adapter-native-test"
+    }
   },
   "units": {
     "@xlibraries/engine": {
-      "native/runtime": { "as": "engine-core", "layer": 1 },
-      "third_party/HandmadeMath": { "as": "engine-core", "layer": 1 },
-      "src/backend": { "as": "engine-web", "layer": 1 },
-      "src/gamepad": { "as": "engine-web", "layer": 1 },
-      "third_party/sokol": { "as": "engine-web", "layer": 1 },
-      "tests/backend": { "as": "engine-web", "layer": 1 },
-      "tests/gamepad": { "as": "engine-web", "layer": 1 },
-      "src": { "as": "engine-react", "layer": 1 },
-      "tests/engine-view": { "as": "engine-react", "layer": 1 },
-      "native/runtime/xl_audio": { "as": "engine-audio", "layer": 2 },
-      "native/runtime/xl-audio-worklet": { "as": "engine-audio", "layer": 2 },
-      "tests/audio-worklet": { "as": "engine-audio", "layer": 2 },
-      "native/runtime/xl_text": { "as": "engine-text", "layer": 2 },
-      "native/runtime/xl_font": { "as": "engine-text", "layer": 2 },
-      "native/fonts": { "as": "engine-text", "layer": 2 },
-      "third_party/stb": { "as": "engine-text", "layer": 2 },
-      "tests/native/font_test": { "as": "engine-text", "layer": 2 },
-      "native/runtime/xl_physics": { "as": "physics-3d", "layer": 2 },
-      "third_party/jolt": { "as": "physics-3d", "layer": 2 },
-      "tests/native/physics_test": { "as": "physics-3d", "layer": 2 },
-      "scripts": { "as": "toolchain", "layer": 0 },
-      "third_party/doctest": { "as": "toolchain", "layer": 0 },
-      "tests/native/main": { "as": "toolchain", "layer": 0 },
-      "tests/build": { "as": "toolchain", "layer": 0 }
+      "native/runtime": {
+        "as": "engine-core",
+        "layer": 1
+      },
+      "third_party/HandmadeMath": {
+        "as": "engine-core",
+        "layer": 1
+      },
+      "src/backend": {
+        "as": "engine-web",
+        "layer": 1
+      },
+      "src/gamepad": {
+        "as": "engine-web",
+        "layer": 1
+      },
+      "third_party/sokol": {
+        "as": "engine-web",
+        "layer": 1
+      },
+      "tests/backend": {
+        "as": "engine-web",
+        "layer": 1
+      },
+      "tests/gamepad": {
+        "as": "engine-web",
+        "layer": 1
+      },
+      "src": {
+        "as": "engine-react",
+        "layer": 1
+      },
+      "tests/engine-view": {
+        "as": "engine-react",
+        "layer": 1
+      },
+      "native/runtime/xl_audio": {
+        "as": "engine-audio",
+        "layer": 2
+      },
+      "native/runtime/xl-audio-worklet": {
+        "as": "engine-audio",
+        "layer": 2
+      },
+      "tests/audio-worklet": {
+        "as": "engine-audio",
+        "layer": 2
+      },
+      "native/runtime/xl_text": {
+        "as": "engine-text",
+        "layer": 2
+      },
+      "native/runtime/xl_font": {
+        "as": "engine-text",
+        "layer": 2
+      },
+      "native/fonts": {
+        "as": "engine-text",
+        "layer": 2
+      },
+      "third_party/stb": {
+        "as": "engine-text",
+        "layer": 2
+      },
+      "tests/native/font_test": {
+        "as": "engine-text",
+        "layer": 2
+      },
+      "native/runtime/xl_physics": {
+        "as": "physics-3d",
+        "layer": 2
+      },
+      "third_party/jolt": {
+        "as": "physics-3d",
+        "layer": 2
+      },
+      "tests/native/physics_test": {
+        "as": "physics-3d",
+        "layer": 2
+      }
     },
     "@xlibraries/arcade": {
-      "native/games/jyotirath": { "as": "game-jyotirath", "layer": 4 },
-      "native/games/jyotirath/mesh": { "as": "render", "layer": 2 },
-      "tests/native/jyotirath": { "as": "game-jyotirath", "layer": 4 },
-      "native/games/turbo-trails": { "as": "game-turbo-trails", "layer": 4 },
-      "native/games/turbo-trails/physics_box2d": { "as": "physics-2d", "layer": 2 },
-      "tests/native/turbo_trails": { "as": "game-turbo-trails", "layer": 4 },
-      "src/turbo-trails": { "as": "game-turbo-trails", "layer": 4 },
-      "third_party/box2d": { "as": "physics-2d", "layer": 2 },
-      "native/games/breakout": { "as": "game-breakout", "layer": 4 },
-      "tests/native/breakout": { "as": "game-breakout", "layer": 4 },
-      "native/games/hello": { "as": "sample-hello", "layer": 4 },
-      "native/games/showcase": { "as": "sample-showcase", "layer": 4 },
-      "tests/native/showcase": { "as": "sample-showcase", "layer": 4 },
-      "native/games/playground": { "as": "sample-playground", "layer": 4 },
-      "src/playground": { "as": "sample-playground", "layer": 4 },
-      "tests/compose": { "as": "sample-playground", "layer": 4 }
+      "native/games/jyotirath": {
+        "as": "game-jyotirath",
+        "layer": 4
+      },
+      "native/games/jyotirath/mesh": {
+        "as": "render",
+        "layer": 2
+      },
+      "tests/native/jyotirath": {
+        "as": "game-jyotirath",
+        "layer": 4
+      },
+      "native/games/turbo-trails": {
+        "as": "game-turbo-trails",
+        "layer": 4
+      },
+      "native/games/turbo-trails/physics_box2d": {
+        "as": "physics-2d",
+        "layer": 2
+      },
+      "tests/native/turbo_trails": {
+        "as": "game-turbo-trails",
+        "layer": 4
+      },
+      "src/turbo-trails": {
+        "as": "game-turbo-trails",
+        "layer": 4
+      },
+      "third_party/box2d": {
+        "as": "physics-2d",
+        "layer": 2
+      },
+      "native/games/breakout": {
+        "as": "game-breakout",
+        "layer": 4
+      },
+      "tests/native/breakout": {
+        "as": "game-breakout",
+        "layer": 4
+      },
+      "native/games/hello": {
+        "as": "sample-hello",
+        "layer": 4
+      },
+      "native/games/showcase": {
+        "as": "sample-showcase",
+        "layer": 4
+      },
+      "tests/native/showcase": {
+        "as": "sample-showcase",
+        "layer": 4
+      },
+      "native/games/playground": {
+        "as": "sample-playground",
+        "layer": 4
+      },
+      "src/playground": {
+        "as": "sample-playground",
+        "layer": 4
+      },
+      "tests/compose": {
+        "as": "sample-playground",
+        "layer": 4
+      }
     },
     "@xlibraries/bot-lab": {
-      "src/sim": { "as": "bot-lab-sim", "layer": 3, "pure": true },
-      "tests/mna": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/bench": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/uno": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/pico": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/pi-board": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/i2c": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/draw": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/arm": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/drive": { "as": "bot-lab-sim", "layer": 3 },
-      "tests/world": { "as": "bot-lab-sim", "layer": 3 },
-      "src/sim/laps": { "as": "bot-lab-projects", "layer": 4 },
-      "src/sim/hover": { "as": "bot-lab-projects", "layer": 4 },
-      "tests/laps": { "as": "bot-lab-projects", "layer": 4 },
-      "tests/hover": { "as": "bot-lab-projects", "layer": 4 },
-      "tests/flight": { "as": "bot-lab-projects", "layer": 4 },
-      "src/templates": { "as": "bot-lab-projects", "layer": 4 },
-      "templates": { "as": "bot-lab-projects", "layer": 4 },
-      "scripts/sync-templates": { "as": "bot-lab-projects", "layer": 4 },
-      "scripts/compile-templates": { "as": "bot-lab-projects", "layer": 4 },
-      "src/runtime": { "as": "bot-lab-runtime", "layer": 4 },
-      "python": { "as": "bot-lab-runtime", "layer": 4 },
-      "scripts/sync-python": { "as": "bot-lab-runtime", "layer": 4 },
-      "tests/pi-runtime": { "as": "bot-lab-runtime", "layer": 4 },
-      "tests/runtime-client": { "as": "bot-lab-runtime", "layer": 4 },
-      "tests/terminal": { "as": "bot-lab-runtime", "layer": 4 },
-      "native/world": { "as": "bot-lab-world", "layer": 4 },
-      "native/view": { "as": "bot-lab-world", "layer": 4 },
-      "scripts/build-native": { "as": "bot-lab-world", "layer": 4 },
-      "tests/native-build": { "as": "bot-lab-world", "layer": 4 }
+      "src/sim": {
+        "as": "bot-lab-sim",
+        "layer": 3,
+        "pure": true
+      },
+      "tests/mna": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/bench": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/uno": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/pico": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/pi-board": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/i2c": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/draw": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/arm": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/drive": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "tests/world": {
+        "as": "bot-lab-sim",
+        "layer": 3
+      },
+      "src/sim/laps": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "src/sim/hover": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "tests/laps": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "tests/hover": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "tests/flight": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "src/templates": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "templates": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "scripts/sync-templates": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "scripts/compile-templates": {
+        "as": "bot-lab-projects",
+        "layer": 4
+      },
+      "src/runtime": {
+        "as": "bot-lab-runtime",
+        "layer": 4
+      },
+      "python": {
+        "as": "bot-lab-runtime",
+        "layer": 4
+      },
+      "scripts/sync-python": {
+        "as": "bot-lab-runtime",
+        "layer": 4
+      },
+      "tests/pi-runtime": {
+        "as": "bot-lab-runtime",
+        "layer": 4
+      },
+      "tests/runtime-client": {
+        "as": "bot-lab-runtime",
+        "layer": 4
+      },
+      "tests/terminal": {
+        "as": "bot-lab-runtime",
+        "layer": 4
+      },
+      "native/world": {
+        "as": "bot-lab-world",
+        "layer": 4
+      },
+      "native/view": {
+        "as": "bot-lab-world",
+        "layer": 4
+      },
+      "scripts/build-native": {
+        "as": "bot-lab-world",
+        "layer": 4
+      },
+      "tests/native-build": {
+        "as": "bot-lab-world",
+        "layer": 4
+      }
     }
   },
   "allowSameLayer": [
-    ["engine-web", "engine-core"],
-    ["engine-react", "engine-web"],
-    ["engine-react", "engine-core"]
+    [
+      "engine-web",
+      "engine-core"
+    ],
+    [
+      "engine-react",
+      "engine-web"
+    ],
+    [
+      "engine-react",
+      "engine-core"
+    ],
+    [
+      "adapter-cpp-wasm",
+      "adapter-shader-sokol"
+    ]
   ],
   "forbid": [
-    { "from": "arcade", "to": "game-*", "why": "the Arcade app knows no game by name: games are discovered" },
-    { "from": "arcade", "to": "sample-*", "why": "the Arcade app knows no game by name: games are discovered" }
+    {
+      "from": "arcade",
+      "to": "game-*",
+      "why": "the Arcade app knows no game by name: games are discovered"
+    },
+    {
+      "from": "arcade",
+      "to": "sample-*",
+      "why": "the Arcade app knows no game by name: games are discovered"
+    }
   ]
 }

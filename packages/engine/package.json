@@ -1,29 +1,25 @@
 {
   "name": "@xlibraries/engine",
   "version": "0.1.0",
-  "description": "The C++/sokol WebAssembly engine behind the Xlib desktop's real-time apps: runtime, build pipeline, vendored libraries and the React canvas host",
+  "description": "The C++/sokol WebAssembly engine behind the Xlib desktop's real-time apps: runtime, vendored libraries and the React canvas host; built into modules by @xlibraries/toolchain",
   "private": true,
   "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./build": "./scripts/build.mjs",
-    "./test": "./scripts/test.mjs",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
     "native",
-    "third_party",
-    "scripts",
-    "tests/native/main.cpp"
+    "third_party"
   ],
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node scripts/test.mjs",
-    "verify": "eslint . && tsc --noEmit && vitest run && node scripts/test.mjs",
-    "test:native": "node scripts/test.mjs"
+    "test": "vitest run && xl-native-test",
+    "verify": "eslint . && tsc --noEmit && vitest run && xl-native-test",
+    "test:native": "xl-native-test"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -31,8 +27,53 @@
   "devDependencies": {
     "@types/node": "^25.3.3",
     "@types/react": "^19.3.0",
+    "@xlibraries/adapter-native-test": "workspace:^",
     "react": "^19.2.9",
     "typescript": "^5.9.3",
     "vitest": "3.2.4"
+  },
+  "xlibraries": {
+    "native": {
+      "prefix": "engine",
+      "include": [
+        "native/runtime",
+        "third_party/sokol",
+        "third_party"
+      ],
+      "assets": [
+        "native/runtime/xl-audio-worklet.js"
+      ],
+      "fonts": "native/fonts",
+      "features": {
+        "text": {
+          "sources": [
+            "native/runtime/xl_font.cpp"
+          ]
+        },
+        "physics": {
+          "sources": [
+            "native/runtime/xl_physics.cpp"
+          ],
+          "libraries": [
+            "jolt"
+          ]
+        }
+      },
+      "libraries": {
+        "jolt": {
+          "sources": "third_party/jolt/Jolt",
+          "isystem": [
+            "third_party/jolt"
+          ],
+          "defines": [
+            "-DJPH_OBJECT_LAYER_BITS=32",
+            "-DJPH_DISABLE_CUSTOM_ALLOCATOR",
+            "-DJPH_CROSS_PLATFORM_DETERMINISTIC",
+            "-DNDEBUG"
+          ]
+        }
+      },
+      "testSources": "native/runtime"
+    }
   }
 }

@@ -1,0 +1,26 @@
+{
+  "name": "@xlibraries/adapter-cpp-wasm",
+  "version": "0.1.0",
+  "description": "Toolchain adapter: C++ to WebAssembly with the pinned Emscripten, for WebGPU and WebGL2 (or headless), its shaders through adapter-shader-sokol",
+  "license": "MIT",
+  "type": "module",
+  "repository": { "type": "git", "url": "https://github.com/xlibraries/Xlib.git", "directory": "packages/tooling/adapter-cpp-wasm" },
+  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": ["src"],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run",
+    "verify": "eslint . && vitest run"
+  },
+  "dependencies": {
+    "@xlibraries/adapter-shader-sokol": "workspace:^"
+  },
+  "devDependencies": {
+    "@xlibraries/toolchain": "workspace:^",
+    "vitest": "3.2.4"
+  }
+}

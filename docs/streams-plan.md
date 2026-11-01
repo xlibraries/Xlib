@@ -1,9 +1,8 @@
 # Streams plan: engine, Arcade, Bot Lab (current vs proposed)
 
-> **Status: phase 0 under way; progress is tracked in [MIGRATION.md](../MIGRATION.md).** Done: the graph check
-> (`pnpm graph`, `architecture/layers.json`, today's 72 violations in `architecture/baseline.json`), Changesets, the
-> registry config and the release workflow. Left: the tokens and settings only you can add. Nothing else has moved yet. Each phase below is one PR with
-> `pnpm verify` green.
+> **Status: phases 0 and 1 done; progress is tracked in [MIGRATION.md](../MIGRATION.md).** The toolchain landed in
+> `packages/tooling/` rather than `packages/engine/`: it's layer 0 and serves more than the engine. Each phase below is
+> one PR with `pnpm verify` green.
 
 ## 0. The principle
 

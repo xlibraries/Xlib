@@ -5,7 +5,8 @@ import type { Project } from '../sim/project';
 import type { WorldState } from '../sim/world';
 
 export type Command =
-    | { type: 'init'; origin: string }
+    /** native: the folder Bot Lab's modules are served from (dist/<module>/), e.g. "/native/bot-lab@1.2.0" */
+    | { type: 'init'; origin: string; native: string }
     | { type: 'load'; project: Project }
     | { type: 'run' }
     | { type: 'stop' }
@@ -44,7 +45,7 @@ export type WorkerToApp = Snapshot | { type: 'error'; message: string };
 export const PYODIDE_PATH = '/vendor/pyodide';
 /** The Pico's boot ROM (float library removed) and MicroPython image, copied from packages/bot-lab/firmware */
 export const PICO_PATH = '/vendor/pico';
-/** The physics world (packages/bot-lab/dist/world) */
-export const WORLD_PATH = '/vendor/bot-lab/world/headless.js';
+/** The physics world, under the native folder the app is given (dist/world) */
+export const WORLD_FILE = 'world/headless.js';
 export const PICO_FILES = { bootrom: 'rp2040-bootrom-b1-nofp.bin', uf2: 'micropython-rpi-pico-v1.29.0.uf2' };
 export const SNAPSHOT_HZ = 30;
