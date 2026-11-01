@@ -76,9 +76,14 @@ function hostLibrary(lib, run) {
     });
 }
 
-/** Compiles and runs the package's native tests. */
-export function runNativeTests(root) {
-    const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit' });
+/**
+ * Compiles and runs the package's native tests.
+ * @param root The package's folder.
+ * @param options `exec` (runs a command) can be replaced, for tests.
+ * @throws If compiling fails or a test fails (the binary exits non-zero).
+ */
+export function runNativeTests(root, { exec = execFileSync } = {}) {
+    const run = (cmd, args) => exec(cmd, args, { cwd: root, stdio: 'inherit' });
     mkdirSync(join(root, 'build/native-obj'), { recursive: true });
     const tests = readJson(join(root, 'package.json')).xlibraries?.nativeTests ?? {};
     const objects = libsOf(providers(root)).flatMap((l) => hostLibrary(l, run));

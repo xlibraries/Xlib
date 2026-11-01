@@ -1,6 +1,8 @@
-// Hosts one engine module (a C++/sokol program built by scripts/build.mjs): picks the backend, loads its
-// WebAssembly build, and connects it to the window (keyboard focus, pause while hidden, gamepad, the desktop's
-// volume, a phone's tilt, fullscreen). Closing the view shuts the module down and releases its GPU resources.
+/**
+ * @file Hosts one engine module (a C++/sokol program built by @xlibraries/toolchain): picks the backend, loads its
+ * WebAssembly build, and connects it to the window (keyboard focus, pause while hidden, gamepad, the desktop's
+ * volume, a phone's tilt, fullscreen). Closing the view shuts the module down and releases its GPU resources.
+ */
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { BACKEND_LABEL, NO_PAD, pickBackend, readPad, samePad, type Backend, type BackendChoice } from '@xlibraries/engine-web';
 
@@ -50,7 +52,13 @@ export function tiltLean(pitch: number | null, baseline: number | null): number 
     return Math.max(-1, Math.min(1, (pitch - baseline) / 22));
 }
 
-type CreateModule = (options: Record<string, unknown>) => Promise<EngineInstance>;
+/** A module's factory, as its build's JavaScript exports it. */
+export type CreateModule = (options: Record<string, unknown>) => Promise<EngineInstance>;
+
+/** Loads a module's build from a URL (the browser's import(), unless replaced). */
+export type ModuleLoader = (url: string) => Promise<{ default: CreateModule }>;
+
+const importModule: ModuleLoader = (url) => import(/* webpackIgnore: true */ url) as Promise<{ default: CreateModule }>;
 
 type Status = { kind: 'loading' } | { kind: 'running'; backend: Backend } | { kind: 'error'; message: string };
 
@@ -71,9 +79,13 @@ export interface EngineViewProps {
     embedded?: boolean;
     /** Called with the running instance once it has started (to feed it data through its exports) */
     onReady?: (instance: EngineInstance) => void;
+    /** How the build is loaded (the browser's import() by default; tests pass their own) */
+    loadModule?: ModuleLoader;
+    /** How the backends are detected (the browser's by default; tests pass their own) */
+    support?: Parameters<typeof pickBackend>[1];
 }
 
-export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, backLabel = '← Back', renderPanel, embedded = false, onReady }: EngineViewProps) {
+export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, backLabel = '← Back', renderPanel, embedded = false, onReady, loadModule = importModule, support }: EngineViewProps) {
     const canvasId = 'arcade-' + useId().replace(/[^a-zA-Z0-9]/g, '');
     const canvas = useRef<HTMLCanvasElement>(null);
     const frame = useRef<HTMLDivElement>(null);
@@ -90,10 +102,10 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
     useEffect(() => {
         let disposed = false;
         (async () => {
-            const backend = await pickBackend(choice);
+            const backend = await pickBackend(choice, support);
             if (!backend) throw new Error(choice === 'auto' ? 'This browser supports neither WebGPU nor WebGL2.' : `This browser doesn't support ${BACKEND_LABEL[choice]}.`);
             const base = `${baseUrl}/${id}`;
-            const module = (await import(/* webpackIgnore: true */ `${base}/${backend}.js`)) as { default: CreateModule };
+            const module = await loadModule(`${base}/${backend}.js`);
             const created = await module.default({
                 arguments: [`--canvas=#${canvasId}`, `--game=${id}`],
                 canvas: canvas.current,
@@ -120,7 +132,7 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
             instance.current?._xl_quit();
             instance.current = null;
         };
-    }, [id, baseUrl, choice, canvasId]);
+    }, [id, baseUrl, choice, canvasId]);   // eslint-disable-line react-hooks/exhaustive-deps -- the loader and probes are fixed for a view's life
 
     // The desktop's volume slider reaches the game's audio (and again once it has loaded)
     useEffect(() => { if (running) applyVolume(running, volume); }, [running, volume]);

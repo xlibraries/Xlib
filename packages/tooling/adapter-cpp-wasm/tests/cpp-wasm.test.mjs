@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { BACKENDS, EMSCRIPTEN_VERSION, emArgs, fingerprint, headlessArgs, includeClosure, inputs, outputs } from '../src/index.mjs';
+import { BACKENDS, EMSCRIPTEN_VERSION, build, checkEmscripten, emArgs, fingerprint, headlessArgs, includeClosure, inputs, outputs } from '../src/index.mjs';
 
 const roots = [];
 afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true }); });
@@ -113,5 +113,88 @@ describe('inputs', () => {
         expect(bl.some((l) => l.includes('games/a') || l.includes('worklet'))).toBe(false);   // not another game's; no assets headless
         const hud = inputs(ctx('a', { sources: ['games/a/main.cpp'], fonts: ['Hand.ttf'] }, ['core', 'text'])).map((i) => i.label);
         expect(hud).toEqual(expect.arrayContaining(['@s/core/runtime/xl_font.cpp', '@s/core/vendor/stb_truetype.h', '@s/core/fonts/Hand.ttf']));
+    });
+});
+
+describe('building', () => {
+    /** A module on disk with a provider that has a library, link sources, a font and an asset. */
+    function project() {
+        const base = mkdtempSync(join(tmpdir(), 'cpp-build-'));
+        roots.push(base);
+        const write = (path, body = '') => { mkdirSync(dirname(join(base, path)), { recursive: true }); writeFileSync(join(base, path), body); };
+        write('game/native/games/a/main.cpp', '#include "xl.h"\n');
+        write('game/native/games/a/assets/song.mp3', 'la');
+        write('game/native/shaders/a.glsl', '@vs vs\n@end\n');
+        write('game/third_party/clib/src/one.c', '');
+        write('game/third_party/clib/src/two.c', '');
+        write('engine/include/xl.h', '#pragma once\n');
+        write('engine/src/xl_web.cpp', '#include "xl.h"\n');
+        write('engine/src/worklet.js', '');
+        write('engine/lib/Lib/One.cpp', '');
+        write('engine/lib/Lib/Sub/Two.cpp', '');
+        const engine = { root: join(base, 'engine'), name: '@s/engine', version: '1.0.0', native: { prefix: 'engine', include: ['include'], link: ['src/xl_web.cpp'], assets: ['src/worklet.js'], libraries: { lib: { sources: 'lib/Lib', isystem: ['lib'], defines: ['-DLIB'] } } } };
+        const ctx = (spec) => ({ root: join(base, 'game'), name: 'a', spec: { adapter: 'cpp-wasm', sources: ['games/a/main.cpp'], ...spec }, providers: [engine], pkg: {} });
+        return { base, ctx, engine };
+    }
+    /** A stand-in for running commands: answers em++ --version, records the rest and creates what -o names. */
+    function fakeExec(version = `emcc ${EMSCRIPTEN_VERSION}`) {
+        const calls = [];
+        const exec = (cmd, args, opts = {}) => {
+            if (args[0] === '--version') { if (version === null) throw new Error('not found'); return version; }
+            calls.push({ cmd, args, cwd: opts.cwd });
+            const out = args[args.indexOf('-o') + 1];
+            if (out) { const path = out.startsWith('/') ? out : join(opts.cwd, out); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, ''); }
+            return '';
+        };
+        return { exec, calls };
+    }
+    const quiet = () => {};
+
+    it('compiles shaders, C libraries and the providers\' libraries, then each backend, and copies the assets', async () => {
+        const { ctx, engine } = project();
+        const { exec, calls } = fakeExec();
+        const c = ctx({ shaders: ['shaders/a.glsl'], cLibraries: [{ sources: 'third_party/clib/src', flags: ['-DC'] }], assets: 'games/a/assets' });
+        await build(c, { log: quiet, exec, shdc: '/bin/shdc' });
+        const tools = calls.map((x) => x.cmd);
+        expect(tools).toEqual(['/bin/shdc', 'emcc', 'emcc', 'em++', 'em++', 'em++', 'em++']);   // shader, 2 C files, 2 library files, 2 backends
+        expect(calls[1].args).toEqual(['-O2', '-fno-exceptions', `-ffile-prefix-map=${c.root}=.`, '-DC', '-c', 'third_party/clib/src/one.c', '-o', 'build/obj/third_party_clib_src/one.o']);
+        expect(calls[3]).toMatchObject({ cwd: engine.root });   // a provider's library builds in the provider
+        expect(calls[3].args).toEqual(expect.arrayContaining([`-ffile-prefix-map=${engine.root}=engine`, `-isystem${join(engine.root, 'lib')}`, '-DLIB', join(engine.root, 'lib/Lib/One.cpp')]));
+        expect(calls[4].args.at(-1)).toBe(join(engine.root, 'build/obj/lib/Sub_Two.o'));
+        expect(calls[5].args).toEqual(emArgs(c, 'webgpu', ['build/obj/third_party_clib_src/one.o', 'build/obj/third_party_clib_src/two.o', join(engine.root, 'build/obj/lib/One.o'), join(engine.root, 'build/obj/lib/Sub_Two.o')]));
+        expect(calls[6].args.slice(-2)).toEqual(['-o', 'dist/a/webgl2.js']);
+        expect(readFileSync(join(c.root, 'dist/a/song.mp3'), 'utf8')).toBe('la');       // the module's assets
+        expect(existsSync(join(c.root, 'dist/a/worklet.js'))).toBe(true);                 // the provider's
+    });
+
+    it('reuses a provider library\'s objects while they are newer than their sources', async () => {
+        const { ctx } = project();
+        const first = fakeExec();
+        await build(ctx({}), { log: quiet, exec: first.exec });
+        expect(first.calls.filter((x) => x.cwd !== ctx({}).root)).toHaveLength(2);
+        const again = fakeExec();
+        await build(ctx({}), { log: quiet, exec: again.exec });
+        expect(again.calls.map((x) => x.cmd)).toEqual(['em++', 'em++']);   // just the two backends
+    });
+
+    it('builds a headless module once, with no assets, and empties dist first', async () => {
+        const { ctx } = project();
+        const c = ctx({ headless: true, assets: 'games/a/assets' });
+        mkdirSync(join(c.root, 'dist/a'), { recursive: true });
+        writeFileSync(join(c.root, 'dist/a/stale.js'), '');
+        const { exec, calls } = fakeExec();
+        await build(c, { log: quiet, exec });
+        expect(calls.filter((x) => x.cmd === 'em++' && x.cwd === c.root).map((x) => x.args.slice(-2))).toEqual([['-o', 'dist/a/headless.js']]);
+        expect(existsSync(join(c.root, 'dist/a/stale.js'))).toBe(false);
+        expect(existsSync(join(c.root, 'dist/a/song.mp3'))).toBe(false);
+    });
+
+    it('stops before building without the pinned Emscripten', async () => {
+        const { ctx } = project();
+        expect(() => checkEmscripten(fakeExec(null).exec)).toThrow(/em\+\+ not found/);
+        expect(() => checkEmscripten(fakeExec('emcc 3.1.0').exec)).toThrow(new RegExp(`Emscripten ${EMSCRIPTEN_VERSION} required`));
+        const { exec, calls } = fakeExec('emcc 3.1.0');
+        await expect(build(ctx({}), { log: quiet, exec })).rejects.toThrow(/required/);
+        expect(calls).toEqual([]);
     });
 });

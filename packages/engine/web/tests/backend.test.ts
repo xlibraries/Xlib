@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickBackend, webgl2Available, webgpuAvailable } from '../src/backend';
+import { BACKEND_LABEL, pickBackend, webgl2Available, webgpuAvailable } from '../src/backend';
 
 const support = (webgpu: boolean, webgl2: boolean) => ({ webgpu: async () => webgpu, webgl2: () => webgl2 });
 
@@ -25,5 +25,31 @@ describe('feature detection', () => {
     it('checks for a WebGL2 context', () => {
         expect(webgl2Available(() => ({ getContext: () => ({}) }))).toBe(true);
         expect(webgl2Available(() => ({ getContext: () => null }))).toBe(false);
+    });
+});
+
+describe('detection edge cases', () => {
+    it('says no WebGL2 when making a canvas or a context throws', () => {
+        expect(webgl2Available(() => { throw new Error('no DOM'); })).toBe(false);
+        expect(webgl2Available(() => ({ getContext: () => { throw new Error('blocked'); } }))).toBe(false);
+        expect(webgl2Available(() => ({ getContext: () => ({}) }))).toBe(true);
+    });
+
+    it('says no WebGPU when there is no navigator.gpu, or asking for an adapter fails', async () => {
+        expect(await webgpuAvailable(undefined)).toBe(false);
+        expect(await webgpuAvailable({ requestAdapter: () => Promise.reject(new Error('lost')) })).toBe(false);
+        expect(await webgpuAvailable({ requestAdapter: async () => null })).toBe(false);
+    });
+
+    it('labels each backend', () => {
+        expect(BACKEND_LABEL).toEqual({ webgpu: 'WebGPU', webgl2: 'WebGL2' });
+    });
+});
+
+describe('the browser\'s own probes', () => {
+    it('find neither backend where there is no navigator.gpu and no DOM (here, in Node)', async () => {
+        expect(await webgpuAvailable()).toBe(false);
+        expect(webgl2Available()).toBe(false);
+        expect(await pickBackend('auto')).toBeNull();
     });
 });

@@ -4,19 +4,28 @@
   "description": "Toolchain adapter: sokol-shdc (pinned) cross-compiles annotated GLSL to GLSL ES 3.0 and WGSL headers",
   "license": "MIT",
   "type": "module",
-  "repository": { "type": "git", "url": "https://github.com/xlibraries/Xlib.git", "directory": "packages/tooling/adapter-shader-sokol" },
-  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/tooling/adapter-shader-sokol"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "exports": {
     ".": "./src/index.mjs",
     "./package.json": "./package.json"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "lint": "eslint .",
-    "test": "vitest run",
-    "verify": "eslint . && vitest run"
+    "test": "vitest run --coverage",
+    "verify": "eslint . && vitest run --coverage"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "3.2.4",
     "vitest": "3.2.4"
   }
 }

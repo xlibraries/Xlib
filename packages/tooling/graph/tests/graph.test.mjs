@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { check, compare, exportedFile, nativeIncludes, scan, scriptImports } from '../src/graph.mjs';
-import { NATIVE, RULES, SCRIPT, UNITS } from './fixtures/workspaces.mjs';
+import { NATIVE, RELATIVE, RULES, SCRIPT, UNITS } from './fixtures/workspaces.mjs';
 
 const roots = [];
 afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true }); });
@@ -76,6 +76,21 @@ describe('the rules', () => {
         expect(found).toContain('private: game-one -> render (mesh.h)');
         expect(found).toContain('upward: physics -> game-one (layer 2 -> 4)');   // the backend includes the game's header
         expect(found.some((k) => k.includes('arcade'))).toBe(false);              // the test belongs to its game
+    });
+});
+
+describe('relative imports', () => {
+    it('are edges between units when they cross one, nothing within one, and private when they leave the package', () => {
+        const cfg = { packages: { '@s/lab': { layer: 5, as: 'lab' } }, units: { '@s/lab': { 'src/sim': { as: 'sim', layer: 3 }, 'src/app': { as: 'app', layer: 5 } } } };
+        const graph = scan(workspace(RELATIVE), cfg);
+        const edges = graph.edges.filter((e) => e.to).map((e) => `${e.from}->${e.to}`);
+        expect(edges).toEqual(expect.arrayContaining(['app->sim', 'sim->app']));
+        expect(edges).not.toContain('sim->sim');   // './util': the same unit
+        const found = check(graph, cfg).map((v) => v.key);
+        expect(found).toContain('upward: sim -> app (layer 3 -> 5)');
+        expect(found).toContain('private: sim (reaches outside its package: ../../../other/secret)');
+        expect(found).toContain('cycle: app, sim');
+        expect(found.some((k) => k.includes('fs') || k.includes('path'))).toBe(false);   // Node's own modules
     });
 });
 

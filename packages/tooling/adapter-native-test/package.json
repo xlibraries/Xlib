@@ -4,8 +4,14 @@
   "description": "Toolchain adapter: a package's graphics-free C++ under doctest, with the system compilers; doctest is its public header",
   "license": "MIT",
   "type": "module",
-  "repository": { "type": "git", "url": "https://github.com/xlibraries/Xlib.git", "directory": "packages/tooling/adapter-native-test" },
-  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/tooling/adapter-native-test"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "bin": {
     "xl-native-test": "./bin/xl-native-test.mjs"
   },
@@ -13,13 +19,18 @@
     ".": "./src/index.mjs",
     "./package.json": "./package.json"
   },
-  "files": ["src", "bin", "include"],
+  "files": [
+    "src",
+    "bin",
+    "include"
+  ],
   "scripts": {
     "lint": "eslint .",
-    "test": "vitest run",
-    "verify": "eslint . && vitest run"
+    "test": "vitest run --coverage",
+    "verify": "eslint . && vitest run --coverage"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "3.2.4",
     "vitest": "3.2.4"
   }
 }

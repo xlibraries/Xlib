@@ -14,6 +14,11 @@ never `npm install`).
   and the e2e suite. The `.githooks/pre-commit` hook enforces this (installed by `pnpm install`).
 - Fix flaky tests rather than retrying them; e2e tests must not depend on outside services (mock them with
   `page.route`).
+- **Every new code path is unit-tested, not just the happy path**: CLIs, build and compile steps, error paths, React
+  components. Make side effects testable with an injected seam (a command runner, a module loader, `fetch`) instead
+  of leaving them to e2e. The migration's packages (`packages/tooling/*`, `packages/engine/*` with TypeScript) run
+  `vitest run --coverage` in `verify` with floors in their `vitest.config` (lines and statements 95%, functions 85%,
+  branches 80%); a new package starts with the same config. Check coverage before calling work done.
 
 ## Comments: Doxygen style
 

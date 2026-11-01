@@ -38,3 +38,19 @@ describe('readPad', () => {
         expect(samePad(readPad([pad([0, 0, 0, 0])]), NO_PAD)).toBe(false);
     });
 });
+
+describe('readPad edge cases', () => {
+    it('reads missing axes as centred, button values without pressed, and ignores buttons past 31', () => {
+        const p = { connected: true, axes: [0.5], buttons: [{ pressed: false }, { pressed: false, value: 0.2 }, ...Array.from({ length: 31 }, () => ({ pressed: true }))] };
+        const state = readPad([p]);
+        expect(state.ry).toBe(0);                              // no fourth axis
+        expect(state.buttons & 0b11).toBe(0);                  // no value at all; a light touch
+        expect(state.buttons >>> 0).toBe(0xFFFFFFFC);           // 2..31 pressed, nothing past 31, unsigned
+    });
+
+    it('compares every field', () => {
+        const base = readPad([pad([0.5, 0.5, 0.5, 0.5], [BUTTONS.A])]);
+        for (const key of ['lx', 'ly', 'rx', 'ry', 'buttons'] as const) expect(samePad(base, { ...base, [key]: 0 })).toBe(false);
+        expect(samePad(base, { ...base })).toBe(true);
+    });
+});

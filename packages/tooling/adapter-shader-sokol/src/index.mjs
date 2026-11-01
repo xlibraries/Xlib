@@ -22,15 +22,20 @@ export function shdcBinaryPath(platform = process.platform, arch = process.arch)
     throw new Error(`no sokol-shdc binary for ${platform}/${arch}`);
 }
 
-/** The pinned sokol-shdc, downloaded on first use. */
-export async function ensureShdc(log = console.log) {
-    const local = join(TOOLS, `sokol-shdc-${SOKOL_TOOLS_COMMIT.slice(0, 12)}${process.platform === 'win32' ? '.exe' : ''}`);
+/**
+ * The pinned sokol-shdc, downloaded on first use.
+ * @param log Where progress goes.
+ * @param options `fetch` and `tools` (the folder it's kept in) can be replaced, for tests.
+ * @return The binary's path.
+ */
+export async function ensureShdc(log = console.log, { fetch: get = fetch, tools = TOOLS, platform = process.platform, arch = process.arch } = {}) {
+    const local = join(tools, `sokol-shdc-${SOKOL_TOOLS_COMMIT.slice(0, 12)}${platform === 'win32' ? '.exe' : ''}`);
     if (existsSync(local)) return local;
-    const url = `https://raw.githubusercontent.com/floooh/sokol-tools-bin/${SOKOL_TOOLS_COMMIT}/${shdcBinaryPath()}`;
+    const url = `https://raw.githubusercontent.com/floooh/sokol-tools-bin/${SOKOL_TOOLS_COMMIT}/${shdcBinaryPath(platform, arch)}`;
     log(`▶ downloading sokol-shdc (${SOKOL_TOOLS_COMMIT.slice(0, 7)})`);
-    const res = await fetch(url);
+    const res = await get(url);
     if (!res.ok) throw new Error(`sokol-shdc download failed: ${res.status} ${url}`);
-    mkdirSync(TOOLS, { recursive: true });
+    mkdirSync(tools, { recursive: true });
     writeFileSync(local, Buffer.from(await res.arrayBuffer()));
     chmodSync(local, 0o755);
     return local;
@@ -39,14 +44,23 @@ export async function ensureShdc(log = console.log) {
 /** Where a shader's header goes (on the include path of the module that uses it). */
 export const headerOf = (shader) => `build/gen/${posix.basename(shader)}.h`;
 
-/** Compiles shaders (paths relative to <root>/native) into build/gen/. */
-export async function compileShaders(root, shaders, log = console.log) {
+/** The sokol-shdc arguments for one shader (relative to <root>/native). */
+export const shdcArgs = (shader) => ['--input', `native/${shader}`, '--output', headerOf(shader), '--slang', SLANGS, '--reflection'];
+
+/**
+ * Compiles shaders into build/gen/.
+ * @param root The package's folder.
+ * @param shaders Paths relative to its native/.
+ * @param log Where progress goes.
+ * @param options `exec` (runs a command) and `shdc` (the binary, skipping the download) can be replaced, for tests.
+ */
+export async function compileShaders(root, shaders, log = console.log, { exec = execFileSync, shdc } = {}) {
     if (!shaders?.length) return;
-    const shdc = await ensureShdc(log);
+    const binary = shdc ?? await ensureShdc(log);
     mkdirSync(join(root, 'build/gen'), { recursive: true });
     for (const shader of shaders) {
         log(`  sokol-shdc ${shader}`);
-        execFileSync(shdc, ['--input', `native/${shader}`, '--output', headerOf(shader), '--slang', SLANGS, '--reflection'], { cwd: root, stdio: 'inherit' });
+        exec(binary, shdcArgs(shader), { cwd: root, stdio: 'inherit' });
     }
 }
 
@@ -58,4 +72,4 @@ export const fingerprintLines = () => [`sokol-shdc ${SOKOL_TOOLS_COMMIT}`, `slan
 export const inputs = (ctx) => (ctx.spec.shaders ?? []).map((s) => ({ label: `native/${s}`, path: join(ctx.root, 'native', s) }));
 export const fingerprint = () => fingerprintLines();
 export const outputs = (ctx) => (ctx.spec.shaders ?? []).map(headerOf);
-export async function build(ctx, { log = console.log } = {}) { await compileShaders(ctx.root, ctx.spec.shaders, log); }
+export async function build(ctx, { log = console.log, exec, shdc } = {}) { await compileShaders(ctx.root, ctx.spec.shaders, log, { exec, shdc }); }

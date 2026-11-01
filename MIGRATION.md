@@ -89,6 +89,8 @@ the number here when a phase lands.
 
 ## Phase 3: physics
 
+- [ ] Unit tests for every new code path, coverage floors in each new package (as in CLAUDE.md)
+
 - [ ] Contracts first: `physics-3d` (World3D, Body3D, Collider3D, Joint, Contact3D, Raycast3D), `physics-2d`
       (World2D, Body2D, Collider2D, Contact2D, Raycast2D), each with a scripted fake
 - [ ] Jolt behind `physics-3d` (from `engine/native/runtime/xl_physics`)
@@ -143,3 +145,4 @@ the number here when a phase lands.
 | 2026-11-01 | Phase 1: toolchain + adapters, per-module stamps, `/native/` serving; baseline 72 → 66 |
 | 2026-11-01 | Doxygen-style comments (CLAUDE.md, "Comments"); `Doxyfile` + `pnpm docs:api` for the C/C++, checked in CI |
 | 2026-11-01 | Phase 2: the engine as six packages under `packages/engine/`; baseline 66 → 12 |
+| 2026-11-01 | Unit-test pass over phases 0–2: CLIs, build steps, `EngineView` and error paths tested (seams for the command runner, module loader, `fetch`); coverage floors enforced in every new package's `verify` |

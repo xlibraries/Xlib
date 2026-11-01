@@ -35,3 +35,13 @@ export const UNITS = {
 /** A script naming modules in every form, and C++ includes, some commented out. */
 export const SCRIPT = `import a from 'x';\nexport { b } from "./y";\nconst c = await import('z');\nrequire('w');\nimport 'side';`;
 export const NATIVE = '#include "a.h"\n  #  include <b/c.h>\n// #include "no.h"\n/* #include "nor.h" */';
+
+/** Relative imports inside one package with units: within a unit, across units (upwards), and out of the package. */
+export const RELATIVE = {
+    'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+    'packages/lab/package.json': pkg('@s/lab'),
+    'packages/lab/src/app/ui.ts': "import { step } from '../sim/bench';\nexport const ui = step;\n",
+    'packages/lab/src/sim/bench.ts': "import { help } from './util';\nimport { ui } from '../app/ui';\nimport { readFileSync } from 'node:fs';\nimport path from 'path';\nexport const step = help + ui + readFileSync + path;\n",
+    'packages/lab/src/sim/util.ts': 'export const help = 1;\n',
+    'packages/lab/src/sim/leak.ts': "import { secret } from '../../../other/secret';\nexport const leak = secret;\n",
+};

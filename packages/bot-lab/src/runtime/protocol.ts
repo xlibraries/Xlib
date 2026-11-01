@@ -47,5 +47,13 @@ export const PYODIDE_PATH = '/vendor/pyodide';
 export const PICO_PATH = '/vendor/pico';
 /** The physics world, under the native folder the app is given (dist/world) */
 export const WORLD_FILE = 'world/headless.js';
+
+/**
+ * Where the worker loads the physics world from.
+ * @param origin The page's origin (a worker has no base URL of its own).
+ * @param native The folder Bot Lab's native modules are served from (BotLabOptions.nativeBaseUrl).
+ * @return The world's module URL.
+ */
+export const worldUrl = (origin: string, native: string) => `${origin}${native.replace(/\/$/, '')}/${WORLD_FILE}`;
 export const PICO_FILES = { bootrom: 'rp2040-bootrom-b1-nofp.bin', uf2: 'micropython-rpi-pico-v1.29.0.uf2' };
 export const SNAPSHOT_HZ = 30;

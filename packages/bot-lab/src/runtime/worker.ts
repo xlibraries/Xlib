@@ -4,7 +4,7 @@
 // synchronously with busy-wait pacing, and the app restarts the worker to stop it.
 import { Bench, TICK } from '../sim/bench';
 import { parseProject, type Project } from '../sim/project';
-import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, WORLD_FILE, type Command, type Snapshot, type WorkerToApp } from './protocol';
+import { PICO_FILES, PICO_PATH, PYODIDE_PATH, SNAPSHOT_HZ, worldUrl, type Command, type Snapshot, type WorkerToApp } from './protocol';
 import type { PicoFirmware } from '../sim/boards/pico';
 import { MachineWorld, type WorldModule } from '../sim/world';
 import { PiRuntime, canSuspend, type PyodideLike } from './pi';
@@ -284,7 +284,7 @@ function attachWorld(b: Bench) {
 function loadWorld(): Promise<WorldModule> {
     if (!worldModule) {
         worldModule = (async () => {
-            const mod = (await import(/* webpackIgnore: true */ `${origin}${native}/${WORLD_FILE}`)) as { default: () => Promise<WorldModule> };
+            const mod = (await import(/* webpackIgnore: true */ worldUrl(origin, native))) as { default: () => Promise<WorldModule> };
             return mod.default();
         })();
         worldModule.catch(() => { worldModule = null; });

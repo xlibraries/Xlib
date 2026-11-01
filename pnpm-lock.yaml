@@ -11,6 +11,9 @@ importers:
       '@changesets/cli':
         specifier: 2.29.7
         version: 2.29.7(@types/node@25.3.3)
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       eslint:
         specifier: ^9.39.3
         version: 9.39.3(jiti@1.21.7)
@@ -273,6 +276,9 @@ importers:
       '@types/node':
         specifier: ^25.3.3
         version: 25.3.3
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -322,9 +328,21 @@ importers:
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
       react:
         specifier: ^19.2.9
         version: 19.2.9
+      react-dom:
+        specifier: ^19.2.9
+        version: 19.2.9(react@19.2.9)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -360,6 +378,9 @@ importers:
       '@types/node':
         specifier: ^25.3.3
         version: 25.3.3
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -433,6 +454,9 @@ importers:
         specifier: workspace:^
         version: link:../adapter-shader-sokol
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       '@xlibraries/toolchain':
         specifier: workspace:^
         version: link:../toolchain
@@ -442,24 +466,36 @@ importers:
 
   packages/tooling/adapter-native-test:
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
   packages/tooling/adapter-shader-sokol:
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
   packages/tooling/graph:
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
 
   packages/tooling/toolchain:
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 3.2.4
+        version: 3.2.4(vitest@3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0))
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
@@ -4484,7 +4520,6 @@ snapshots:
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
       lru-cache: 10.4.3
-    optional: true
 
   '@babel/code-frame@7.29.7':
     dependencies:
@@ -4735,14 +4770,12 @@ snapshots:
       human-id: 4.2.2
       prettier: 2.8.8
 
-  '@csstools/color-helpers@5.1.0':
-    optional: true
+  '@csstools/color-helpers@5.1.0': {}
 
   '@csstools/css-calc@2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
     dependencies:
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
-    optional: true
 
   '@csstools/css-color-parser@3.1.0(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
     dependencies:
@@ -4750,15 +4783,12 @@ snapshots:
       '@csstools/css-calc': 2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
-    optional: true
 
   '@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4)':
     dependencies:
       '@csstools/css-tokenizer': 3.0.4
-    optional: true
 
-  '@csstools/css-tokenizer@3.0.4':
-    optional: true
+  '@csstools/css-tokenizer@3.0.4': {}
 
   '@emailjs/browser@3.12.1': {}
 
@@ -6157,7 +6187,6 @@ snapshots:
     dependencies:
       '@asamuzakjp/css-color': 3.2.0
       rrweb-cssom: 0.8.0
-    optional: true
 
   csstype@3.2.3: {}
 
@@ -6173,7 +6202,6 @@ snapshots:
     dependencies:
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-    optional: true
 
   data-view-buffer@1.0.2:
     dependencies:
@@ -6201,8 +6229,7 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  decimal.js@10.6.0:
-    optional: true
+  decimal.js@10.6.0: {}
 
   deep-eql@5.0.2: {}
 
@@ -6299,8 +6326,7 @@ snapshots:
 
   entities@4.5.0: {}
 
-  entities@6.0.1:
-    optional: true
+  entities@6.0.1: {}
 
   entities@7.0.1: {}
 
@@ -7051,7 +7077,6 @@ snapshots:
   html-encoding-sniffer@4.0.0:
     dependencies:
       whatwg-encoding: 3.1.1
-    optional: true
 
   html-escaper@2.0.2: {}
 
@@ -7085,7 +7110,6 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   https-proxy-agent@7.0.6:
     dependencies:
@@ -7099,7 +7123,6 @@ snapshots:
   iconv-lite@0.6.3:
     dependencies:
       safer-buffer: 2.1.2
-    optional: true
 
   iconv-lite@0.7.3:
     dependencies:
@@ -7251,8 +7274,7 @@ snapshots:
 
   is-plain-object@5.1.0: {}
 
-  is-potential-custom-element-name@1.0.1:
-    optional: true
+  is-potential-custom-element-name@1.0.1: {}
 
   is-promise@4.0.0: {}
 
@@ -7394,7 +7416,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-    optional: true
 
   jsesc@3.1.0: {}
 
@@ -7637,8 +7658,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  nwsapi@2.2.28:
-    optional: true
+  nwsapi@2.2.28: {}
 
   object-assign@4.1.1: {}
 
@@ -7788,7 +7808,6 @@ snapshots:
   parse5@7.3.0:
     dependencies:
       entities: 6.0.1
-    optional: true
 
   parseurl@1.3.3: {}
 
@@ -8082,8 +8101,7 @@ snapshots:
 
   rp2040js@1.4.0: {}
 
-  rrweb-cssom@0.8.0:
-    optional: true
+  rrweb-cssom@0.8.0: {}
 
   run-applescript@7.1.0: {}
 
@@ -8134,7 +8152,6 @@ snapshots:
   saxes@6.0.0:
     dependencies:
       xmlchars: 2.2.0
-    optional: true
 
   scheduler@0.27.0: {}
 
@@ -8424,8 +8441,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symbol-tree@3.2.4:
-    optional: true
+  symbol-tree@3.2.4: {}
 
   tailwindcss@3.4.19:
     dependencies:
@@ -8486,13 +8502,11 @@ snapshots:
 
   tinyspy@4.0.6: {}
 
-  tldts-core@6.1.86:
-    optional: true
+  tldts-core@6.1.86: {}
 
   tldts@6.1.86:
     dependencies:
       tldts-core: 6.1.86
-    optional: true
 
   to-regex-range@5.0.1:
     dependencies:
@@ -8503,12 +8517,10 @@ snapshots:
   tough-cookie@5.1.2:
     dependencies:
       tldts: 6.1.86
-    optional: true
 
   tr46@5.1.1:
     dependencies:
       punycode: 2.3.1
-    optional: true
 
   ts-api-utils@2.5.0(typescript@5.9.3):
     dependencies:
@@ -8730,26 +8742,21 @@ snapshots:
   w3c-xmlserializer@5.0.0:
     dependencies:
       xml-name-validator: 5.0.0
-    optional: true
 
   web-streams-polyfill@3.3.3: {}
 
-  webidl-conversions@7.0.0:
-    optional: true
+  webidl-conversions@7.0.0: {}
 
   whatwg-encoding@3.1.1:
     dependencies:
       iconv-lite: 0.6.3
-    optional: true
 
-  whatwg-mimetype@4.0.0:
-    optional: true
+  whatwg-mimetype@4.0.0: {}
 
   whatwg-url@14.2.0:
     dependencies:
       tr46: 5.1.1
       webidl-conversions: 7.0.0
-    optional: true
 
   which-boxed-primitive@1.1.1:
     dependencies:
@@ -8829,11 +8836,9 @@ snapshots:
     dependencies:
       is-wsl: 3.1.1
 
-  xml-name-validator@5.0.0:
-    optional: true
+  xml-name-validator@5.0.0: {}
 
-  xmlchars@2.2.0:
-    optional: true
+  xmlchars@2.2.0: {}
 
   yallist@3.1.1: {}
 

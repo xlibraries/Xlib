@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 
 // The worklet runs in a browser's audio thread. Here we stand in for that thread: register the processor class
 // the file defines, then feed it chunks and pull render quanta out of it.
@@ -10,12 +9,13 @@ type Processor = {
 let Ctor: new (options: { outputChannelCount?: number[] }) => Processor;
 const reports: unknown[] = [];
 
-beforeAll(() => {
+beforeAll(async () => {
     const g = globalThis as Record<string, unknown>;
     g.sampleRate = 48000;
     g.AudioWorkletProcessor = class { port = { onmessage: null, postMessage: (m: unknown) => reports.push(m) }; };
     g.registerProcessor = (name: string, cls: typeof Ctor) => { expect(name).toBe('xl-audio'); Ctor = cls; };
-    new Function(readFileSync(new URL('../src/xl-audio-worklet.js', import.meta.url), 'utf8'))();
+    // imported (rather than evaluated from its text) so coverage sees it; a worklet file is a plain script
+    await import('../src/xl-audio-worklet.js' as string);
 });
 
 const quantum = (channels: number) => [Array.from({ length: channels }, () => new Float32Array(128))];

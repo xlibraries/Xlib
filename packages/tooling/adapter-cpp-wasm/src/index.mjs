@@ -158,10 +158,15 @@ export function inputs(ctx) {
 
 // ---- building ----
 
-function checkEmscripten() {
+/**
+ * Checks that the pinned Emscripten is the one on the PATH.
+ * @param exec Runs a command and returns its output (replaceable, for tests).
+ * @throws If em++ is missing or a different version.
+ */
+export function checkEmscripten(exec = execFileSync) {
     let found = '';
     try {
-        found = execFileSync('em++', ['--version'], { encoding: 'utf8' });
+        found = String(exec('em++', ['--version'], { encoding: 'utf8' }));
     } catch {
         throw new Error(`em++ not found. Activate Emscripten ${EMSCRIPTEN_VERSION}: source ~/emsdk/emsdk_env.sh`);
     }
@@ -195,11 +200,17 @@ export function compileC(ctx, run) {
     });
 }
 
-export async function build(ctx, { log = console.log } = {}) {
-    checkEmscripten();
+/**
+ * Builds a module: its shaders, its C libraries, its providers' libraries, then em++ for each backend (or once,
+ * headless), and copies the assets beside the build.
+ * @param ctx The module's context (from the toolchain).
+ * @param options `log`; `exec` (runs a command) and `shdc` (the shader compiler) can be replaced, for tests.
+ */
+export async function build(ctx, { log = console.log, exec = execFileSync, shdc } = {}) {
+    checkEmscripten(exec);
     const { root, spec } = ctx;
-    const run = (cmd, args, cwd = root) => execFileSync(cmd, args, { cwd, stdio: 'inherit' });
-    await compileShaders(root, spec.shaders, log);
+    const run = (cmd, args, cwd = root) => exec(cmd, args, { cwd, stdio: 'inherit' });
+    await compileShaders(root, spec.shaders, log, { exec, shdc });
     const objects = [...compileC(ctx, run), ...libraries(ctx).flatMap((l) => compileLibrary(l, run))];
     rmSync(join(root, 'dist', ctx.name), { recursive: true, force: true });
     mkdirSync(join(root, 'dist', ctx.name), { recursive: true });
