@@ -13,8 +13,20 @@ export interface EngineInstance {
     _xl_set_gamepad(connected: number, lx: number, ly: number, rx: number, ry: number, buttons: number): void;
     /** Set by xl_audio.h once the game has sound: the master volume, 0..1 */
     xlSetVolume?(volume: number): void;
+    /** The master volume xl_audio.h starts its sound at (if the page set it before the game had sound) */
+    xlVolume?: number;
     /** The phone's tilt as a lean, -1..1 (games that steer by gyro read xl::tilt()) */
     _xl_set_tilt?(lean: number): void;
+}
+
+/**
+ * Gives a running module the desktop's volume. Its sound may not be set up yet (xl_audio.h does that when the game
+ * starts its audio, which can be after the page has the module): xlVolume is what it starts at then, and
+ * xlSetVolume changes it once it's playing.
+ */
+export function applyVolume(instance: Pick<EngineInstance, 'xlSetVolume' | 'xlVolume'>, volume: number) {
+    instance.xlVolume = volume;
+    instance.xlSetVolume?.(volume);
 }
 
 const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -112,7 +124,7 @@ export function EngineView({ id, title, baseUrl, choice, volume = 1, onBack, bac
     }, [id, baseUrl, choice, canvasId]);
 
     // The desktop's volume slider reaches the game's audio (and again once it has loaded)
-    useEffect(() => { running?.xlSetVolume?.(volume); }, [running, volume]);
+    useEffect(() => { if (running) applyVolume(running, volume); }, [running, volume]);
 
     // Phones: play full-screen and sideways (the lock only works in fullscreen, and only on some browsers), and
     // say so while the phone is upright

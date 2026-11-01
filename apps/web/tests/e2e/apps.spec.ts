@@ -385,6 +385,13 @@ test.describe('Photo Drop upload', () => {
 test.describe('Admin (/xlib)', () => {
     const PASSCODE = 'e2e-admin-passcode';   // set for the test server in playwright.config.ts
 
+    // The login limit (5 attempts per IP per 15 minutes) lives in the server's store, and a local run reuses a server
+    // that's already up: each test logs in from an address of its own, so no earlier test or run uses up its attempts
+    test.beforeEach(async ({ page }) => {
+        const n = Math.floor(Math.random() * 16_000_000);
+        await page.setExtraHTTPHeaders({ 'x-forwarded-for': `10.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}` });
+    });
+
     test('visitors see no admin apps, and /xlib asks for the passcode', async ({ page }) => {
         await openDesktop(page);
         await expect(page.locator('#app-admin-analytics')).toHaveCount(0);
