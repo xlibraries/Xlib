@@ -96,7 +96,8 @@ the districts restored) is saved on the device.
 
 - **Mid-poly, made in code** (`@xlibraries/asset-builder`: lathes, spheres, capsules, tori, rounded boxes, swept tubes,
   with a little deliberate imperfection). The chariot and charioteer follow the golden concept art; every building,
-  prop and character is built in `assets/models.cpp`, and `level.cpp` builds each district twice: ruined and alive.
+  prop and character is built in `assets/` (one file per kind: houses, landmarks, the desert, street life, the chariot,
+  characters, items, board markers), and `level.cpp` builds each district twice: ruined and alive.
 - **Pixar-styled shading** (`@xlibraries/render`, which grew out of this game): GGX specular with a sky reflection, wrapped diffuse, warm
   subsurface on skin, translucent leaves and cloth, soft shadows from a depth map, hemisphere ambient, per-vertex
   AO, a rim light, ACES tone mapping; then tilt-shift, bloom and a grade in the post pass.
@@ -114,7 +115,7 @@ the districts restored) is saved on the device.
 | `drive.h/.cpp` | Handling, collisions and a drive's goal (reach, chase, clock, deliver, storm, lamps); rolling starts |
 | `chapter.h/.cpp` | The chapter's beats, your tools, the consequences of each board, restoration, saving |
 | `story.h/.cpp` | What's said, beat by beat, and by whom between beats |
-| `assets/models.h/.cpp` | The assets module: every model and prop from plain parameters, built with `@xlibraries/asset-builder`; no game types |
+| `assets/` | The assets module: every model and prop from plain parameters, built with `@xlibraries/asset-builder`; no game types. `models.h` is its API; one `.cpp` per kind (`houses`, `landmarks`, `desert`, `street`, `chariot`, `characters`, `items`, `markers`), `parts.h/.cpp` the helpers they share |
 | `level.h/.cpp` | The level: the land in chunks, the districts ruined and alive, the boards and gates, placed from the track |
 | `main.cpp` | Drawing through `@xlibraries/render`, the camera blending between the modes, the scenes between beats, dialogue and HUD, sound |
 

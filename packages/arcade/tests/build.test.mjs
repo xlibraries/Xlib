@@ -63,7 +63,7 @@ describe('the games as modules (package.json "xlibraries.modules")', () => {
     it('stamps each game with only what it is built from', () => {
         const jr = inputs(ctx('jyotirath')).map((i) => i.label);
         expect(jr).toContain('native/games/jyotirath/hints.cpp');
-        expect(jr).toContain('native/games/jyotirath/assets/models.cpp');        // its own assets
+        expect(jr).toContain('native/games/jyotirath/assets/chariot.cpp');       // its own assets
         expect(jr).toContain('@xlibraries/render/shaders/render.glsl');          // the look it's drawn with
         expect(jr).toContain('@xlibraries/render/src/renderer_sokol.cpp');
         expect(jr).toContain('@xlibraries/asset-builder/src/mesh.cpp');          // what its models are built with
