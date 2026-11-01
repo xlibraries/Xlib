@@ -52,7 +52,7 @@ flowchart LR
         rules["rules.h/.cpp<br/>fuel · coins · unlocks · shop<br/>(graphics-free, doctest)"]
         terrain["terrain.h/.cpp<br/>era profiles → heightline,<br/>cans, coins, treasure, landmarks"]
         physics["physics.h<br/>Vehicle, World interface"]
-        b2["physics_box2d.cpp<br/>Box2D v3 implementation"]
+        b2["vehicle.cpp<br/>on @xlibraries/physics-2d (Box2D v3)"]
         main["main.cpp<br/>sokol_gl rendering, HUD,<br/>input, sound, camera"]
         main --> rules & terrain & physics
         physics --> b2

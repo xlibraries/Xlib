@@ -89,7 +89,9 @@ things work.
 - `packages/engine/*` – the engine as separate packages (`packages/engine/README.md`): `engine-core` (the platform
   contract `xl.h`, sokol, HandmadeMath), `engine-web` (`xl.h` in the browser, backend choice, gamepad), `engine-react`
   (`EngineView`, the only one with React), `engine-audio` (`xl_audio.h` + the AudioWorklet), `engine-text` (`xl_font.h`,
-  `xl_text.h`, Lilita One), `physics-3d` (`xl_physics.h` over vendored Jolt v5.6.0). Each says what it offers native
+  `xl_text.h`, Lilita One), `physics-3d` (`xl_physics.h` over vendored Jolt v5.6.0) and `physics-2d` (`xl_physics2d.h`
+  over vendored Box2D v3.1.1); the physics headers name no backend, and each ships a fake for tests
+  (`xl_physics_fake.h`, `xl_physics2d_fake.h`). Each says what it offers native
   modules in `xlibraries.native` (public headers in `include/`, `link` sources, libraries); a module lists the ones it
   links in `uses`. They import no app.
 - `packages/tooling` – `@xlibraries/toolchain` (`xl-build`) builds the modules a package declares in `package.json`
@@ -121,7 +123,7 @@ things work.
   **commit `dist/`**, CI rebuilds it (`--force`) and fails on any difference. `build:native` rebuilds only the games
   whose stamps are stale (`build:native <id>` for one); the unit tests check every stamp. Games only react to keys
   while focused (`xl.h`).
-  Turbo Trails (`docs/turbo-trails-plan.md`) uses vendored Box2D v3.1.1 behind `physics.h`; its rules, terrain and
+  Turbo Trails (`docs/turbo-trails-plan.md`) drives on `physics-2d` (Box2D v3.1.1 behind it) through `physics.h`; its rules, terrain and
   "feel" (face expressions, squash, shake) are graphics-free and tested natively (`tests/native/turbo_trails_test.cpp`);
   `art.h` draws, and the scene goes through a post-process shader. Its global leaderboard is
   `/api/arcade/leaderboard` (`lib/leaderboard.ts`, Redis sorted sets).

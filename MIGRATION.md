@@ -3,8 +3,8 @@
 The plan and its reasons are in [docs/streams-plan.md](docs/streams-plan.md); this file tracks the work. Tick a box
 when it's merged with `pnpm verify` green. Each phase is one PR.
 
-**Backlog:** `pnpm graph` → **12** known violations in [architecture/baseline.json](architecture/baseline.json)
-(2 private, 5 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
+**Backlog:** `pnpm graph` → **10** known violations in [architecture/baseline.json](architecture/baseline.json)
+(1 private, 4 upward, 2 cycles, 2 forbidden, 1 sideways). Run `pnpm graph --report` for the list with files. Update
 the number here when a phase lands.
 
 | Phase | Status | Violations left after it |
@@ -12,7 +12,7 @@ the number here when a phase lands.
 | 0. Rules first | ✅ (registry: the "Needs you" items) | 72 (it only measures) |
 | 1. Toolchain | ✅ | 66 |
 | 2. Engine split | ✅ | 12 |
-| 3. Physics | ⬜ | |
+| 3. Physics | ✅ | 10 |
 | 4. Render | ⬜ | |
 | 5. Arcade | ⬜ | |
 | 6. Bot Lab | ⬜ | |
@@ -89,14 +89,21 @@ the number here when a phase lands.
 
 ## Phase 3: physics
 
-- [ ] Unit tests for every new code path, coverage floors in each new package (as in CLAUDE.md)
-
-- [ ] Contracts first: `physics-3d` (World3D, Body3D, Collider3D, Joint, Contact3D, Raycast3D), `physics-2d`
-      (World2D, Body2D, Collider2D, Contact2D, Raycast2D), each with a scripted fake
-- [ ] Jolt behind `physics-3d` (from `engine/native/runtime/xl_physics`)
-- [ ] Box2D behind `physics-2d` (from `arcade/third_party/box2d` and Turbo Trails' `physics_box2d.cpp`)
-- [ ] Clears: `upward: physics-2d -> game-turbo-trails`, `private: … -> physics-3d (xl_physics.h)`
-- **Done when:** no consumer header includes Jolt or Box2D; Turbo Trails and Bot Lab's world behave as before
+- [x] Unit tests for every new code path, coverage floors where coverage is measured (the adapters' C-library support)
+- [x] `physics-2d` (new): the contract `xl_physics2d.h` (bodies, boxes, circles, chains, wheel joints with motors,
+      forces, contact events by tag), Box2D v3.1.1 behind it (`backend_box2d.cpp`; Box2D moved out of the Arcade), and
+      `xl_physics2d_fake.h`. Found and documented: chains need four or more points; angles are Box2D's fast approximation
+      (±0.002 rad), so the contract also gives the exact `rotation()`
+- [x] Turbo Trails' vehicle (`vehicle.cpp`, was `physics_box2d.cpp`) on the contract, no Box2D in sight; its rules
+      unit-tested on the fake (8 new cases). Checked bit for bit against the old code: a 1,200-step trace (driving,
+      leaning, Turbo, a jump, a flip; 534 wheel contacts, 13 roof hits) is identical
+- [x] `physics-3d`: `xl_physics.h` fully documented; Jolt as `backend_jolt.cpp`; `xl_physics_fake.h`; one contract
+      suite runs on both Jolt and the fake
+- [x] Each physics package's tests check its public headers name no backend
+- [x] The adapters build C libraries a provider offers (`language: "c"`): emcc for modules, cc for native tests
+- [x] Cleared `upward: physics-2d -> game-turbo-trails` and `private: physics-2d -> game-turbo-trails (physics.h)`
+- **Done when:** no consumer header includes Jolt or Box2D ✅; Turbo Trails and Bot Lab's world behave as before ✅
+  (the trace; the Turbo Trails and Bot Lab e2e tests)
 
 ## Phase 4: render
 
@@ -145,4 +152,5 @@ the number here when a phase lands.
 | 2026-11-01 | Phase 1: toolchain + adapters, per-module stamps, `/native/` serving; baseline 72 → 66 |
 | 2026-11-01 | Doxygen-style comments (CLAUDE.md, "Comments"); `Doxyfile` + `pnpm docs:api` for the C/C++, checked in CI |
 | 2026-11-01 | Phase 2: the engine as six packages under `packages/engine/`; baseline 66 → 12 |
+| 2026-11-01 | Phase 3: physics-2d (Box2D behind a contract), physics-3d documented with a fake; Turbo Trails bit-identical; baseline 12 → 10 |
 | 2026-11-01 | Unit-test pass over phases 0–2: CLIs, build steps, `EngineView` and error paths tested (seams for the command runner, module loader, `fetch`); coverage floors enforced in every new package's `verify` |

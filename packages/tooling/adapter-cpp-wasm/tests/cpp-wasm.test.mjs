@@ -198,3 +198,42 @@ describe('building', () => {
         expect(calls).toEqual([]);
     });
 });
+
+describe('C libraries from a provider', () => {
+    it('compile with emcc and their own flags, in the provider, cached like any library; their headers are inputs', async () => {
+        const base = mkdtempSync(join(tmpdir(), 'cpp-c-'));
+        roots.push(base);
+        const write = (path, body = '') => { mkdirSync(dirname(join(base, path)), { recursive: true }); writeFileSync(join(base, path), body); };
+        write('game/native/main.cpp', '#include "phys.h"\n');
+        write('phys/include/phys.h', '#pragma once\n');
+        write('phys/lib/inc/lib/lib.h', '#pragma once\n#include "core.h"\n');
+        write('phys/lib/src/core.h', '#pragma once\n');
+        write('phys/lib/src/a.c', '#include "lib/lib.h"\n');
+        write('phys/lib/src/nested/b.c', '');
+        write('phys/lib/src/ignored.cpp', '');
+        const phys = { root: join(base, 'phys'), name: '@s/phys', version: '1.0.0', native: { prefix: 'phys', include: ['include'], libraries: { lib: { sources: 'lib/src', language: 'c', isystem: ['lib/inc'], flags: ['-std=gnu17', '-Ilib/inc', '-Ilib/src'] } } } };
+        const ctx = { root: join(base, 'game'), name: 'g', spec: { adapter: 'cpp-wasm', sources: ['main.cpp'] }, providers: [phys], pkg: {} };
+        const calls = [];
+        const exec = (cmd, args, opts = {}) => {
+            if (args[0] === '--version') return `emcc ${EMSCRIPTEN_VERSION}`;
+            calls.push({ cmd, args, cwd: opts.cwd });
+            const out = args[args.indexOf('-o') + 1];
+            if (out) { const path = out.startsWith('/') ? out : join(opts.cwd, out); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, ''); }
+            return '';
+        };
+        await build(ctx, { log: () => {}, exec });
+        const c = calls.filter((x) => x.cmd === 'emcc');
+        expect(c.map((x) => x.args)).toEqual([
+            ['-O2', '-fno-exceptions', `-ffile-prefix-map=${phys.root}=phys`, '-std=gnu17', '-Ilib/inc', '-Ilib/src', '-c', 'lib/src/a.c', '-o', join(phys.root, 'build/obj/lib/a.o')],
+            ['-O2', '-fno-exceptions', `-ffile-prefix-map=${phys.root}=phys`, '-std=gnu17', '-Ilib/inc', '-Ilib/src', '-c', 'lib/src/nested/b.c', '-o', join(phys.root, 'build/obj/lib/nested_b.o')],
+        ]);
+        expect(c.every((x) => x.cwd === phys.root)).toBe(true);
+        expect(calls.find((x) => x.cmd === 'em++').args).toContain(`-isystem${join(phys.root, 'lib/inc')}`);   // the module sees its headers
+        const labels = inputs(ctx).map((i) => i.label);
+        expect(labels).toEqual(expect.arrayContaining(['@s/phys/lib/src/a.c', '@s/phys/lib/src/nested/b.c', '@s/phys/lib/inc/lib/lib.h', '@s/phys/lib/src/core.h']));
+        expect(labels).not.toContain('@s/phys/lib/src/ignored.cpp');
+        calls.length = 0;
+        await build(ctx, { log: () => {}, exec });
+        expect(calls.filter((x) => x.cmd === 'emcc')).toEqual([]);   // fresh objects reused
+    });
+});

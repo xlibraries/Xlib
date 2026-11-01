@@ -52,6 +52,11 @@
       "as": "engine-text",
       "pure": true
     },
+    "@xlibraries/physics-2d": {
+      "layer": 2,
+      "as": "physics-2d",
+      "pure": true
+    },
     "@xlibraries/physics-3d": {
       "layer": 2,
       "as": "physics-3d",
@@ -116,10 +121,6 @@
         "as": "game-turbo-trails",
         "layer": 4
       },
-      "native/games/turbo-trails/physics_box2d": {
-        "as": "physics-2d",
-        "layer": 2
-      },
       "tests/native/turbo_trails": {
         "as": "game-turbo-trails",
         "layer": 4
@@ -127,10 +128,6 @@
       "src/turbo-trails": {
         "as": "game-turbo-trails",
         "layer": 4
-      },
-      "third_party/box2d": {
-        "as": "physics-2d",
-        "layer": 2
       },
       "native/games/breakout": {
         "as": "game-breakout",

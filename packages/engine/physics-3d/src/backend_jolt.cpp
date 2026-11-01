@@ -1,3 +1,8 @@
+/**
+ * @file backend_jolt.cpp
+ * @brief xl_physics.h on Jolt Physics v5.6.0 (third_party/jolt, compiled once as a library): single-threaded and
+ * cross-platform deterministic. World::create() returns this world.
+ */
 #include "xl_physics.h"
 
 #include <Jolt/Jolt.h>

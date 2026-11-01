@@ -44,11 +44,16 @@ describe('the games as modules (package.json "xlibraries.modules")', () => {
         }
     });
 
-    it('ships Turbo Trails with Box2D compiled in, the HUD font and its music', () => {
-        const args = emArgs(ctx('turbo-trails'), 'webgl2', ['build/obj/x.o']);
-        expect(args).toContain('-Ithird_party/box2d/include');
-        expect(args).toContain('build/obj/x.o');
-        expect(GAMES['turbo-trails'].cLibraries[0].flags).toContain('-DBOX2D_DISABLE_SIMD');
+    it('ships Turbo Trails on physics-2d (Box2D behind it), with the HUD font and its music', () => {
+        const c = ctx('turbo-trails');
+        const args = emArgs(c, 'webgl2', ['/obj/box2d.o']);
+        const physics = c.providers.find((p) => p.name === '@xlibraries/physics-2d');
+        expect(physics).toBeDefined();
+        expect(args).toContain(`-isystem${join(physics.root, 'third_party/box2d/include')}`);   // Box2D's headers come with it
+        expect(args).toContain(join(physics.root, 'src/backend_box2d.cpp'));
+        expect(args).toContain('/obj/box2d.o');
+        expect(GAMES['turbo-trails'].cLibraries).toBeUndefined();   // the Arcade no longer carries Box2D
+        expect(GAMES['turbo-trails'].sources).toContain('games/turbo-trails/vehicle.cpp');
         expect(GAMES['turbo-trails'].uses).toEqual(expect.arrayContaining(['@xlibraries/engine-text', '@xlibraries/engine-audio']));
         expect(args.join(' ')).toContain('LilitaOne-Regular.ttf@/LilitaOne-Regular.ttf');
         expect(args.join(' ')).toContain('xl_font.cpp');

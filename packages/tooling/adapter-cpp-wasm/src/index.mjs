@@ -10,7 +10,8 @@
 //                  prefix     the name its paths are mapped to (reproducible builds)
 //                  include    folders on the include path
 //                  link       sources compiled into every module that uses it
-//                  libraries  sets of sources compiled once and linked: { sources (a folder), isystem, defines }
+//                  libraries  sets of sources compiled once and linked: { sources (a folder), isystem, defines;
+//                             language "c" compiles its .c files with emcc and its own flags (relative to the provider) }
 //                  fonts      the folder fonts are embedded from
 //                  assets     files copied beside every graphical build
 //   fonts        provider fonts to embed, served at /<file>
@@ -139,11 +140,12 @@ export function inputs(ctx) {
     };
     const flagDirs = (spec.flags ?? []).filter((f) => f.startsWith('-I')).map((f) => join(root, f.slice(2)));
     const libs = libraries(ctx);
-    const dirs = [join(root, 'native'), ...ctx.providers.flatMap((p) => (p.native.include ?? []).map((d) => join(p.root, d))), ...flagDirs, ...libs.flatMap((l) => (l.isystem ?? []).map((d) => join(l.provider.root, d)))];
+    const libDirs = libs.flatMap((l) => [...(l.isystem ?? []), ...(l.flags ?? []).filter((f) => f.startsWith('-I')).map((f) => f.slice(2))].map((d) => join(l.provider.root, d)));
+    const dirs = [join(root, 'native'), ...ctx.providers.flatMap((p) => (p.native.include ?? []).map((d) => join(p.root, d))), ...flagDirs, ...libDirs];
     const roots = [
         ...spec.sources.map((s) => join(root, 'native', s)),
         ...linkedSources(ctx),
-        ...libs.flatMap((l) => walk(l.provider.root, l.sources, (f) => f.endsWith('.cpp')).map((f) => join(l.provider.root, f))),
+        ...libs.flatMap((l) => walk(l.provider.root, l.sources, (f) => f.endsWith(sourceExt(l))).map((f) => join(l.provider.root, f))),
         ...(spec.cLibraries ?? []).flatMap((c) => walk(root, c.sources, (f) => f.endsWith('.c')).map((f) => join(root, f))),
     ];
     const files = [
@@ -174,15 +176,29 @@ export function checkEmscripten(exec = execFileSync) {
 }
 
 /** Compiles a provider's library with em++ once (objects reused while newer than their sources) into its build/obj/<name>/. */
+/** A library's source files' extension: .c for a C library, .cpp otherwise. */
+const sourceExt = (lib) => lib.language === 'c' ? '.c' : '.cpp';
+
+/**
+ * Compiles a provider's library once (objects reused while newer than their sources) into its build/obj/<name>/:
+ * C++ with em++, or C (`language: "c"`) with emcc and the library's own flags.
+ * @param lib The library, with its provider.
+ * @param run Runs a command in a folder.
+ * @return The object files, in source order.
+ */
 export function compileLibrary(lib, run) {
     const root = lib.provider.root;
     const outDir = join(root, 'build/obj', lib.name);
+    const ext = sourceExt(lib);
     mkdirSync(outDir, { recursive: true });
-    return walk(root, lib.sources, (f) => f.endsWith('.cpp')).map((src) => {
-        const obj = join(outDir, src.slice(lib.sources.length + 1).replace(/[/]/g, '_').replace(/\.cpp$/, '.o'));
+    return walk(root, lib.sources, (f) => f.endsWith(ext)).map((src) => {
+        const obj = join(outDir, src.slice(lib.sources.length + 1).replace(/[/]/g, '_').slice(0, -ext.length) + '.o');
         let fresh = false;
         try { fresh = statSync(obj).mtimeMs > statSync(join(root, src)).mtimeMs; } catch { /* not built yet */ }
-        if (!fresh) run('em++', ['-std=c++20', '-O2', '-fno-exceptions', '-fno-rtti', `-ffile-prefix-map=${root}=${lib.provider.native.prefix}`, ...(lib.isystem ?? []).map((d) => `-isystem${join(root, d)}`), ...(lib.defines ?? []), '-c', join(root, src), '-o', obj], root);
+        if (fresh) return obj;
+        const mapped = `-ffile-prefix-map=${root}=${lib.provider.native.prefix}`;
+        if (ext === '.c') run('emcc', ['-O2', '-fno-exceptions', mapped, ...(lib.flags ?? []), ...(lib.defines ?? []), '-c', src, '-o', obj], root);
+        else run('em++', ['-std=c++20', '-O2', '-fno-exceptions', '-fno-rtti', mapped, ...(lib.isystem ?? []).map((d) => `-isystem${join(root, d)}`), ...(lib.defines ?? []), '-c', join(root, src), '-o', obj], root);
         return obj;
     });
 }

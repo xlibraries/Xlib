@@ -1,8 +1,15 @@
-// The physics the game needs, as one small interface. physics_box2d.cpp implements it with Box2D v3; the plan is
-// to replace that with our own engine (issue #37) without touching the rest of the game.
+/**
+ * @file physics.h
+ * @brief The physics the game needs, as one small interface: a vehicle on a terrain.
+ *
+ * vehicle.cpp implements it on the 2D physics contract (`@xlibraries/physics-2d`), so the backend can change without
+ * touching the rest of the game; tests can run it on a fake world.
+ */
 #pragma once
 #include <memory>
 #include <vector>
+
+namespace xl::phys2d { class World2D; }
 
 namespace tt {
 
@@ -38,7 +45,18 @@ struct Pose {
 
 class World {
 public:
+    /**
+     * A vehicle world on the default 2D physics.
+     * @param gravity Downward acceleration, m/s².
+     * @return The world.
+     */
     static std::unique_ptr<World> create(float gravity = 9.8f);
+    /**
+     * A vehicle world on the 2D physics given (a fake, in tests).
+     * @param physics The world to build the vehicle and terrain in.
+     * @return The world.
+     */
+    static std::unique_ptr<World> on(std::unique_ptr<xl::phys2d::World2D> physics);
     virtual ~World() = default;
     /** The ground as a polyline from left to right (metres). */
     virtual void set_terrain(const std::vector<float>& xs, const std::vector<float>& ys) = 0;

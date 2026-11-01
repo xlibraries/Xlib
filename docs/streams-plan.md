@@ -1,6 +1,6 @@
 # Streams plan: engine, Arcade, Bot Lab (current vs proposed)
 
-> **Status: phases 0–2 done; progress is tracked in [MIGRATION.md](../MIGRATION.md).** The toolchain landed in
+> **Status: phases 0–3 done; progress is tracked in [MIGRATION.md](../MIGRATION.md).** The toolchain landed in
 > `packages/tooling/` rather than `packages/engine/`: it's layer 0 and serves more than the engine. Each phase below is
 > one PR with `pnpm verify` green.
 

@@ -21,12 +21,12 @@ export const MAIN = join(HERE, 'main.cpp');
 const CXX = process.env.CXX || 'c++';
 const CC = process.env.CC || 'cc';
 
-function cppFiles(base, dir, keepMain = false) {
+function cppFiles(base, dir, keepMain = false, ext = '.cpp') {
     if (!existsSync(join(base, dir))) return [];
     return readdirSync(join(base, dir)).sort().flatMap((n) => {
         const rel = posix.join(dir, n);
-        if (statSync(join(base, rel)).isDirectory()) return cppFiles(base, rel, keepMain);
-        return n.endsWith('.cpp') && (keepMain || n !== 'main.cpp') ? [rel] : [];
+        if (statSync(join(base, rel)).isDirectory()) return cppFiles(base, rel, keepMain, ext);
+        return n.endsWith(ext) && (keepMain || n !== 'main.cpp') ? [rel] : [];
     });
 }
 
@@ -64,14 +64,22 @@ export function testArgs(root) {
 }
 
 /** Compiles a provider's library for the host once (objects cached by mtime) into its build/native-obj/<name>/. */
+/**
+ * Compiles a provider's library for the host once (objects cached by mtime) into its build/native-obj/<name>/: C++,
+ * or C (`language: "c"`, with the library's flags, in the provider's folder).
+ */
 function hostLibrary(lib, run) {
-    const outDir = join(lib.provider.root, 'build/native-obj', lib.name);
+    const root = lib.provider.root;
+    const outDir = join(root, 'build/native-obj', lib.name);
+    const ext = lib.language === 'c' ? '.c' : '.cpp';
     mkdirSync(outDir, { recursive: true });
-    return cppFiles(lib.provider.root, lib.sources, true).map((src) => {
-        const obj = join(outDir, src.slice(lib.sources.length + 1).replace(/[/]/g, '_').replace(/\.cpp$/, '.o'));
+    return cppFiles(root, lib.sources, true, ext).map((src) => {
+        const obj = join(outDir, src.slice(lib.sources.length + 1).replace(/[/]/g, '_').slice(0, -ext.length) + '.o');
         let fresh = false;
-        try { fresh = statSync(obj).mtimeMs > statSync(join(lib.provider.root, src)).mtimeMs; } catch { /* not built yet */ }
-        if (!fresh) run(CXX, ['-std=c++20', '-O1', '-fno-exceptions', '-fno-rtti', ...(lib.isystem ?? []).map((d) => `-isystem${join(lib.provider.root, d)}`), ...(lib.defines ?? []), '-c', join(lib.provider.root, src), '-o', obj]);
+        try { fresh = statSync(obj).mtimeMs > statSync(join(root, src)).mtimeMs; } catch { /* not built yet */ }
+        if (fresh) return obj;
+        if (ext === '.c') run(CC, ['-O1', ...(lib.flags ?? []), ...(lib.defines ?? []), '-c', src, '-o', obj], root);
+        else run(CXX, ['-std=c++20', '-O1', '-fno-exceptions', '-fno-rtti', ...(lib.isystem ?? []).map((d) => `-isystem${join(root, d)}`), ...(lib.defines ?? []), '-c', join(root, src), '-o', obj]);
         return obj;
     });
 }
@@ -83,7 +91,7 @@ function hostLibrary(lib, run) {
  * @throws If compiling fails or a test fails (the binary exits non-zero).
  */
 export function runNativeTests(root, { exec = execFileSync } = {}) {
-    const run = (cmd, args) => exec(cmd, args, { cwd: root, stdio: 'inherit' });
+    const run = (cmd, args, cwd = root) => exec(cmd, args, { cwd, stdio: 'inherit' });
     mkdirSync(join(root, 'build/native-obj'), { recursive: true });
     const tests = readJson(join(root, 'package.json')).xlibraries?.nativeTests ?? {};
     const objects = libsOf(providers(root)).flatMap((l) => hostLibrary(l, run));

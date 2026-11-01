@@ -90,3 +90,22 @@ describe('running native tests', () => {
         expect(() => runNativeTests(root, { exec })).toThrow(/2 failed/);
     });
 });
+
+describe('a provider\'s C library', () => {
+    it('compiles for the host with cc and its own flags, in the provider\'s folder, and links into the tests', () => {
+        const root = realpathSync(mkdtempSync(join(tmpdir(), 'native-c-')));
+        const write = (path, body = '') => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), typeof body === 'string' ? body : JSON.stringify(body)); };
+        write('game/package.json', { name: '@s/game', version: '1.0.0', xlibraries: { nativeTests: { uses: ['@s/phys'] } } });
+        write('game/node_modules/@s/phys/package.json', { name: '@s/phys', version: '1.0.0', xlibraries: { native: { include: ['include'], libraries: { box: { sources: 'lib/src', language: 'c', isystem: ['lib/include'], flags: ['-std=gnu17', '-Ilib/include'] } } } } });
+        write('game/node_modules/@s/phys/lib/src/world.c');
+        write('game/node_modules/@s/phys/lib/src/skip.cpp');
+        const phys = join(root, 'game/node_modules/@s/phys');
+        const calls = [];
+        const exec = (cmd, args, opts) => { calls.push({ cmd, args, cwd: opts.cwd }); const i = args.indexOf('-o'); if (i >= 0) { const out = args[i + 1].startsWith('/') ? args[i + 1] : join(opts.cwd, args[i + 1]); mkdirSync(dirname(out), { recursive: true }); writeFileSync(out, ''); } };
+        runNativeTests(join(root, 'game'), { exec });
+        expect(calls[0]).toEqual({ cmd: process.env.CC || 'cc', args: ['-O1', '-std=gnu17', '-Ilib/include', '-c', 'lib/src/world.c', '-o', join(phys, 'build/native-obj/box/world.o')], cwd: phys });
+        expect(calls[1].args).toContain(`-isystem${join(phys, 'lib/include')}`);   // the tests see its headers
+        expect(calls[1].args).toContain(join(phys, 'build/native-obj/box/world.o'));
+        rmSync(root, { recursive: true, force: true });
+    });
+});

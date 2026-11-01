@@ -1,7 +1,7 @@
 {
   "name": "@xlibraries/physics-3d",
   "version": "0.1.0",
-  "description": "Rigid-body physics for C++ modules: a small deterministic API (xl_physics.h) over Jolt Physics v5.6.0",
+  "description": "3D rigid-body physics for C++ modules: a backend-free contract (xl_physics.h) with Jolt Physics v5.6.0 behind it, and a fake for tests",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -33,7 +33,7 @@
         "include"
       ],
       "link": [
-        "src/xl_physics.cpp"
+        "src/backend_jolt.cpp"
       ],
       "testSources": "src",
       "libraries": {

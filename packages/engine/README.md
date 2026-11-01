@@ -11,7 +11,11 @@ Each is versioned, built and tested on its own, and a module links only the ones
 | `engine-react` | 1 | `EngineView`: hosts a module in a React component on WebGPU or WebGL2; drives focus, pause, gamepad, volume, tilt | (TypeScript only) |
 | `engine-audio` | 2 | `xl_audio.h`: a push-model mixer API on an AudioWorklet, with a gain the desktop's volume drives | `include/`, links `xl_audio.cpp`, ships `xl-audio-worklet.js` |
 | `engine-text` | 2 | `xl_font.h` (stb_truetype, kept private) and `xl_text.h` (sokol_gl); Lilita One is the primary font, a module can add its own | `include/`, links `xl_font.cpp`, `fonts/` |
-| `physics-3d` | 2 | `xl_physics.h`: rigid bodies, joints with motors, ray casts, contacts over Jolt v5.6.0 (deterministic) | `include/`, links `xl_physics.cpp`, library `jolt` |
+| `physics-3d` | 2 | `xl_physics.h`: rigid bodies, joints with motors, ray casts, contacts; Jolt v5.6.0 behind it (deterministic); `xl_physics_fake.h` for tests | `include/`, links `backend_jolt.cpp`, library `jolt` |
+| `physics-2d` | 2 | `xl_physics2d.h`: bodies, boxes, circles, chains, wheel joints with motors, contact events; Box2D v3.1.1 behind it; `xl_physics2d_fake.h` for tests | `include/`, links `backend_box2d.cpp`, C library `box2d` |
+
+The physics headers name no backend (each package's tests check it), so code on them can move to another backend,
+and can be tested on the fakes without simulating anything.
 
 Nothing native depends on React: `engine-react` is the only package that does, and no module uses it (the Arcade's
 tests check this).

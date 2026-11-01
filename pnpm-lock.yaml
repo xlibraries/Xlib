@@ -172,6 +172,9 @@ importers:
       '@xlibraries/engine-web':
         specifier: workspace:^
         version: link:../engine/web
+      '@xlibraries/physics-2d':
+        specifier: workspace:^
+        version: link:../engine/physics-2d
       '@xlibraries/physics-3d':
         specifier: workspace:^
         version: link:../engine/physics-3d
@@ -300,6 +303,12 @@ importers:
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.3.3)(jiti@1.21.7)(jsdom@26.1.0)
+
+  packages/engine/physics-2d:
+    devDependencies:
+      '@xlibraries/adapter-native-test':
+        specifier: workspace:^
+        version: link:../../tooling/adapter-native-test
 
   packages/engine/physics-3d:
     devDependencies:

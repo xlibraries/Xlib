@@ -9,7 +9,6 @@ Arcade app picks WebGPU when the browser has an adapter, otherwise WebGL2 (or wh
 ```
 native/games/<id>/        each game's C++ (one sokol_main per game), on packages/engine/*
 native/shaders/*.glsl     shaders, written once (sokol-shdc annotated GLSL), cross-compiled to GLSL ES 3.0 + WGSL
-third_party/box2d/        Box2D v3.1.1 for Turbo Trails, pinned (see Versions)
 package.json              "xlibraries.modules": each game as a module for @xlibraries/toolchain (adapter cpp-wasm)
 dist/<id>/                committed build output, with stamp.json over everything it's built from (CI rebuilds and diffs)
 src/                      React: the Arcade launcher, GameView (canvas host), backend detection
@@ -58,8 +57,9 @@ compiles them with the system C++ compiler through `@xlibraries/adapter-native-t
 ## Turbo Trails
 
 A Hill Climb Racing–style drive through ten eras of transport (`native/games/turbo-trails`, plan in
-`docs/turbo-trails-plan.md`). The physics is [Box2D v3.1.1](https://box2d.org) (vendored, scalar build) behind
-`physics.h`, a small interface that issue #37 will reimplement with our own engine; `terrain.cpp` generates each
+`docs/turbo-trails-plan.md`). `physics.h` is the game's vehicle interface; `vehicle.cpp` implements it on the 2D
+physics contract (`@xlibraries/physics-2d`, [Box2D v3.1.1](https://box2d.org) behind it), so its rules are unit-tested
+on the contract's fake (`tests/native/turbo_trails_vehicle_test.cpp`); `terrain.cpp` generates each
 era's road from a seed; `rules.cpp` holds fuel, coins, flips, unlocks and the shop; `eras.cpp` is the data for
 the ten eras. The page panel (`src/turbo-trails/Panel.tsx`) shows the story, the shop and the era list, and plays
 the era's music (your own Chariots recordings, served from `dist/turbo-trails/`). `art.h` draws each era's backdrop,
@@ -92,4 +92,4 @@ valid shaders reach the game (`pg_set_shader`).
 | HandmadeMath | v2.0.0 |
 | stb_truetype | v1.26 (public domain), bakes the Turbo Trails HUD font `native/fonts/LilitaOne-Regular.ttf` (Lilita One, OFL) |
 | doctest | v2.5.3 |
-| Box2D | v3.1.1 |
+| Box2D | v3.1.1, in `@xlibraries/physics-2d` |

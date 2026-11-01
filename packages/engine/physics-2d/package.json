@@ -1,0 +1,56 @@
+{
+  "name": "@xlibraries/physics-2d",
+  "version": "0.1.0",
+  "description": "2D rigid-body physics for C++ modules: a backend-free contract (xl_physics2d.h) with Box2D v3.1.1 behind it, and a fake for tests",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlibraries/Xlib.git",
+    "directory": "packages/engine/physics-2d"
+  },
+  "files": [
+    "include",
+    "src",
+    "third_party"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "xl-native-test",
+    "verify": "xl-native-test"
+  },
+  "devDependencies": {
+    "@xlibraries/adapter-native-test": "workspace:^"
+  },
+  "xlibraries": {
+    "native": {
+      "prefix": "physics-2d",
+      "include": [
+        "include"
+      ],
+      "link": [
+        "src/backend_box2d.cpp"
+      ],
+      "testSources": "src",
+      "libraries": {
+        "box2d": {
+          "sources": "third_party/box2d/src",
+          "language": "c",
+          "isystem": [
+            "third_party/box2d/include"
+          ],
+          "flags": [
+            "-std=gnu17",
+            "-DBOX2D_DISABLE_SIMD",
+            "-Ithird_party/box2d/include",
+            "-Ithird_party/box2d/src"
+          ]
+        }
+      }
+    },
+    "nativeTests": {
+      "uses": []
+    }
+  }
+}

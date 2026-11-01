@@ -118,7 +118,7 @@ module of its dependencies at `/native/<package>@<version>/<module>/` (`scripts/
 
 ## Arcade (`packages/arcade`)
 
-The games, on the engine: `native/games/*` and their panels, Box2D vendored for Turbo Trails. The compiled
+The games, on the engine: `native/games/*` and their panels (Turbo Trails drives on `physics-2d`). The compiled
 `dist/` is committed (CI rebuilds and diffs it) and served at `/native/arcade@<version>/`. Plan:
 [arcade-plan.md](arcade-plan.md).
 

@@ -29,7 +29,6 @@ flowchart TB
         launcher["src/Arcade.tsx<br/>launcher: cards, backend badge, panels"]
         games["native/games/<br/>breakout · playground · showcase (crates on Jolt) · turbo-trails · jyotirath"]
         shaders["native/shaders/*.glsl<br/>written once (sokol-shdc annotated GLSL)"]
-        box2d["third_party/box2d (Turbo Trails)"]
         dist[("dist/&lt;game&gt;/{webgpu,webgl2}.{js,wasm}<br/>committed build output")]
     end
 
@@ -37,7 +36,7 @@ flowchart TB
     view --> pick
     view -- "import() the matching build" --> public
     dist --> public
-    games --> runtime & shaders & third & box2d
+    games --> runtime & shaders & third
     buildpipe -- builds --> dist
 ```
 

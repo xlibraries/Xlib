@@ -12,8 +12,7 @@
   "files": [
     "src",
     "dist",
-    "native",
-    "third_party"
+    "native"
   ],
   "scripts": {
     "build:native": "xl-build",
@@ -39,6 +38,7 @@
     "@xlibraries/engine-core": "workspace:^",
     "@xlibraries/engine-text": "workspace:^",
     "@xlibraries/engine-web": "workspace:^",
+    "@xlibraries/physics-2d": "workspace:^",
     "@xlibraries/physics-3d": "workspace:^",
     "@xlibraries/toolchain": "workspace:^",
     "react": "^19.2.9",
@@ -110,32 +110,21 @@
           "@xlibraries/engine-core",
           "@xlibraries/engine-web",
           "@xlibraries/engine-audio",
-          "@xlibraries/engine-text"
+          "@xlibraries/engine-text",
+          "@xlibraries/physics-2d"
         ],
         "sources": [
           "games/turbo-trails/main.cpp",
-          "games/turbo-trails/physics_box2d.cpp",
+          "games/turbo-trails/vehicle.cpp",
           "games/turbo-trails/terrain.cpp",
           "games/turbo-trails/rules.cpp",
           "games/turbo-trails/eras.cpp",
           "games/turbo-trails/feel.cpp"
         ],
-        "cLibraries": [
-          {
-            "sources": "third_party/box2d/src",
-            "flags": [
-              "-std=gnu17",
-              "-DBOX2D_DISABLE_SIMD",
-              "-Ithird_party/box2d/include",
-              "-Ithird_party/box2d/src"
-            ]
-          }
-        ],
         "shaders": [
           "shaders/turbo-trails.glsl"
         ],
         "flags": [
-          "-Ithird_party/box2d/include",
           "-sEXPORTED_RUNTIME_METHODS=UTF8ToString",
           "-sEXPORTED_FUNCTIONS=_main,_free"
         ],
@@ -179,20 +168,8 @@
     "nativeTests": {
       "uses": [
         "@xlibraries/engine-core",
-        "@xlibraries/physics-3d"
-      ],
-      "cLibraries": [
-        {
-          "sources": "third_party/box2d/src",
-          "flags": [
-            "-DBOX2D_DISABLE_SIMD",
-            "-Ithird_party/box2d/include",
-            "-Ithird_party/box2d/src"
-          ]
-        }
-      ],
-      "includes": [
-        "-Ithird_party/box2d/include"
+        "@xlibraries/physics-3d",
+        "@xlibraries/physics-2d"
       ]
     }
   }
