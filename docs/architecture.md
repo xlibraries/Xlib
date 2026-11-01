@@ -226,9 +226,23 @@ Security Policy plus HSTS, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Per
 Adding a new third-party script, font or frame source means updating `lib/security-headers.ts`. The e2e
 tests fail on any CSP violation, so a missed source shows up before it ships.
 
+## The dependency graph and versions
+
+The workspace is being split into independently versioned packages (`docs/streams-plan.md`). Two things hold it to
+that while it happens:
+
+- **`pnpm graph`** (`packages/graph`) reads every TypeScript import and C/C++ `#include` and checks them against
+  `architecture/layers.json`: each package, and each unit inside one that's to become a package, has a layer, and
+  every edge must be declared, go through the target's public API (`exports`, or headers in `include/`), point down a
+  layer, and not loop. `architecture/baseline.json` lists today's violations, the backlog; anything new fails
+  `pnpm verify` and CI, and anything fixed must be dropped from the baseline (`pnpm graph --update`). `pnpm graph
+  --report` lists them all with the files behind each.
+- **Changesets** (`.changeset/`): every package change carries one (`pnpm changeset`); the four kinds of change and
+  how they map to versions are in `.changeset/README.md`.
+
 ## Tests and deployment
 
-- `pnpm verify` runs lint, typecheck, unit tests (Vitest), Python tests, a production build and the e2e
+- `pnpm verify` checks the dependency graph, then runs lint, typecheck, unit tests (Vitest), Python tests, a production build and the e2e
   tests (Playwright, against `next start`). The pre-commit hook and CI both run it.
 - Vercel builds `master` on every push (`pnpm build`: vendor copy, music snapshot refresh, webpack build) and
   makes preview deployments for pull requests.

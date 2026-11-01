@@ -19,6 +19,8 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Dependency graph (architecture/layers.json; no new violations)
+        run: pnpm graph
       - name: Lint
         run: pnpm lint
       - name: Type-check

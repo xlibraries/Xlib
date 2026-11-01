@@ -29,6 +29,14 @@ The restructuring plan is in `docs/restructure-plan.md`.
   need from `host`, not by importing the shell.
 - Packages ship TypeScript source (no build step); the site compiles them via `transpilePackages`.
 
+- The workspace is moving to independently versioned packages (`docs/streams-plan.md`, phase by phase).
+  `pnpm graph` (`packages/graph`) checks every import and `#include` against `architecture/layers.json` (declared,
+  public API only, downward layers, no cycles) and fails on anything not in `architecture/baseline.json`; fix a
+  violation and run `pnpm graph --update` to drop it. Every package change carries a changeset (`pnpm changeset`;
+  the four kinds of change are in `.changeset/README.md`). Track progress in `MIGRATION.md` (tick items, update the
+  backlog count and the log as phases land). `@xlibraries` resolves to GitHub Packages (`.npmrc`, token in
+  `GITHUB_PACKAGES_TOKEN`); `.github/workflows/release.yml` versions and publishes on every merge with changesets.
+
 ## Commands (repo root)
 
 | | |
@@ -37,7 +45,8 @@ The restructuring plan is in `docs/restructure-plan.md`.
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | across every workspace package |
 | `pnpm --filter @xlibraries/web test:python` | Python tests |
 | `pnpm --filter @xlibraries/web exec next build --webpack && pnpm --filter @xlibraries/web test:e2e` | e2e tests |
-| `pnpm verify` | everything |
+| `pnpm graph` / `pnpm graph --report` | the dependency-graph check / every violation with its files |
+| `pnpm verify` | everything (the graph check first) |
 
 ## Site layout (`apps/web/`)
 

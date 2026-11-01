@@ -1,0 +1,61 @@
+name: Release
+
+# Every merged changeset releases (docs/streams-plan.md §4, .changeset/README.md): on a push to master that carries
+# changesets, version the packages they name (bumps and changelogs), commit that, then publish every package that
+# isn't private to GitHub Packages and tag it. Packages are still private while they wait for their phase, so until
+# one opts in this only versions them. Deployment isn't touched: the site ships what it pins.
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    # the version commit below pushes to master; don't release it again
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Any changesets?
+        id: pending
+        run: |
+          if ls .changeset/*.md 2>/dev/null | grep -v README.md >/dev/null; then echo "yes=true" >> "$GITHUB_OUTPUT"; else echo "yes=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Version the packages
+        if: steps.pending.outputs.yes == 'true'
+        run: |
+          pnpm changeset version
+          pnpm install --lockfile-only --ignore-scripts
+          git config user.name "xlibraries-release[bot]"
+          git config user.email "release@xlibraries.invalid"
+          git add -A
+          # the hook runs pnpm verify; CI already verified this commit's sources, and this commit only bumps versions
+          git commit --no-verify -m "Release packages [skip release]"
+          git push
+        env:
+          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish to GitHub Packages
+        if: steps.pending.outputs.yes == 'true'
+        run: |
+          pnpm changeset publish
+          git push --follow-tags
+        env:
+          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "false"

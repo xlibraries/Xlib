@@ -16,7 +16,7 @@ const LIBRARIES = ['@xlibraries/app-sdk', '@xlibraries/engine'];
 function sourceFiles(dir: string): string[] {
     if (!existsSync(dir)) return [];
     return readdirSync(dir).flatMap((name) => {
-        if (name === 'node_modules' || name.startsWith('.')) return [];
+        if (name === 'node_modules' || name === 'fixtures' || name.startsWith('.')) return [];   // fixtures: test data, not code
         const path = join(dir, name);
         return statSync(path).isDirectory() ? sourceFiles(path) : SOURCE.test(name) ? [path] : [];
     });

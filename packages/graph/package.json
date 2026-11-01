@@ -1,0 +1,23 @@
+{
+  "name": "@xlibraries/graph",
+  "version": "0.1.0",
+  "description": "Checks a pnpm workspace's dependency graph (TypeScript imports and C/C++ includes) against a layer map: declared, public, downward, acyclic",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "graph": "./bin/graph.mjs"
+  },
+  "exports": {
+    ".": "./src/graph.mjs",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run",
+    "verify": "eslint . && vitest run"
+  },
+  "devDependencies": {
+    "vitest": "3.2.4"
+  }
+}
