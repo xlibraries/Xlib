@@ -1,0 +1,36 @@
+# API documentation for the workspace's C/C++ (the engine, the games, Bot Lab's world and view), from its Doxygen
+# comments (the convention is in CLAUDE.md). `pnpm docs:api` writes HTML to build/doxygen/html/ (gitignored); any
+# broken documentation fails it (and CI). TypeScript and JavaScript follow the same comment style, but Doxygen can't
+# parse them, so they aren't listed here. Only settings that differ from Doxygen's defaults.
+
+PROJECT_NAME           = "Xlib"
+PROJECT_BRIEF          = "The Xlib desktop's packages: engine, toolchain, Arcade, Bot Lab"
+OUTPUT_DIRECTORY       = build/doxygen
+INPUT                  = docs/api.md packages
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.hpp *.cpp
+EXCLUDE_PATTERNS       = */node_modules/* */third_party/* */dist/* */build/* */.next/* */.tools/*
+USE_MDFILE_AS_MAINPAGE = docs/api.md
+
+# the first sentence of a /** */ block is its brief (how the code's comments are already written)
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+MARKDOWN_SUPPORT       = YES
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+EXTRACT_ANON_NSPACES   = YES
+SOURCE_BROWSER         = YES
+STRIP_FROM_PATH        = .
+
+# warn about broken documentation (a @param naming no parameter), not about what isn't documented yet
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = FAIL_ON_WARNINGS
+WARN_LOGFILE           = build/doxygen/warnings.log
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HAVE_DOT               = NO

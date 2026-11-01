@@ -15,6 +15,18 @@ never `npm install`).
 - Fix flaky tests rather than retrying them; e2e tests must not depend on outside services (mock them with
   `page.route`).
 
+## Comments: Doxygen style
+
+- Every new or changed declaration (function, class, struct, member, constant, type) gets a Doxygen comment:
+  `/** … */` before it, or `///<` after a member on its line. The first sentence is the brief (`JAVADOC_AUTOBRIEF`),
+  then the details, then commands as needed: `@param name …` for every parameter, `@return …`, `@tparam` for
+  templates, `@throws` where it throws, `@note` / `@warning`, `@see`. A file opens with a block saying what it is
+  (in C/C++, `/** @file … */`).
+- TypeScript and JavaScript use the same commands (TSDoc and JSDoc read them).
+- `pnpm docs:api` (`Doxyfile`) builds the C/C++ API docs into `build/doxygen/html/` and fails on broken documentation
+  (a `@param` naming no parameter); CI runs it. Doxygen can't parse TypeScript, so TS isn't in it.
+- Existing comments move to this style when their file is touched. The prose stays plain sentences: what and why.
+
 ## Packages and boundaries
 
 The restructuring plan is in `docs/restructure-plan.md`.
@@ -46,6 +58,7 @@ The restructuring plan is in `docs/restructure-plan.md`.
 | `pnpm --filter @xlibraries/web test:python` | Python tests |
 | `pnpm --filter @xlibraries/web exec next build --webpack && pnpm --filter @xlibraries/web test:e2e` | e2e tests |
 | `pnpm graph` / `pnpm graph --report` | the dependency-graph check / every violation with its files |
+| `pnpm docs:api` | the C/C++ API docs (Doxygen) into `build/doxygen/html/` |
 | `pnpm verify` | everything (the graph check first) |
 
 ## Site layout (`apps/web/`)

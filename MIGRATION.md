@@ -69,6 +69,8 @@ the number here when a phase lands.
 
 ## Phase 2: engine split
 
+- [ ] Every public header's declarations documented in Doxygen style (the convention in CLAUDE.md) as it moves
+
 - [ ] `engine-core` (platform contract), `engine-web` (sokol_app, Emscripten glue, backend choice, audio-worklet bridge),
       `engine-react` (`EngineView`)
 - [ ] `engine-audio`, `engine-text` (ships Lilita One as the primary font; games register their own)
@@ -130,3 +132,4 @@ the number here when a phase lands.
 | 2026-11-01 | Phase 0: graph checker, layer map, baseline (72), Changesets, registry config, release workflow; packages token verified |
 | 2026-11-01 | Flaky tests: admin logins get their own client address; the engine keeps the volume for games whose audio starts later |
 | 2026-11-01 | Phase 1: toolchain + adapters, per-module stamps, `/native/` serving; baseline 72 → 66 |
+| 2026-11-01 | Doxygen-style comments (CLAUDE.md, "Comments"); `Doxyfile` + `pnpm docs:api` for the C/C++, checked in CI |
